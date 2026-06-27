@@ -51,7 +51,12 @@ export default function TeacherView({
     try {
       await injectFault({ device: dev, fault_type: ftype, target, severity });
       setMsg(`已注入 ${ftype} → ${dev}.${target}（severity ${severity}）`);
-    } catch (e: any) { setMsg(`注入失敗:${e.message}（檢查 token / target）`); }
+    } catch (e: any) {
+      const hint = String(e.message).includes("401")
+        ? "token 不符,請填 .env 的 TEACHER_TOKEN(預設 dev-teacher-token)並按儲存"
+        : "檢查 target 是否選對";
+      setMsg(`注入失敗:${e.message} — ${hint}`);
+    }
   };
   const doReset = async () => {
     try { await resetDevice(dev); setMsg(`已 reset ${dev}`); }
@@ -65,7 +70,7 @@ export default function TeacherView({
       {/* token + 時鐘 */}
       <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 16 }}>
         <div>
-          <div className="hint">teacher token</div>
+          <div className="hint">teacher token（= .env 的 TEACHER_TOKEN,預設 dev-teacher-token）</div>
           <input value={token} onChange={(e) => setTok(e.target.value)} placeholder="dev-teacher-token"
                  style={inp} />
           <button onClick={saveToken} style={btn}>儲存</button>

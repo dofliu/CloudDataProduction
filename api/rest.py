@@ -41,6 +41,11 @@ class ClaimRequest(BaseModel):
     student_id: str
 
 
+class FactoryRequest(BaseModel):
+    description: Optional[str] = None    # 自然語言建廠
+    yaml: Optional[str] = None           # 或直接給公司設定 YAML
+
+
 def create_app(
     world: World,
     historian: Historian,
@@ -207,6 +212,21 @@ def create_app(
         return device.inject_fault(
             req.fault_type, req.target, req.severity, req.onset_sim_s, **(req.params or {})
         )
+
+    @app.post("/api/factory", dependencies=[Depends(require_teacher)])
+    def create_factory(req: FactoryRequest):
+        import yaml as _yaml
+        from ai.factory_generator import generate_factory
+        if req.yaml:
+            company_cfg = _yaml.safe_load(req.yaml)
+        elif req.description:
+            try:
+                company_cfg = generate_factory(req.description, list(world.devices))
+            except ValueError as e:
+                raise HTTPException(422, str(e))
+        else:
+            raise HTTPException(422, "需提供 description 或 yaml")
+        return world.add_company(company_cfg)
 
     @app.post("/api/devices/{device_id}/reset", dependencies=[Depends(require_teacher)])
     def reset_device(device_id: str):

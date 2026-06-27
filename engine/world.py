@@ -62,6 +62,43 @@ class World:
                     raise ValueError(f"設備 id 重複:{device.id}")
                 self.devices[device.id] = device
 
+    # ── 動態建廠(hot-add,docs/06)──────────────────────────
+    def _next_unit_id(self) -> int:
+        used = [(d.protocols.get("modbus", {}) or {}).get("unit_id", 0) for d in self.devices.values()]
+        return max(used, default=0) + 1
+
+    def add_company(self, company_cfg: dict) -> dict:
+        """把一間新公司(含設備)即時加入世界:引擎推進、WS 廣播、目錄/工單/評分立即生效。
+        原生協定 server 在啟動時建好,新設備需重啟 server 才會被 Modbus/OPC-UA/MQTT 暴露。"""
+        cid = company_cfg.get("id") or f"c{len(self.park.get('companies', [])) + 1:02d}"
+        company_cfg["id"] = cid
+        company_cfg.setdefault("map_pos", {"x": 6 + 5 * len(self.park.get("companies", [])) % 20, "y": 20})
+        company_cfg.setdefault("owner", None)
+
+        uid = max(self._next_unit_id(), 50)   # 動態加的從 50 起,避開既有定址
+        built = []
+        for dev_cfg in company_cfg.get("devices", []) or []:
+            did = dev_cfg["id"]
+            if did in self.devices:
+                did = f"{did}-{uid}"
+                dev_cfg["id"] = did
+            proto = dev_cfg.setdefault("protocols", {})
+            proto.setdefault("modbus", {"unit_id": uid, "register_base": 0})
+            proto.setdefault("opcua", {"node_folder": f"{cid}/{did}"})
+            proto.setdefault("mqtt", {"topic_prefix": f"park/{cid}/{did}"})
+            uid += 1
+            device = get_builder(dev_cfg["template"])(did, dev_cfg, cid)
+            device.hot_added = True
+            self.devices[did] = device
+            built.append(did)
+
+        self.park.setdefault("companies", []).append(company_cfg)
+        return {
+            "company": cid, "name": company_cfg.get("name"), "devices": built,
+            "note": "已即時加入:引擎/2D世界/WS/目錄/工單皆生效;"
+                    "原生協定(Modbus/OPC-UA/MQTT)需重啟 server 才會暴露新設備。",
+        }
+
     # ── 訂閱 ────────────────────────────────────────────────
     def subscribe(self, callback: Subscriber) -> None:
         """訂閱每 tick 的 telemetry snapshot。"""

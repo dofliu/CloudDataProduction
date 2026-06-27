@@ -150,4 +150,47 @@ npm run dev        # 開 http://localhost:5173
 
 ---
 
+## P2 階段一教學完整可用
+
+P2 已完成:**故障注入 + 感測器故障 + 工單 + 自動評分 + 教師控制台 + 自然語言建廠 + MCP**。
+完整教學閉環:老師注入故障 → 學生偵測開工單 → 處置 resolve → 系統自動計分。
+
+- **故障注入**:設備故障(sudden/gradual/intermittent/cascading)與感測器故障
+  (drift/stuck/bias/noise/dropout)。感測器故障只汙染讀值、不動隱藏 health,
+  讓學生學會分辨「設備壞了 vs 感測器壞了」。
+- **工單 / MTTR**:故障自動開單,學生 ack→resolve(順手修復設備),量偵測延遲與 MTTR。
+- **自動評分**:用 ground-truth 算偵測延遲 / MTTR / 漏報,出公開排名榜。
+- **教師控制台**(web「教師控制台」分頁):token、調速、注入故障表單、ground-truth
+  health/RUL、工單板、評分榜。
+- **自然語言建廠**:`POST /api/factory {description}`,例「建一間有 3 台 CNC 的公司」即時長出
+  新公司(規則式解析,免 LLM key);web 表單與 MCP 皆可觸發。
+- **MCP server**(`mcp/server.py`,老師本機 Claude Desktop):薄 REST 轉接,
+  含 create_factory / inject_fault / set_sim_clock / get_health / get_scores 等工具。
+
+### 教師面 auth
+
+教師端點需帶 `Authorization: Bearer <TEACHER_TOKEN>`(`.env` 設,預設 `dev-teacher-token`)。
+教師控制台填一次 token 即存於瀏覽器。學生面(目錄 / 遙測 / 工單 / 評分)維持公開唯讀。
+
+### MCP 啟動(老師本機)
+
+```powershell
+$env:WORLD_API_URL="http://127.0.0.1:8077"   # 5090 的 LAN / Tailscale 位址
+$env:TEACHER_TOKEN="dev-teacher-token"
+python mcp/server.py                          # 掛進 Claude Desktop;勿用 -m(避免遮蔽 mcp SDK)
+```
+
+### P2 驗收狀態
+
+| 驗收項 | 狀態 | 備註 |
+|--------|------|------|
+| 設備故障 vs 感測器故障 | ✅ 已驗 | gradual 把故障從 >150h 提早到 20h;sensor_drift 讓溫度 59→145℃ 但 health 乾淨 |
+| 教師 auth | ✅ 已驗 | 無 token 注入故障 → 401 |
+| 注入→自動開單→ack/resolve→評分 | ✅ 已驗 | 偵測延遲 / MTTR 計算正確,resolve 後設備 reset 回 idle |
+| 教師控制台(瀏覽器操作) | ✅ 已驗 | 注入 gradual → RUL 129h 驟降 7.5h、health 條下降、工單/評分即時 |
+| 自然語言建廠 | ✅ 已驗 | 「2 台 CNC 的公司」→ 即時長出新公司、新設備已運轉、可注入故障 |
+| MCP server | ✅ 匯入驗證 | 8 工具就位(完整流程需 Claude Desktop) |
+
+---
+
 作者:勤益科大 劉瑞弘 · DofLab

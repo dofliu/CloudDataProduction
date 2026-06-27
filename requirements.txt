@@ -17,5 +17,9 @@ asyncpg>=0.29
 asyncua>=1.1
 amqtt>=0.11
 
-# ── 後續 phase 會用到,先註解保留 ────────────────────────
-# fastmcp>=0.2            # MCP server(老師本機)
+# P2:MCP server(老師本機 Claude Desktop;薄 REST 轉接)
+fastmcp>=3.0
+httpx>=0.27
+
+# 自然語言建廠目前走規則式(免 key);要改用 LLM 再裝對應 SDK,例:
+# google-generativeai>=0.5   # Gemini(設 GEMINI_API_KEY)

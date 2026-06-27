@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Catalog, EventMsg, Park, TelemetryMsg,
-  getCatalog, getPark, setClock, subscribe, STATUS_COLOR_CSS,
+  getCatalog, getPark, subscribe, STATUS_COLOR_CSS,
 } from "./api";
 import WorldView from "./world/WorldView";
 import CatalogView from "./catalog/CatalogView";
+import TeacherView from "./teacher/TeacherView";
 
 export default function App() {
   const [park, setPark] = useState<Park | null>(null);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [telemetry, setTelemetry] = useState<TelemetryMsg | null>(null);
   const [events, setEvents] = useState<EventMsg[]>([]);
-  const [view, setView] = useState<"world" | "catalog">("world");
+  const [view, setView] = useState<"world" | "catalog" | "teacher">("world");
   const [selected, setSelected] = useState<string | null>(null);
   const telemetryRef = useRef<TelemetryMsg | null>(null);
 
@@ -38,17 +39,11 @@ export default function App() {
         <h1>🏭 {park?.name ?? "勤益智慧工業區"}</h1>
         <span className="synthetic">合成數據 SYNTHETIC</span>
         <span className="clock">sim {simHours} h · {mult ?? "—"}×</span>
-        <div className="speed">
-          <button onClick={() => setClock({ multiplier: 60 })}>60×</button>
-          <button onClick={() => setClock({ multiplier: 600 })}>600×</button>
-          <button onClick={() => setClock({ multiplier: 3600 })}>3600×</button>
-          <button onClick={() => setClock({ paused: true })}>⏸</button>
-          <button onClick={() => setClock({ paused: false })}>▶</button>
-        </div>
         <div className="spacer" />
         <nav className="nav">
           <button className={view === "world" ? "active" : ""} onClick={() => setView("world")}>2D 世界</button>
           <button className={view === "catalog" ? "active" : ""} onClick={() => setView("catalog")}>設備目錄</button>
+          <button className={view === "teacher" ? "active" : ""} onClick={() => setView("teacher")}>教師控制台</button>
         </nav>
       </header>
 
@@ -101,8 +96,10 @@ export default function App() {
               </div>
             </aside>
           </>
-        ) : (
+        ) : view === "catalog" ? (
           <CatalogView catalog={catalog} telemetry={telemetry} />
+        ) : (
+          park && <TeacherView park={park} telemetry={telemetry} />
         )}
       </div>
     </div>

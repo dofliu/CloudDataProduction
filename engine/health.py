@@ -92,15 +92,18 @@ class DegradationComponent:
         dD = self.effective_rate() * max(0.0, stress) * factor * dt_sim
         self.D = min(self.D + dD, self.D_fail)
 
-    def rul(self, stress: float) -> float:
+    def rul(self, stress: float) -> float | None:
         """剩餘壽命(模擬秒):依當前損傷與退化率前推到失效門檻。
 
         回傳 sim 秒,故與時間倍率無關 —— 用於階段二 lead-time 評分的乾淨 ground-truth。
         失效門檻 h=failure_threshold 對應 D_at_fail = (1−threshold)·D_fail。
+        待機(stress≈0)時退化暫停,RUL 未定義,回傳 None(由顯示端標「—」)。
         """
         if self.failed:
             return 0.0
-        r_eff = self.effective_rate() * max(1e-9, stress)
+        if stress <= 1e-6:
+            return None
+        r_eff = self.effective_rate() * stress
         D_at_fail = (1.0 - self.failure_threshold) * self.D_fail
         remaining = (D_at_fail - self.D) / r_eff
         return max(0.0, float(remaining))

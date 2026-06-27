@@ -264,7 +264,8 @@ class Device:
         op = self.duty.operating_point(getattr(self, "_sim_t", 0.0))
         stress = self._stress(op)
         comps = [c.ground_truth(stress) for c in self.components.values()]
-        rul = min((c["rul_sim_s"] for c in comps), default=float("inf"))
+        rul_vals = [c["rul_sim_s"] for c in comps if c["rul_sim_s"] is not None]
+        rul = min(rul_vals) if rul_vals else None     # 全部待機 → RUL 未定義
         return {
             "id": self.id,
             "state": self.state,

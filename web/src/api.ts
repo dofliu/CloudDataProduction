@@ -49,14 +49,70 @@ export async function getJSON<T>(path: string): Promise<T> {
 export const getPark = () => getJSON<Park>("/api/park");
 export const getCatalog = () => getJSON<Catalog>("/api/catalog");
 
-// 設定模擬時鐘(倍率 / 暫停)
-export async function setClock(body: { multiplier?: number; paused?: boolean }) {
-  await fetch("/api/sim/clock", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+// ── 教師 token(教師面端點需帶)──────────────────────────
+let teacherToken = localStorage.getItem("teacher_token") || "";
+export function setTeacherToken(t: string) {
+  teacherToken = t;
+  localStorage.setItem("teacher_token", t);
 }
+export function getTeacherToken() { return teacherToken; }
+function authHeaders(): Record<string, string> {
+  const h: Record<string, string> = { "Content-Type": "application/json" };
+  if (teacherToken) h["Authorization"] = `Bearer ${teacherToken}`;
+  return h;
+}
+async function post(path: string, body?: any, auth = false) {
+  const r = await fetch(path, {
+    method: "POST",
+    headers: auth ? authHeaders() : { "Content-Type": "application/json" },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  if (!r.ok) throw new Error(`${path} -> ${r.status}`);
+  return r.json().catch(() => ({}));
+}
+
+// 模擬時鐘(教師面)
+export const setClock = (body: { multiplier?: number; paused?: boolean }) =>
+  post("/api/sim/clock", body, true);
+
+// ── 故障注入 / ground-truth(教師面)─────────────────────
+export interface FaultBody {
+  device: string; fault_type: string; target: string;
+  severity?: number; onset_sim_s?: number; params?: Record<string, any>;
+}
+export const injectFault = (body: FaultBody) => post("/api/faults", body, true);
+export const resetDevice = (id: string) => post(`/api/devices/${id}/reset`, undefined, true);
+
+export interface ComponentGT { name: string; health: number; rul_sim_s: number | null; failed: boolean; trajectory: string; }
+export interface HealthGT {
+  id: string; state: string; rul_sim_s: number | null;
+  fault_onset_sim_t: number | null; components: ComponentGT[];
+  sensor_faults: Record<string, any>; is_sensor_fault: boolean; injected: any[];
+}
+export async function getHealth(id: string): Promise<HealthGT> {
+  const r = await fetch(`/api/devices/${id}/health`, { headers: authHeaders() });
+  if (!r.ok) throw new Error(`health ${id} -> ${r.status}`);
+  return r.json();
+}
+
+// ── 工單 / 評分(學生面公開)─────────────────────────────
+export interface Ticket {
+  id: string; device: string; company: string; owner: string | null;
+  component: string | null; fault_type: string | null; onset_sim_t: number;
+  status: string; ack_sim_t: number | null; resolve_sim_t: number | null;
+  detection_latency_sim_s: number | null; mttr_sim_s: number | null;
+}
+export const getTickets = (owner?: string) =>
+  getJSON<{ tickets: Ticket[] }>(`/api/tickets${owner ? `?owner=${encodeURIComponent(owner)}` : ""}`);
+export const ackTicket = (id: string) => post(`/api/tickets/${id}/ack`);
+export const resolveTicket = (id: string) => post(`/api/tickets/${id}/resolve`);
+
+export interface ScoreRow {
+  company: string; name: string; owner: string | null;
+  faults: number; detected: number; resolved: number; missed: number;
+  avg_detection_h: number | null; avg_mttr_h: number | null; score: number;
+}
+export const getScores = () => getJSON<{ ranking: ScoreRow[] }>("/api/scores");
 
 // 自動重連的 WebSocket 訂閱;回傳 close 函式。
 export function subscribe<T>(path: string, onMessage: (msg: T) => void): () => void {

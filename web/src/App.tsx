@@ -103,6 +103,8 @@ export default function App() {
                       <span style={{ color: "#f08c2e" }}>🔮 {e.device} 預測故障（{e.student}）</span>
                     ) : e.type === "prediction_hit" ? (
                       <span style={{ color: "#37d67a" }}>✅ {e.device} 預測命中 lead {((e.lead_time_sim ?? 0) / 3600).toFixed(1)}h（{e.student}）</span>
+                    ) : e.type === "scenario" ? (
+                      <span style={{ color: "#f08c2e" }}>🎬 {e.message}</span>
                     ) : (
                       <span>{e.device}：{e.from} → {e.to}</span>
                     )}

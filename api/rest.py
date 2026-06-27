@@ -20,6 +20,7 @@ from historian.writer import Historian
 from .catalog import build_catalog
 from .diagnostics import run_diagnostics
 from .predictions import PredictionStore
+from .scenarios import ScenarioManager
 from .scoring import ScoringEngine
 from .tickets import TicketStore
 from .ws import ConnectionManager, register_ws_routes
@@ -85,6 +86,10 @@ def create_app(
     # 階段二預測(發 prediction / prediction_hit 走 events 通道)
     predictions = PredictionStore(world)
     predictions.set_emitter(events_mgr.broadcast)
+
+    # 情境腳本(災難日);步驟事件走 events 通道
+    scenarios = ScenarioManager(world)
+    scenarios.set_emitter(events_mgr.broadcast)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -263,6 +268,25 @@ def create_app(
         else:
             raise HTTPException(422, "需提供 description 或 yaml")
         return world.add_company(company_cfg)
+
+    # 情境腳本(災難日):列出公開,執行需 teacher token
+    @app.get("/api/scenarios")
+    def list_scenarios():
+        return {"scripts": scenarios.list_scripts(), "status": scenarios.status()}
+
+    @app.post("/api/scenarios/{name}/run", dependencies=[Depends(require_teacher)])
+    async def run_scenario(name: str):
+        try:
+            return await scenarios.run(name)
+        except FileNotFoundError:
+            raise HTTPException(404, f"無此情境腳本:{name}")
+        except RuntimeError as e:
+            raise HTTPException(409, str(e))
+
+    @app.post("/api/scenarios/stop", dependencies=[Depends(require_teacher)])
+    def stop_scenario():
+        scenarios.stop()
+        return {"stopped": True}
 
     @app.post("/api/devices/{device_id}/reset", dependencies=[Depends(require_teacher)])
     def reset_device(device_id: str):

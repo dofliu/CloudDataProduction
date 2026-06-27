@@ -1,10 +1,10 @@
 name: CloudDataProduction
 name_zh: 雲端生產數據導論 — 虛擬智慧工業區教學平台
 category: edtech
-progress: 80
+progress: 88
 status: active
 last_updated: "2026-06-27"
-next_milestone: "P4:動畫、情境腳本(災難日)、OEE/排名榜、對外接入(Cloudflare Tunnel + Tailscale)、multi_port"
+next_milestone: "P4 收尾:2D 動畫、OEE/排名榜、對外接入(Cloudflare Tunnel + Tailscale)、multi_port"
 technologies:
   - Python 3.11
   - asyncio

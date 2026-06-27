@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import {
-  Park, TelemetryMsg, HealthGT, Ticket, ScoreRow, PredScoreRow,
+  Park, TelemetryMsg, HealthGT, Ticket, ScoreRow, PredScoreRow, ScenarioScript, ScenarioStatus,
   setTeacherToken, getTeacherToken, setClock,
   injectFault, resetDevice, getHealth, getTickets, ackTicket, resolveTicket, getScores, getPredictionScores,
+  getScenarios, runScenario, stopScenario,
 } from "../api";
 
 const FAULT_TYPES = [
@@ -24,6 +25,9 @@ export default function TeacherView({
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [scores, setScores] = useState<ScoreRow[]>([]);
   const [predScores, setPredScores] = useState<PredScoreRow[]>([]);
+  const [scripts, setScripts] = useState<ScenarioScript[]>([]);
+  const [scenStatus, setScenStatus] = useState<ScenarioStatus | null>(null);
+  const [scenName, setScenName] = useState("disaster_day");
 
   const deviceIds = telemetry ? Object.keys(telemetry.devices) : [];
   const isSensor = ftype.startsWith("sensor_");
@@ -41,6 +45,7 @@ export default function TeacherView({
       try { setTickets((await getTickets()).tickets); } catch { /* */ }
       try { setScores((await getScores()).ranking); } catch { /* */ }
       try { setPredScores((await getPredictionScores()).ranking); } catch { /* */ }
+      try { const s = await getScenarios(); setScripts(s.scripts); setScenStatus(s.status); } catch { /* */ }
     };
     tick();
     const id = setInterval(tick, 2000);
@@ -114,6 +119,30 @@ export default function TeacherView({
         <button style={btn} onClick={doReset}>reset 設備</button>
       </div>
       {msg && <div className="hint" style={{ marginTop: 8, color: "#5b9bd5" }}>{msg}</div>}
+
+      {/* 情境腳本(災難日) */}
+      <h3 style={{ marginTop: 22 }}>情境腳本（期末測驗）</h3>
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <select value={scenName} onChange={(e) => setScenName(e.target.value)} style={inp}>
+          {scripts.map((s) => <option key={s.name} value={s.name}>{s.name}（{s.steps} 步）</option>)}
+        </select>
+        <button style={{ ...btn, background: "#f08c2e", color: "#08121e" }}
+                disabled={!!scenStatus?.running}
+                onClick={async () => { try { await runScenario(scenName); setMsg(`已啟動情境 ${scenName}`); } catch (e: any) { setMsg(`啟動失敗:${e.message}`); } }}>
+          ▶ 執行
+        </button>
+        <button style={btn} onClick={async () => { await stopScenario(); setMsg("已停止情境"); }}>停止</button>
+        {scenStatus?.running && <span style={{ color: "#f08c2e" }}>● 執行中:{scenStatus.running}</span>}
+      </div>
+      {scripts.find((s) => s.name === scenName) &&
+        <div className="hint" style={{ marginTop: 4 }}>{scripts.find((s) => s.name === scenName)!.description}</div>}
+      {scenStatus && scenStatus.log.length > 0 && (
+        <div className="hint" style={{ marginTop: 6 }}>
+          {scenStatus.log.slice(0, 6).map((l, i) => (
+            <div key={i}>{(l.sim_t / 3600).toFixed(1)}h · {l.message}</div>
+          ))}
+        </div>
+      )}
 
       {/* ground-truth */}
       <h3 style={{ marginTop: 22 }}>Ground-truth · {dev}</h3>

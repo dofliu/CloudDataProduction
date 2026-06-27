@@ -24,6 +24,7 @@ export interface EventMsg {
   from?: string; to?: string; component?: string;
   fault_type?: string; sim_t: number;
   student?: string; lead_time_sim?: number; confidence?: number;  // 預測事件
+  message?: string;                                                // 情境事件
 }
 
 export interface CatalogTag {
@@ -139,6 +140,13 @@ export interface Diagnostics {
   protocols: { modbus: DiagProto; opcua: DiagProto; mqtt: DiagProto };
 }
 export const getDiagnostics = () => getJSON<Diagnostics>("/api/diagnostics/protocols");
+
+// ── 情境腳本(災難日)───────────────────────────────────
+export interface ScenarioScript { name: string; description: string; steps: number; }
+export interface ScenarioStatus { running: string | null; log: { message: string; sim_t: number }[]; }
+export const getScenarios = () => getJSON<{ scripts: ScenarioScript[]; status: ScenarioStatus }>("/api/scenarios");
+export const runScenario = (name: string) => post(`/api/scenarios/${name}/run`, undefined, true);
+export const stopScenario = () => post("/api/scenarios/stop", undefined, true);
 
 // 自動重連的 WebSocket 訂閱;回傳 close 函式。
 export function subscribe<T>(path: string, onMessage: (msg: T) => void): () => void {

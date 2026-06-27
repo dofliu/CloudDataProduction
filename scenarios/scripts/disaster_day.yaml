@@ -1,0 +1,29 @@
+# 災難日:期末實作測驗用的連鎖故障腳本。
+# 步驟時間 at_sim_s 是「從觸發本腳本起算的 sim 秒」。預設 600×(set_clock 第一步固定),
+# 整場約 30 sim 小時內陸續發難 ≈ 3 分鐘 wall。全班同時間軸、同條件。
+name: disaster_day
+description: "期末災難日:多設備連鎖故障 + 一個感測器干擾(考根因判斷)"
+steps:
+  - at_sim_s: 0
+    action: set_clock
+    params: {multiplier: 600}
+
+  - at_sim_s: 3600          # +1h:CNC 主軸軸承漸進退化
+    action: inject_fault
+    params: {device: cnc-01, target: spindle_bearing, fault_type: gradual, severity: 0.9}
+
+  - at_sim_s: 7200          # +2h:空壓機馬達軸承漸進退化
+    action: inject_fault
+    params: {device: comp-01, target: motor_bearing, fault_type: gradual, severity: 1.0}
+
+  - at_sim_s: 10800         # +3h:溫度感測器漂移(陷阱!設備其實沒壞,考根因)
+    action: inject_fault
+    params: {device: comp-02, target: motor_temp, fault_type: sensor_drift, severity: 1.0, drift_per_h: 6.0}
+
+  - at_sim_s: 14400         # +4h:AGV 馬達突發故障
+    action: inject_fault
+    params: {device: agv-01, target: motor_bearing, fault_type: sudden}
+
+  - at_sim_s: 18000         # +5h:CNC-02 連鎖故障(牽動相關元件)
+    action: inject_fault
+    params: {device: cnc-02, target: spindle_bearing, fault_type: cascading, severity: 0.8}

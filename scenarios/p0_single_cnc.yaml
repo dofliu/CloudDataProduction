@@ -1,0 +1,46 @@
+# P0 最小垂直切片場景:單台 CNC,自然退化到軸承故障(docs/07 P0)。
+#
+# 調校目標:time_multiplier=3600(一秒走一小時)時,約 90 秒 wall-clock 內
+# 看完「健康 → 振動上升 → 電流跟漲 → 溫度升 → 軸承故障」完整週期。
+# 想看慢一點把 time_multiplier 改 600 或 60 即可(退化對 sim 時間積分,改倍率只是放慢觀察)。
+park:
+  name: "勤益智慧工業區(P0 單機驗證)"
+  sim:
+    tick_hz: 10
+    time_multiplier: 3600        # 1 / 60 / 600 / 3600
+  protocol_mode: channel_mux     # 共用 3 埠,以 unit_id / folder / topic 分設備
+  ports:
+    modbus: 502                  # Windows 綁 502 需系統管理員;可用 .env 的 MODBUS_PORT 覆寫(如 5020)
+    opcua: 4840
+    mqtt: 1883
+
+  companies:
+    - id: c01
+      name: "精鋐機械"
+      industry: cnc_machining
+      owner: null                # 學生認領後填學號(P2)
+      map_pos: {x: 12, y: 8}
+      devices:
+        - id: cnc-01
+          template: cnc_machining_center
+          protocols:
+            modbus: {unit_id: 1, register_base: 0}
+            opcua:  {node_folder: "c01/cnc-01"}
+            mqtt:   {topic_prefix: "park/c01/cnc-01"}
+          duty_cycle: {profile: continuous, load_nom: 75}
+          degradation:
+            # 軸承:exponential —— 後期崩得快,對應真實軸承劣化。這是會讓設備進 fault 的本體退化。
+            spindle_bearing:
+              rate: 0.0000012
+              trajectory: exponential
+              k: 3.0
+              sigma: 0.08
+              init_health: 0.90    # 起點略有損傷,縮短示範時間
+              failure_threshold: 0.0
+            # 刀具:linear、較快、指標型(不直接判定設備故障),示範「振動漲但刀具也在磨」的多訊號情境
+            tool_wear:
+              rate: 0.0000015
+              trajectory: linear
+              sigma: 0.15
+              init_health: 1.0
+              causes_device_fault: false

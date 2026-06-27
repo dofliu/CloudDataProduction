@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# 環境設定(含金鑰,絕不入庫)
+.env
+
+# 資料與輸出
+*.log
+*.csv
+data/
+historian_data/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

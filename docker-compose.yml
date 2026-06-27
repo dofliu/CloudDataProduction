@@ -1,0 +1,24 @@
+# 一鍵起全套(目標狀態,見 CLAUDE.md「怎麼跑」)。
+# P0 只需要 TimescaleDB;world 服務先用本機 python main.py 跑即可。
+# 待 P1+ 再把 world / web / mosquitto 加進來。
+services:
+  timescaledb:
+    image: timescale/timescaledb:2.15.0-pg16
+    container_name: clouddata-timescale
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: clouddata
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d clouddata"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  timescale_data:

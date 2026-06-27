@@ -1,0 +1,19 @@
+# ── P0 核心相依 ──────────────────────────────────────────────
+# 引擎與服務同一進程(asyncio + FastAPI),見 docs/01。
+fastapi>=0.110
+uvicorn[standard]>=0.29
+numpy>=1.26
+PyYAML>=6.0
+pydantic>=2.6
+python-dotenv>=1.0
+
+# Modbus TCP 轉接層 —— 版本鎖定,勿升級(見 CLAUDE.md 技術棧)
+pymodbus==3.6.9
+
+# Historian:TimescaleDB(PostgreSQL)非同步驅動
+asyncpg>=0.29
+
+# ── 後續 phase 會用到(P1+),先註解保留 ────────────────────
+# asyncua>=1.1            # OPC-UA server/client
+# aiomqtt>=2.0            # MQTT client
+# fastmcp>=0.2            # MCP server(老師本機)

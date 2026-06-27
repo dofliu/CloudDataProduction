@@ -96,3 +96,29 @@ park:
           degradation:
             motor_bearing:          {rate: 0.0000008, trajectory: exponential, k: 3.0, sigma: 0.12, init_health: 0.97}
             battery_capacity_fade:  {rate: 0.0000006, trajectory: linear, sigma: 0.1, init_health: 1.0, causes_device_fault: false}
+
+    - id: c04
+      name: "鴻運自動化"
+      industry: robotics
+      owner: null
+      map_pos: {x: 18, y: 16}
+      devices:
+        - id: arm-01
+          template: robot_arm_6axis
+          protocols:
+            modbus: {unit_id: 30, register_base: 0}
+            opcua:  {node_folder: "c04/arm-01"}
+            mqtt:   {topic_prefix: "park/c04/arm-01"}
+          duty_cycle: {profile: continuous, load_nom: 65}
+          degradation:
+            reducer_wear: {rate: 0.0000010, trajectory: exponential, k: 3.0, sigma: 0.1, init_health: 0.94}
+            joint_bearing: {rate: 0.0000009, trajectory: exponential, k: 2.5, sigma: 0.12, init_health: 0.96, causes_device_fault: false}
+        - id: arm-02
+          template: robot_arm_6axis
+          protocols:
+            modbus: {unit_id: 31, register_base: 0}
+            opcua:  {node_folder: "c04/arm-02"}
+            mqtt:   {topic_prefix: "park/c04/arm-02"}
+          duty_cycle: {profile: two_shift, load_nom: 60}
+          degradation:
+            reducer_wear: {rate: 0.0000008, trajectory: exponential, k: 3.0, sigma: 0.12, init_health: 0.97}

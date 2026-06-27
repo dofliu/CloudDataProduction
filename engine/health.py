@@ -52,6 +52,9 @@ class DegradationComponent:
         self.D: float = (1.0 - float(init_health)) * self.D_fail
         self._rng = np.random.default_rng(seed)
 
+        # 故障注入用:gradual 注入會放大退化率;預設 1.0(自然退化)
+        self.rate_multiplier: float = 1.0
+
     # ── 狀態查詢 ────────────────────────────────────────────
     @property
     def health(self) -> float:
@@ -64,9 +67,19 @@ class DegradationComponent:
     def effective_rate(self) -> float:
         if self.trajectory == "exponential":
             # 損傷越深、退化越快,對應軸承劣化 / 裂紋擴展
-            return self.rate * (1.0 + self.k * self.D)
-        # linear:固定率,對應刀具磨耗 / 皮帶磨損
-        return self.rate
+            base = self.rate * (1.0 + self.k * self.D)
+        else:
+            # linear:固定率,對應刀具磨耗 / 皮帶磨損
+            base = self.rate
+        return base * self.rate_multiplier   # gradual 注入放大此倍率
+
+    def force_fail(self) -> None:
+        """sudden 注入:立即把損傷推到失效點。"""
+        self.D = self.D_fail
+
+    def reset_injection(self) -> None:
+        """清除注入效果(reset / 維修):回到自然退化率。"""
+        self.rate_multiplier = 1.0
 
     # ── 推進一步 ────────────────────────────────────────────
     def step(self, dt_sim: float, stress: float) -> None:

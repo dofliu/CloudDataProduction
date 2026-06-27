@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
 
 from .health import DegradationComponent
+from .sensor_faults import SensorFault
 
 # 設備狀態 → Modbus 整數碼(adapter 用)。狀態本身在引擎以字串表示,人讀友善。
 STATE_CODES: Dict[str, int] = {
@@ -129,6 +130,11 @@ class Device:
         self.state: str = "idle"
         self._fault_latched: bool = False
         self._sim_t: float = 0.0
+        # 故障注入(老師面):感測器故障層 + 待生效注入佇列 + 故障起始時刻(ground-truth)
+        self.sensor_faults: Dict[str, SensorFault] = {}
+        self._pending_injections: List[dict] = []
+        self._fault_onset_sim_t: Optional[float] = None
+        self._injected: List[dict] = []   # 已生效的注入紀錄(供 ground-truth 顯示)
 
     # ── 運轉點 → 應力 ───────────────────────────────────────
     def _stress(self, op: dict) -> float:
@@ -140,6 +146,7 @@ class Device:
     # ── 推進一步 ────────────────────────────────────────────
     def step(self, dt_sim: float) -> None:
         # sim_t 由 world 在呼叫前注入(見 world.step / set_sim_t),duty cycle 需要絕對時間
+        self._apply_pending_injections()
         op = self.duty.operating_point(self._sim_t)
         # 有狀態物理先跑一次(tag drivers 之後才讀其結果)
         if self.pre_step_fn is not None:
@@ -153,6 +160,12 @@ class Device:
             if tag.driver is not None:
                 tag.value = tag.driver(op, self.components, dt_sim)
 
+        # 感測器故障層:套在真實訊號之後,完全不動 health(ground-truth 仍乾淨)
+        for tag in self.tags:
+            sf = self.sensor_faults.get(tag.name)
+            if sf is not None:
+                tag.value = sf.apply(tag.value, self._sim_t, dt_sim)
+
         self._update_state(op)
 
     def set_sim_t(self, sim_t: float) -> None:
@@ -164,8 +177,9 @@ class Device:
         device_failed = any(
             c.failed and c.causes_device_fault for c in self.components.values()
         )
-        if device_failed:
+        if device_failed and not self._fault_latched:
             self._fault_latched = True
+            self._fault_onset_sim_t = self._sim_t   # 記真正故障起始時刻(算 lead time / 偵測延遲)
         if self._fault_latched:
             self.state = "fault"
         elif self.state_fn is not None:
@@ -174,6 +188,65 @@ class Device:
             self.state = "running"
         else:
             self.state = "idle"
+
+    # ── 故障注入(老師面)────────────────────────────────────
+    def inject_fault(self, fault_type: str, target: str, severity: float = 1.0,
+                     onset_sim_s: Optional[float] = None, **params) -> dict:
+        """注入故障。fault_type 以 'sensor_' 開頭 → target 是 tag;否則 target 是退化元件。
+        onset_sim_s=None 表示立即生效。"""
+        onset = onset_sim_s if onset_sim_s is not None else self._sim_t
+        rec = {"fault_type": fault_type, "target": target,
+               "severity": severity, "onset": onset, "params": params}
+        self._pending_injections.append(rec)
+        return {"device": self.id, "scheduled": rec}
+
+    def _apply_pending_injections(self) -> None:
+        if not self._pending_injections:
+            return
+        still = []
+        for inj in self._pending_injections:
+            if self._sim_t >= inj["onset"]:
+                self._activate_injection(inj)
+            else:
+                still.append(inj)
+        self._pending_injections = still
+
+    def _activate_injection(self, inj: dict) -> None:
+        ft, target, sev = inj["fault_type"], inj["target"], inj["severity"]
+        if ft.startswith("sensor_"):
+            self.sensor_faults[target] = SensorFault(
+                ft, severity=sev, onset_sim_s=self._sim_t, **inj.get("params", {})
+            )
+            self._injected.append({"kind": "sensor", "tag": target, "type": ft,
+                                   "severity": sev, "onset_sim_t": self._sim_t})
+            return
+        comp = self.components.get(target)
+        if comp is None:
+            return
+        if ft == "sudden":
+            comp.force_fail()
+        else:  # gradual / intermittent / cascading:放大退化率(severity 0..1 → 1x..10x)
+            comp.rate_multiplier = 1.0 + sev * 9.0
+            if ft == "cascading":                       # 連鎖:同設備其他本體元件也略加速
+                for c in self.components.values():
+                    if c is not comp and c.causes_device_fault:
+                        c.rate_multiplier = max(c.rate_multiplier, 1.0 + sev * 3.0)
+        self._injected.append({"kind": "equipment", "component": target, "type": ft,
+                               "severity": sev, "onset_sim_t": self._sim_t})
+
+    def reset(self) -> dict:
+        """reset / 維修:修復故障元件、清除感測器故障與注入,讓設備重新運轉。"""
+        for c in self.components.values():
+            c.reset_injection()
+            if c.failed:
+                c.D = (1.0 - 0.95) * c.D_fail        # 修復到 health≈0.95
+        self.sensor_faults.clear()
+        self._pending_injections.clear()
+        self._injected.clear()
+        self._fault_latched = False
+        self._fault_onset_sim_t = None
+        self.state = "idle"
+        return {"device": self.id, "reset": True}
 
     # ── 視圖 ────────────────────────────────────────────────
     def public_snapshot(self) -> dict:
@@ -196,7 +269,11 @@ class Device:
             "id": self.id,
             "state": self.state,
             "rul_sim_s": rul,
+            "fault_onset_sim_t": self._fault_onset_sim_t,   # 真正故障起始(算偵測延遲 / lead time)
             "components": comps,
+            "sensor_faults": {tag: sf.info() for tag, sf in self.sensor_faults.items()},
+            "is_sensor_fault": bool(self.sensor_faults),     # 是否有感測器層異常(讀值脫鉤真實)
+            "injected": self._injected,
             "synthetic": True,  # 學術誠信:永遠標示為合成數據(docs/02 §4)
         }
 

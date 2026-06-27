@@ -19,6 +19,7 @@ from engine.world import World
 from historian.writer import Historian
 from .catalog import build_catalog
 from .diagnostics import run_diagnostics
+from .oee import OeeEngine
 from .predictions import PredictionStore
 from .scenarios import ScenarioManager
 from .scoring import ScoringEngine
@@ -91,6 +92,9 @@ def create_app(
     # 情境腳本(災難日);步驟事件走 events 通道
     scenarios = ScenarioManager(world)
     scenarios.set_emitter(events_mgr.broadcast)
+
+    # OEE 設備總效率排名
+    oee = OeeEngine(world)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -218,6 +222,10 @@ def create_app(
     @app.get("/api/scores")
     def get_scores():
         return scoring.scores()
+
+    @app.get("/api/oee")
+    def get_oee():
+        return oee.report()
 
     # ── 階段二:預測上傳 / 預測榜(學生面公開)──────────────
     @app.post("/api/predictions")

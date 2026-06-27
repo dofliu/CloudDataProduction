@@ -7,13 +7,14 @@ import WorldView from "./world/WorldView";
 import CatalogView from "./catalog/CatalogView";
 import TeacherView from "./teacher/TeacherView";
 import DiagnosticsView from "./diagnostics/DiagnosticsView";
+import OeeView from "./oee/OeeView";
 
 export default function App() {
   const [park, setPark] = useState<Park | null>(null);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [telemetry, setTelemetry] = useState<TelemetryMsg | null>(null);
   const [events, setEvents] = useState<EventMsg[]>([]);
-  const [view, setView] = useState<"world" | "catalog" | "teacher" | "diag">("world");
+  const [view, setView] = useState<"world" | "catalog" | "teacher" | "diag" | "oee">("world");
   const [selected, setSelected] = useState<string | null>(null);
   const [predicted, setPredicted] = useState<Set<string>>(new Set());
   const telemetryRef = useRef<TelemetryMsg | null>(null);
@@ -53,6 +54,7 @@ export default function App() {
           <button className={view === "world" ? "active" : ""} onClick={() => setView("world")}>2D 世界</button>
           <button className={view === "catalog" ? "active" : ""} onClick={() => setView("catalog")}>設備目錄</button>
           <button className={view === "diag" ? "active" : ""} onClick={() => setView("diag")}>戰情版</button>
+          <button className={view === "oee" ? "active" : ""} onClick={() => setView("oee")}>OEE 榜</button>
           <button className={view === "teacher" ? "active" : ""} onClick={() => setView("teacher")}>教師控制台</button>
         </nav>
       </header>
@@ -117,6 +119,8 @@ export default function App() {
           <CatalogView catalog={catalog} telemetry={telemetry} />
         ) : view === "diag" ? (
           <DiagnosticsView host={window.location.hostname} />
+        ) : view === "oee" ? (
+          <OeeView />
         ) : (
           park && <TeacherView park={park} telemetry={telemetry} />
         )}

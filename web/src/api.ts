@@ -148,6 +148,17 @@ export const getScenarios = () => getJSON<{ scripts: ScenarioScript[]; status: S
 export const runScenario = (name: string) => post(`/api/scenarios/${name}/run`, undefined, true);
 export const stopScenario = () => post("/api/scenarios/stop", undefined, true);
 
+// ── OEE 設備總效率排名(公開)───────────────────────────
+export interface OeeDevice {
+  device: string; availability: number; performance: number; quality: number;
+  oee: number; run_h: number; down_h: number;
+}
+export interface OeeRow {
+  company: string; name: string; owner: string | null;
+  oee: number; availability: number; performance: number; quality: number; devices: string[];
+}
+export const getOee = () => getJSON<{ ranking: OeeRow[]; devices: OeeDevice[] }>("/api/oee");
+
 // 自動重連的 WebSocket 訂閱;回傳 close 函式。
 export function subscribe<T>(path: string, onMessage: (msg: T) => void): () => void {
   let ws: WebSocket | null = null;

@@ -106,10 +106,14 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
     tag_by_name["vibration_rms"].driver = drv_vibration
     tag_by_name["cycle_count"].driver = lambda op, c, dt: int(st["cycles"])
 
+    def oee_fn(op, comps):
+        h_r = health_of(comp_map, "reducer_wear")
+        return 0.8 + 0.2 * h_r, max(0.6, 1.0 - (1.0 - h_r) * 0.4)  # 減速機退化降表現與良率
+
     device = Device(
         device_id=device_id, template="robot_arm_6axis", tags=tags,
         components=components, duty=duty, protocols=protocols, company_id=company_id,
-        state_fn=state_fn, pre_step_fn=pre_step,
+        state_fn=state_fn, pre_step_fn=pre_step, oee_fn=oee_fn,
     )
     tag_by_name["state"].driver = lambda op, c, dt: float(STATE_CODES.get(device.state, 0))
     return device

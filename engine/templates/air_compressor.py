@@ -97,9 +97,16 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
     tag_by_name["vibration_rms"].driver = drv_vibration
     tag_by_name["running_hours"].driver = drv_running_hours
 
+    def oee_fn(op, comps):
+        h_filter = health_of(comps, "filter_clog")
+        perf = 0.65 + 0.35 * h_filter                     # 濾網阻塞 → 流量降 → 表現降
+        qual = max(0.7, 1.0 - (1.0 - health_of(comps, "valve_wear")) * 0.3)
+        return perf, qual
+
     device = Device(
         device_id=device_id, template="air_compressor", tags=tags,
         components=components, duty=duty, protocols=protocols, company_id=company_id,
+        oee_fn=oee_fn,
     )
     tag_by_name["state"].driver = lambda op, comps, dt: float(STATE_CODES.get(device.state, 0))
     return device

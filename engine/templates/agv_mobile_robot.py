@@ -142,10 +142,15 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
     tag_by_name["heading"].driver = lambda op, c, dt: st["heading"]
     tag_by_name["payload"].driver = lambda op, c, dt: st["payload"]
 
+    def oee_fn(op, comps):
+        h_m = health_of(comp_map, "motor_bearing")
+        h_b = health_of(comp_map, "battery_capacity_fade")
+        return 0.85 + 0.15 * h_m, max(0.8, 0.9 + 0.1 * h_b)   # 馬達退化降表現;電池衰退微降良率
+
     device = Device(
         device_id=device_id, template="agv_mobile_robot", tags=tags,
         components=components, duty=duty, protocols=protocols, company_id=company_id,
-        state_fn=state_fn, pre_step_fn=pre_step,
+        state_fn=state_fn, pre_step_fn=pre_step, oee_fn=oee_fn,
     )
     tag_by_name["state"].driver = lambda op, comps, dt: float(STATE_CODES.get(device.state, 0))
     return device

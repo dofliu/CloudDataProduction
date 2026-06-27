@@ -108,6 +108,7 @@ class Device:
         idle_stress: float = 0.0,
         state_fn: Optional[Callable] = None,
         pre_step_fn: Optional[Callable] = None,
+        oee_fn: Optional[Callable] = None,
     ):
         self.id = device_id
         self.template = template
@@ -122,6 +123,13 @@ class Device:
         # 可選:每 tick 在 tag drivers 之前執行一次的有狀態物理(如 AGV 移動/電池狀態機),
         # 讓多個 tag 共讀同一份整合結果,避免在各 driver 重複積分。
         self.pre_step_fn = pre_step_fn
+        # 可選:OEE 瞬時訊號 oee_fn(op, components) → (performance, quality),各 0..1
+        self.oee_fn = oee_fn
+        # OEE 累積器(對 sim 時間積):運轉/停機時間、運轉時 perf/qual 的時間加權和
+        self._oee_run = 0.0
+        self._oee_down = 0.0
+        self._oee_perf_acc = 0.0
+        self._oee_qual_acc = 0.0
         # 應力指數:s = (load/load_nom)^a · speed_factor^b(docs/02 §1)
         self.stress_a = float(stress_a)
         self.stress_b = float(stress_b)
@@ -167,6 +175,35 @@ class Device:
                 tag.value = sf.apply(tag.value, self._sim_t, dt_sim)
 
         self._update_state(op)
+        self._accumulate_oee(dt_sim, op)
+
+    def _accumulate_oee(self, dt_sim: float, op: dict) -> None:
+        """OEE 累積:故障算停機;運轉算可用時間並加權 perf/qual;待機(off-shift)不計入。"""
+        if dt_sim <= 0.0:
+            return
+        if self._fault_latched:
+            self._oee_down += dt_sim
+        elif op["running"]:
+            self._oee_run += dt_sim
+            perf, qual = self.oee_fn(op, self.components) if self.oee_fn else (1.0, 1.0)
+            self._oee_perf_acc += float(perf) * dt_sim
+            self._oee_qual_acc += float(qual) * dt_sim
+
+    def oee(self) -> dict:
+        """OEE = 可用率 × 表現 × 良率(都從 ground-truth 累積,老師面)。"""
+        planned = self._oee_run + self._oee_down
+        availability = self._oee_run / planned if planned > 0 else 1.0
+        performance = self._oee_perf_acc / self._oee_run if self._oee_run > 0 else 1.0
+        quality = self._oee_qual_acc / self._oee_run if self._oee_run > 0 else 1.0
+        return {
+            "device": self.id,
+            "availability": round(availability, 3),
+            "performance": round(min(1.0, performance), 3),
+            "quality": round(min(1.0, quality), 3),
+            "oee": round(availability * min(1.0, performance) * min(1.0, quality), 3),
+            "run_h": round(self._oee_run / 3600.0, 1),
+            "down_h": round(self._oee_down / 3600.0, 1),
+        }
 
     def set_sim_t(self, sim_t: float) -> None:
         """world 在 step 前注入當前模擬時間(duty cycle 需要絕對時間)。"""

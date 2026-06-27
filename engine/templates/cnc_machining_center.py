@@ -167,6 +167,12 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
     tag_by_name["cycle_time"].driver = drv_cycle_time
     tag_by_name["part_count"].driver = drv_part_count
 
+    def oee_fn(op, comps):
+        h_tool = health_of(comps, "tool_wear")
+        perf = 45.0 / _cycle_time(h_tool)                 # 刀鈍 → 節拍變長 → 表現降
+        qual = max(0.5, 1.0 - (1.0 - h_tool) * 0.45)      # 刀鈍 → 不良率升
+        return perf, qual
+
     device = Device(
         device_id=device_id,
         template="cnc_machining_center",
@@ -175,6 +181,7 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
         duty=duty,
         protocols=protocols,
         company_id=company_id,
+        oee_fn=oee_fn,
     )
 
     # state tag 反映設備狀態碼。driver 在 _update_state 之前執行,故落後 1 tick(0.1s),

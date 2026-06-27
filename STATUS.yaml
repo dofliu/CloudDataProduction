@@ -1,20 +1,27 @@
 name: CloudDataProduction
 name_zh: 雲端生產數據導論 — 虛擬智慧工業區教學平台
 category: edtech
-progress: 12
+progress: 42
 status: active
 last_updated: "2026-06-27"
-next_milestone: "P0 垂直切片:單台 CNC run-to-failure + Modbus + 目錄 + Historian"
+next_milestone: "P2:故障注入、教師控制台、工單、自動評分、MCP(階段一可開課)"
 technologies:
   - Python 3.11
   - asyncio
   - FastAPI
   - numpy
   - pymodbus
+  - asyncua (OPC-UA)
+  - amqtt (MQTT)
+  - WebSocket
   - TimescaleDB
+  - React
+  - Vite
+  - TypeScript
+  - PixiJS
 outputs:
   - course
   - tool
 description: "2D virtual industrial park teaching platform: simulation engine emits realistic (synthetic, ground-truth-labelled) equipment data over Modbus/OPC-UA/MQTT for students to monitor, diagnose, and build predictive maintenance models."
-description_zh: "虛擬 2D 工業園區教學平台:模擬引擎產生擬真(合成且帶 ground-truth 標籤)設備數據,經工業協定暴露,供學生監控、處置故障與訓練預測性維護模型。"
-key_metrics: "P0 完成度;可暴露協定數;產業 template 數;支援設備台數"
+description_zh: "虛擬 2D 工業園區教學平台:模擬引擎產生擬真(合成且帶 ground-truth 標籤)設備數據,經 Modbus/OPC-UA/MQTT 暴露,供學生監控、處置故障與訓練預測性維護模型。"
+key_metrics: "P0+P1 完成;3 協定可讀;3 產業 template;6 設備園區;PixiJS 2D 世界 + WebSocket 即時"

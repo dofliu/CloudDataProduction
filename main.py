@@ -13,6 +13,8 @@ import uvicorn
 from dotenv import load_dotenv
 
 from adapters.modbus_server import ModbusAdapter
+from adapters.mqtt_publisher import MqttPublisher
+from adapters.opcua_server import OpcUaAdapter
 from api.rest import create_app
 from engine.world import World
 from historian.writer import Historian
@@ -39,11 +41,23 @@ def build():
         enabled=os.getenv("HISTORIAN_ENABLED", "true").lower() == "true",
     )
 
+    # OPC-UA / MQTT 轉接層(可由 .env 關閉)。MQTT 走內嵌純 Python broker,免 Docker。
+    opcua = None
+    if os.getenv("OPCUA_ENABLED", "true").lower() == "true":
+        opcua_port = int(os.getenv("OPCUA_PORT", world.ports.get("opcua", 4840)))
+        world.ports["opcua"] = opcua_port            # 同步給設備目錄
+        opcua = OpcUaAdapter(world, host=os.getenv("OPCUA_HOST", "0.0.0.0"), port=opcua_port)
+    mqtt = None
+    if os.getenv("MQTT_ENABLED", "true").lower() == "true":
+        mqtt_port = int(os.getenv("MQTT_PORT", world.ports.get("mqtt", 1883)))
+        world.ports["mqtt"] = mqtt_port
+        mqtt = MqttPublisher(world, host=os.getenv("MQTT_HOST", "0.0.0.0"), port=mqtt_port)
+
     config = {
         "public_host": os.getenv("PUBLIC_HOST", "127.0.0.1"),
         "teacher_token": os.getenv("TEACHER_TOKEN", ""),
     }
-    app = create_app(world, historian, modbus, config)
+    app = create_app(world, historian, modbus, config, opcua=opcua, mqtt=mqtt)
     return app
 
 

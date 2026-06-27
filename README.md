@@ -109,4 +109,45 @@ curl "http://127.0.0.1:8077/api/history?device=cnc-01&tag=vibration_rms"
 
 ---
 
+## P1 啟動(多設備園區 + 三協定 + 2D 世界)
+
+P1 已完成:多家公司多台設備、同一設備可被 **Modbus / OPC-UA / MQTT** 三協定同讀、
+WebSocket 即時推送、PixiJS 2D 等距園區與公開設備目錄頁。**全程不需 Docker**
+(MQTT 走內嵌純 Python broker `amqtt`)。
+
+### 後端
+
+`.env` 預設場景已指向多設備園區 `scenarios/default_park.yaml`(3 公司 / 6 設備)。
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt   # 補裝 asyncua、amqtt
+.\run.ps1                                                        # 起 引擎 + 4 協定面 + API
+```
+
+協定埠(預設,可在 `.env` 改):Modbus `5020` · OPC-UA `4841` · MQTT `1883` · API `8077`。
+> 本機 4840 常被 OPC-UA Local Discovery Server 占用,故 OPC-UA 用 4841。
+
+### 前端(2D 世界 + 目錄頁)
+
+```powershell
+cd web
+npm install        # 第一次
+npm run dev        # 開 http://localhost:5173
+```
+
+瀏覽器開 **http://localhost:5173**:等距園區俯瞰、公司燈號(綠/黃/紅/灰)、AGV 沿座標移動、
+點設備看即時值、事件面板顯示故障與狀態轉換、頂列可調模擬倍率;切「設備目錄」頁看三協定規格書。
+（Vite 開發伺服器已把 `/api`、`/ws` 代理到後端 8077。）
+
+### P1 驗收狀態
+
+| 驗收項 | 狀態 | 備註 |
+|--------|------|------|
+| 多家公司多產業設備 | ✅ 已驗 | CNC×2 + 空壓機×2 + AGV×2,故障時間錯開 |
+| 同一設備三協定同讀 | ✅ 已驗 | cnc-01 vibration:Modbus 1.642 / OPC-UA 1.642 / MQTT 1.804（差 0.16） |
+| WebSocket 即時 telemetry / events | ✅ 已驗 | 6 設備串流;故障/換班/充電事件正確帶元件 |
+| 瀏覽器看園區並鑽到設備即時值 | ✅ 已驗 | PixiJS 2D 世界 + 設備目錄頁,狀態燈號即時 |
+
+---
+
 作者:勤益科大 劉瑞弘 · DofLab

@@ -31,6 +31,8 @@ def create_app(
     historian: Historian,
     modbus: ModbusAdapter,
     config: dict,
+    opcua=None,
+    mqtt=None,
 ) -> FastAPI:
     public_host = config.get("public_host", "127.0.0.1")
 
@@ -40,10 +42,18 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        # 啟動順序:先連 Historian,再把 adapter / historian / WS 訂閱進世界,最後起世界迴圈
+        # 啟動順序:先連 Historian、起協定 server,再把各訂閱者掛進世界,最後起世界迴圈
         await historian.connect()
         historian.start_background()
+        if opcua is not None:
+            await opcua.start()
+        if mqtt is not None:
+            await mqtt.start()
         world.subscribe(modbus.on_snapshot)
+        if opcua is not None:
+            world.subscribe(opcua.on_snapshot)            # 同一 snapshot → OPC-UA 節點
+        if mqtt is not None:
+            world.subscribe(mqtt.on_snapshot)             # 同一 snapshot → MQTT topic
         world.subscribe(historian.on_snapshot)
         world.subscribe(telemetry_mgr.on_message)        # telemetry → 瀏覽器
         world.subscribe_events(events_mgr.on_message)     # 事件 → 瀏覽器
@@ -55,6 +65,10 @@ def create_app(
         finally:
             world.stop()
             world_task.cancel()
+            if mqtt is not None:
+                await mqtt.stop()
+            if opcua is not None:
+                await opcua.stop()
             await historian.close()
             print("[api] 已關閉。")
 

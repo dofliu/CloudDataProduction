@@ -179,17 +179,33 @@ class World:
         entries = []
         for d in self.devices.values():
             entry = d.catalog_entry()
-            # 補上實際連線資訊:channel_mux 下 Modbus 共用埠,以 unit_id 分設備
+            mb = d.protocols.get("modbus", {}) or {}
+            ua = d.protocols.get("opcua", {}) or {}
+            mq = d.protocols.get("mqtt", {}) or {}
+            folder = ua.get("node_folder", f"{d.company_id}/{d.id}")
+            topic = mq.get("topic_prefix", f"park/{d.company_id}/{d.id}")
+            # 補上實際連線資訊:channel_mux 下三協定各共用一埠,以 unit_id / folder / topic 分設備
             entry["connection"] = {
                 "modbus": {
                     "host": host,
                     "port": self.ports.get("modbus"),
-                    "unit_id": (d.protocols.get("modbus", {}) or {}).get("unit_id"),
+                    "unit_id": mb.get("unit_id"),
                     "register_type": "holding",
                     "word_order": "big",
                     "byte_order": "big",
                     "note": "float32 佔 2 個連續暫存器(big-endian)",
-                }
+                },
+                "opcua": {
+                    "endpoint": f"opc.tcp://{host}:{self.ports.get('opcua')}/clouddata/",
+                    "node_folder": folder,
+                    "note": f"完整路徑 Objects/{folder}/<tag>",
+                },
+                "mqtt": {
+                    "host": host,
+                    "port": self.ports.get("mqtt"),
+                    "topic": f"{topic}/state",
+                    "note": "整包 JSON;訂閱 park/# 收全部",
+                },
             }
             entries.append(entry)
         return {

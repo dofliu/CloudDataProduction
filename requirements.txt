@@ -13,7 +13,9 @@ pymodbus==3.6.9
 # Historian:TimescaleDB(PostgreSQL)非同步驅動
 asyncpg>=0.29
 
-# ── 後續 phase 會用到(P1+),先註解保留 ────────────────────
-# asyncua>=1.1            # OPC-UA server/client
-# aiomqtt>=2.0            # MQTT client
+# P1:OPC-UA server / MQTT(內嵌純 Python broker,免 Docker)
+asyncua>=1.1
+amqtt>=0.11
+
+# ── 後續 phase 會用到,先註解保留 ────────────────────────
 # fastmcp>=0.2            # MCP server(老師本機)

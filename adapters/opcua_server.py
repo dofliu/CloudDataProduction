@@ -1,0 +1,86 @@
+"""OPC-UA 轉接層(docs/01、docs/04)。
+
+asyncua server,讀同一份引擎 snapshot,把每個 tag 映成位址空間節點。
+channel-mux:用 node_folder(如 c01/cnc-01)分設備,完整路徑 Objects/<folder>/<tag>。
+**自己不存狀態**;學生用任意 OPC-UA client 連 opc.tcp://host:4840 瀏覽即可。
+"""
+from __future__ import annotations
+
+import logging
+
+from asyncua import Server
+
+from engine.world import World
+
+logging.getLogger("asyncua").setLevel(logging.WARNING)  # 降低 asyncua 噪音
+
+
+class OpcUaAdapter:
+    def __init__(self, world: World, host: str = "0.0.0.0", port: int = 4840):
+        self.world = world
+        self.endpoint = f"opc.tcp://{host}:{port}/clouddata/"
+        self.server = Server()
+        self._idx = 0
+        self._nodes: dict[str, dict[str, tuple]] = {}   # device_id -> {tag: (node, datatype)}
+        self._folders: dict[str, object] = {}
+        self._started = False
+
+    async def start(self) -> None:
+        """初始化 server、建位址空間、啟動。須在訂閱 on_snapshot 之前 await。"""
+        await self.server.init()
+        self.server.set_endpoint(self.endpoint)
+        self.server.set_server_name("CloudDataProduction OPC-UA (synthetic)")
+        self._idx = await self.server.register_namespace("http://clouddata.dof")
+
+        objects = self.server.nodes.objects
+        for device in self.world.devices.values():
+            folder_path = (device.protocols.get("opcua", {}) or {}).get(
+                "node_folder", f"{device.company_id}/{device.id}"
+            )
+            folder = await self._ensure_folder(objects, folder_path)
+            self._nodes[device.id] = {}
+            for tag in device.tags:
+                is_float = tag.datatype == "float32"
+                initial = 0.0 if is_float else 0
+                node = await folder.add_variable(self._idx, tag.name, initial)
+                self._nodes[device.id][tag.name] = (node, tag.datatype)
+
+        await self.server.start()
+        self._started = True
+        print(f"[opcua] server 啟動於 {self.endpoint}")
+
+    async def _ensure_folder(self, objects, path: str):
+        """依 'c01/cnc-01' 建巢狀資料夾,公司層共用。"""
+        cur, key = objects, ""
+        for part in path.split("/"):
+            key = f"{key}/{part}" if key else part
+            if key not in self._folders:
+                self._folders[key] = await cur.add_folder(self._idx, part)
+            cur = self._folders[key]
+        return cur
+
+    async def on_snapshot(self, snapshot: dict) -> None:
+        if not self._started:
+            return
+        for device in self.world.devices.values():
+            nodes = self._nodes.get(device.id)
+            if not nodes:
+                continue
+            for tag in device.tags:
+                node_dt = nodes.get(tag.name)
+                if not node_dt:
+                    continue
+                node, dtype = node_dt
+                try:
+                    val = float(tag.value) if dtype == "float32" else int(tag.value)
+                    await node.write_value(val)
+                except Exception as exc:
+                    print(f"[opcua] 寫 {device.id}.{tag.name} 失敗:{exc}")
+
+    async def stop(self) -> None:
+        if self._started:
+            try:
+                await self.server.stop()
+            except Exception:
+                pass
+            self._started = False

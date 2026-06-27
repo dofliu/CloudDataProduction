@@ -38,8 +38,11 @@ class World:
         self._build_devices()
 
         self._subscribers: List[Subscriber] = []
+        self._event_subscribers: List[Subscriber] = []
         self._running = False
         self._last_snapshot: dict = {}
+        self._prev_states: Dict[str, str] = {}      # 偵測狀態轉換用
+        self._pending_events: List[dict] = []
 
     # ── 建構 ────────────────────────────────────────────────
     @classmethod
@@ -61,7 +64,12 @@ class World:
 
     # ── 訂閱 ────────────────────────────────────────────────
     def subscribe(self, callback: Subscriber) -> None:
+        """訂閱每 tick 的 telemetry snapshot。"""
         self._subscribers.append(callback)
+
+    def subscribe_events(self, callback: Subscriber) -> None:
+        """訂閱事件(狀態轉換 / 故障)。"""
+        self._event_subscribers.append(callback)
 
     # ── 推進 ────────────────────────────────────────────────
     def step(self, dt_sim: float) -> dict:
@@ -69,9 +77,36 @@ class World:
         for device in self.devices.values():
             device.set_sim_t(sim_t)
             device.step(dt_sim)
+        self._pending_events = self._detect_events(sim_t)
         snapshot = self._make_snapshot()
         self._last_snapshot = snapshot
         return snapshot
+
+    def _detect_events(self, sim_t: float) -> List[dict]:
+        """比對前一刻狀態,產生狀態轉換 / 故障事件(docs/04 §events)。"""
+        events: List[dict] = []
+        for device in self.devices.values():
+            cur = device.state
+            prev = self._prev_states.get(device.id)
+            if prev is not None and cur != prev:
+                if cur == "fault":
+                    # 找出造成故障的元件(本體退化),附上型態供評分 / 顯示
+                    failed = next(
+                        (c.name for c in device.components.values()
+                         if c.failed and c.causes_device_fault),
+                        None,
+                    )
+                    events.append({
+                        "type": "fault", "device": device.id, "company": device.company_id,
+                        "component": failed, "fault_type": "gradual", "sim_t": sim_t,
+                    })
+                else:
+                    events.append({
+                        "type": "state_change", "device": device.id, "company": device.company_id,
+                        "from": prev, "to": cur, "sim_t": sim_t,
+                    })
+            self._prev_states[device.id] = cur
+        return events
 
     def _make_snapshot(self) -> dict:
         return {
@@ -97,7 +132,15 @@ class World:
                 try:
                     await cb(snapshot)
                 except Exception as exc:  # 單一訂閱者出錯不應拖垮整個世界
-                    print(f"[world] 訂閱者錯誤:{exc}")
+                    print(f"[world] telemetry 訂閱者錯誤:{exc}")
+
+            # 事件(狀態轉換 / 故障)在 telemetry 之後廣播
+            for ev in self._pending_events:
+                for cb in self._event_subscribers:
+                    try:
+                        await cb(ev)
+                    except Exception as exc:
+                        print(f"[world] event 訂閱者錯誤:{exc}")
 
             await asyncio.sleep(self.clock.target_dt)
 

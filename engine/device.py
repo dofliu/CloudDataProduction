@@ -20,6 +20,9 @@ STATE_CODES: Dict[str, int] = {
     "alarm": 3,
     "fault": 4,
     "maintenance": 5,
+    "moving": 6,      # AGV 移動中
+    "charging": 7,    # AGV 充電中
+    "blocked": 8,     # AGV 受阻
 }
 
 
@@ -102,6 +105,8 @@ class Device:
         stress_a: float = 1.0,
         stress_b: float = 1.0,
         idle_stress: float = 0.0,
+        state_fn: Optional[Callable] = None,
+        pre_step_fn: Optional[Callable] = None,
     ):
         self.id = device_id
         self.template = template
@@ -110,6 +115,12 @@ class Device:
         self.duty = duty
         self.protocols = protocols or {}
         self.company_id = company_id
+        # 可選:由 template 提供的運轉狀態判定(非 fault 時)。回傳狀態字串,
+        # 讓 AGV 之類能報 moving/charging,而非只有 running/idle。
+        self.state_fn = state_fn
+        # 可選:每 tick 在 tag drivers 之前執行一次的有狀態物理(如 AGV 移動/電池狀態機),
+        # 讓多個 tag 共讀同一份整合結果,避免在各 driver 重複積分。
+        self.pre_step_fn = pre_step_fn
         # 應力指數:s = (load/load_nom)^a · speed_factor^b(docs/02 §1)
         self.stress_a = float(stress_a)
         self.stress_b = float(stress_b)
@@ -130,6 +141,9 @@ class Device:
     def step(self, dt_sim: float) -> None:
         # sim_t 由 world 在呼叫前注入(見 world.step / set_sim_t),duty cycle 需要絕對時間
         op = self.duty.operating_point(self._sim_t)
+        # 有狀態物理先跑一次(tag drivers 之後才讀其結果)
+        if self.pre_step_fn is not None:
+            self.pre_step_fn(dt_sim, op)
         stress = self._stress(op)
 
         for comp in self.components.values():
@@ -154,6 +168,8 @@ class Device:
             self._fault_latched = True
         if self._fault_latched:
             self.state = "fault"
+        elif self.state_fn is not None:
+            self.state = self.state_fn(op, self.components)
         elif op["running"]:
             self.state = "running"
         else:

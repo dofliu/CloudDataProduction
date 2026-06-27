@@ -8,11 +8,15 @@ from __future__ import annotations
 
 from typing import Callable, Dict
 
+from .agv_mobile_robot import build as _build_agv
+from .air_compressor import build as _build_compressor
 from .cnc_machining_center import build as _build_cnc
 
 # template 名稱 → builder
 _REGISTRY: Dict[str, Callable] = {
     "cnc_machining_center": _build_cnc,
+    "air_compressor": _build_compressor,
+    "agv_mobile_robot": _build_agv,
 }
 
 

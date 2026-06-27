@@ -11,12 +11,14 @@ from contextlib import asynccontextmanager
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from adapters.modbus_server import ModbusAdapter
 from engine.world import World
 from historian.writer import Historian
 from .catalog import build_catalog
+from .ws import ConnectionManager, register_ws_routes
 
 
 class ClockPatch(BaseModel):
@@ -32,13 +34,19 @@ def create_app(
 ) -> FastAPI:
     public_host = config.get("public_host", "127.0.0.1")
 
+    # WebSocket 即時面連線管理器(telemetry / events 兩通道)
+    telemetry_mgr = ConnectionManager("telemetry")
+    events_mgr = ConnectionManager("events")
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        # 啟動順序:先連 Historian,再把 adapter / historian 訂閱進世界,最後起世界迴圈
+        # 啟動順序:先連 Historian,再把 adapter / historian / WS 訂閱進世界,最後起世界迴圈
         await historian.connect()
         historian.start_background()
         world.subscribe(modbus.on_snapshot)
         world.subscribe(historian.on_snapshot)
+        world.subscribe(telemetry_mgr.on_message)        # telemetry → 瀏覽器
+        world.subscribe_events(events_mgr.on_message)     # 事件 → 瀏覽器
         modbus.start_background()
         world_task = asyncio.create_task(world.run())
         print("[api] 世界已啟動,等待連線。")
@@ -55,6 +63,14 @@ def create_app(
         description="合成(synthetic)工業設備數據教學平台。所有數據皆為模擬,非真實場域量測。",
         version="0.1.0-p0",
         lifespan=lifespan,
+    )
+
+    # 開發期允許跨來源:Vite 開發伺服器(:5173)與瀏覽器直連 API / WS
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
     # ── 公開學生面 ─────────────────────────────────────────
@@ -120,5 +136,8 @@ def create_app(
         if patch.paused is not None:
             world.clock.set_paused(patch.paused)
         return world.clock.snapshot()
+
+    # ── WebSocket 即時面 ───────────────────────────────────
+    register_ws_routes(app, telemetry_mgr, events_mgr)
 
     return app

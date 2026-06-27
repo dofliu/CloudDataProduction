@@ -1,0 +1,98 @@
+# P1 多設備園區:3 家公司、3 種產業,錯開故障時間,給 2D 世界與三協定示範用。
+#
+# time_multiplier=600(一秒走 10 分鐘):各設備在數分鐘~十幾分鐘內陸續退化到故障,
+# 適合課堂邊看世界邊處置。要快看把它調 3600,要慢看調 60。
+park:
+  name: "勤益智慧工業區"
+  sim:
+    tick_hz: 10
+    time_multiplier: 600
+  protocol_mode: channel_mux
+  ports:
+    modbus: 502
+    opcua: 4840
+    mqtt: 1883
+
+  companies:
+    - id: c01
+      name: "精鋐機械"
+      industry: cnc_machining
+      owner: null
+      map_pos: {x: 6, y: 6}
+      devices:
+        - id: cnc-01
+          template: cnc_machining_center
+          protocols:
+            modbus: {unit_id: 1, register_base: 0}
+            opcua:  {node_folder: "c01/cnc-01"}
+            mqtt:   {topic_prefix: "park/c01/cnc-01"}
+          duty_cycle: {profile: continuous, load_nom: 75}
+          degradation:
+            spindle_bearing: {rate: 0.0000012, trajectory: exponential, k: 3.0, sigma: 0.08, init_health: 0.90}
+            tool_wear:       {rate: 0.0000015, trajectory: linear, sigma: 0.15, init_health: 1.0, causes_device_fault: false}
+        - id: cnc-02
+          template: cnc_machining_center
+          protocols:
+            modbus: {unit_id: 2, register_base: 0}
+            opcua:  {node_folder: "c01/cnc-02"}
+            mqtt:   {topic_prefix: "park/c01/cnc-02"}
+          duty_cycle: {profile: two_shift, load_nom: 68}
+          degradation:
+            spindle_bearing: {rate: 0.0000009, trajectory: exponential, k: 3.0, sigma: 0.1, init_health: 0.95}
+            tool_wear:       {rate: 0.0000012, trajectory: linear, sigma: 0.2, init_health: 1.0, causes_device_fault: false}
+
+    - id: c02
+      name: "全動廠務"
+      industry: utility
+      owner: null
+      map_pos: {x: 16, y: 6}
+      devices:
+        - id: comp-01
+          template: air_compressor
+          protocols:
+            modbus: {unit_id: 10, register_base: 0}
+            opcua:  {node_folder: "c02/comp-01"}
+            mqtt:   {topic_prefix: "park/c02/comp-01"}
+          duty_cycle: {profile: continuous, load_nom: 82}
+          degradation:
+            motor_bearing: {rate: 0.0000010, trajectory: exponential, k: 3.0, sigma: 0.1, init_health: 0.92}
+            filter_clog:   {rate: 0.0000020, trajectory: linear, sigma: 0.15, init_health: 1.0, causes_device_fault: false}
+            valve_wear:    {rate: 0.0000008, trajectory: linear, sigma: 0.15, init_health: 1.0, causes_device_fault: false}
+        - id: comp-02
+          template: air_compressor
+          protocols:
+            modbus: {unit_id: 11, register_base: 0}
+            opcua:  {node_folder: "c02/comp-02"}
+            mqtt:   {topic_prefix: "park/c02/comp-02"}
+          duty_cycle: {profile: continuous, load_nom: 78}
+          degradation:
+            motor_bearing: {rate: 0.0000007, trajectory: exponential, k: 3.0, sigma: 0.12, init_health: 0.96}
+            filter_clog:   {rate: 0.0000015, trajectory: linear, sigma: 0.2, init_health: 1.0, causes_device_fault: false}
+
+    - id: c03
+      name: "捷流物流"
+      industry: logistics
+      owner: null
+      map_pos: {x: 11, y: 14}
+      devices:
+        - id: agv-01
+          template: agv_mobile_robot
+          protocols:
+            modbus: {unit_id: 20, register_base: 0}
+            opcua:  {node_folder: "c03/agv-01"}
+            mqtt:   {topic_prefix: "park/c03/agv-01"}
+          duty_cycle: {load_nom: 60}
+          degradation:
+            motor_bearing:          {rate: 0.0000011, trajectory: exponential, k: 3.0, sigma: 0.1, init_health: 0.93}
+            battery_capacity_fade:  {rate: 0.0000008, trajectory: linear, sigma: 0.1, init_health: 1.0, causes_device_fault: false}
+            wheel_wear:             {rate: 0.0000010, trajectory: linear, sigma: 0.15, init_health: 1.0, causes_device_fault: false}
+        - id: agv-02
+          template: agv_mobile_robot
+          protocols:
+            modbus: {unit_id: 21, register_base: 0}
+            opcua:  {node_folder: "c03/agv-02"}
+            mqtt:   {topic_prefix: "park/c03/agv-02"}
+          duty_cycle: {load_nom: 55}
+          degradation:
+            motor_bearing:          {rate: 0.0000008, trajectory: exponential, k: 3.0, sigma: 0.12, init_health: 0.97}
+            battery_capacity_fade:  {rate: 0.0000006, trajectory: linear, sigma: 0.1, init_health: 1.0, causes_device_fault: false}

@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { Diagnostics, DiagRow, getDiagnostics } from "../api";
 
-const PROTOS: { key: "modbus" | "opcua" | "mqtt"; label: string }[] = [
-  { key: "modbus", label: "Modbus TCP" },
-  { key: "opcua", label: "OPC-UA" },
-  { key: "mqtt", label: "MQTT" },
-];
+type ProtoKey = "modbus" | "modbus_multiport" | "opcua" | "mqtt";
+const PROTO_LABEL: Record<ProtoKey, string> = {
+  modbus: "Modbus(共用埠)",
+  modbus_multiport: "Modbus(專屬埠)",
+  opcua: "OPC-UA",
+  mqtt: "MQTT",
+};
+const PROTO_ORDER: ProtoKey[] = ["modbus", "modbus_multiport", "opcua", "mqtt"];
 
 // 老師的「標準答案」客戶端:真的用三協定當 client 連回伺服器,驗證連得上、讀得到值。
 export default function DiagnosticsView({ host }: { host: string }) {
@@ -20,15 +23,19 @@ export default function DiagnosticsView({ host }: { host: string }) {
     finally { setLoading(false); }
   };
 
-  // 所有設備(三協定聯集),保留順序
+  // 實際回傳的協定(multi_port 啟用時才有 modbus_multiport)
+  const protos: ProtoKey[] = diag ? PROTO_ORDER.filter((k) => (diag.protocols as any)[k]) : [];
+  const block = (k: ProtoKey) => (diag!.protocols as any)[k] as { summary: any; devices: DiagRow[] };
+
+  // 所有設備(各協定聯集),保留順序
   const deviceIds: string[] = [];
   if (diag) {
-    for (const p of PROTOS) for (const r of diag.protocols[p.key].devices) {
+    for (const k of protos) for (const r of block(k).devices) {
       if (r.device && !deviceIds.includes(r.device)) deviceIds.push(r.device);
     }
   }
-  const rowOf = (key: "modbus" | "opcua" | "mqtt", dev: string): DiagRow | undefined =>
-    diag?.protocols[key].devices.find((r) => r.device === dev);
+  const rowOf = (key: ProtoKey, dev: string): DiagRow | undefined =>
+    block(key).devices.find((r) => r.device === dev);
 
   return (
     <div className="catalog">
@@ -47,14 +54,14 @@ export default function DiagnosticsView({ host }: { host: string }) {
       {diag && (
         <>
           {/* 各協定摘要 */}
-          <div style={{ display: "flex", gap: 14, margin: "16px 0" }}>
-            {PROTOS.map((p) => {
-              const s = diag.protocols[p.key].summary;
+          <div style={{ display: "flex", gap: 14, margin: "16px 0", flexWrap: "wrap" }}>
+            {protos.map((k) => {
+              const s = block(k).summary;
               const allOk = s.reachable === s.total;
               return (
-                <div key={p.key} style={{ flex: 1, background: "var(--panel)", border: "1px solid var(--line)",
-                                          borderRadius: 8, padding: "10px 14px" }}>
-                  <div style={{ fontWeight: 600 }}>{p.label} <span className="hint">:{s.port}</span></div>
+                <div key={k} style={{ flex: 1, minWidth: 180, background: "var(--panel)", border: "1px solid var(--line)",
+                                      borderRadius: 8, padding: "10px 14px" }}>
+                  <div style={{ fontWeight: 600 }}>{PROTO_LABEL[k]} <span className="hint">:{s.port}</span></div>
                   <div style={{ fontSize: 22, color: allOk ? "#37d67a" : "#e24c4c", fontVariantNumeric: "tabular-nums" }}>
                     {s.reachable}/{s.total} <span style={{ fontSize: 13 }}>可達</span>
                   </div>
@@ -66,16 +73,16 @@ export default function DiagnosticsView({ host }: { host: string }) {
           {/* 設備 × 協定 矩陣 */}
           <table>
             <thead>
-              <tr><th>設備</th>{PROTOS.map((p) => <th key={p.key}>{p.label}</th>)}</tr>
+              <tr><th>設備</th>{protos.map((k) => <th key={k}>{PROTO_LABEL[k]}</th>)}</tr>
             </thead>
             <tbody>
               {deviceIds.map((dev) => (
                 <tr key={dev}>
                   <td><b>{dev}</b></td>
-                  {PROTOS.map((p) => {
-                    const r = rowOf(p.key, dev);
+                  {protos.map((k) => {
+                    const r = rowOf(k, dev);
                     return (
-                      <td key={p.key}>
+                      <td key={k}>
                         {r?.ok ? (
                           <span>
                             <span style={{ color: "#37d67a" }}>✓ {r.value}</span>{" "}

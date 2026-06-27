@@ -137,7 +137,7 @@ export interface DiagRow {
 export interface DiagProto { summary: { reachable: number; total: number; port: number }; devices: DiagRow[]; }
 export interface Diagnostics {
   host: string;
-  protocols: { modbus: DiagProto; opcua: DiagProto; mqtt: DiagProto };
+  protocols: { modbus: DiagProto; opcua: DiagProto; mqtt: DiagProto; modbus_multiport?: DiagProto };
 }
 export const getDiagnostics = () => getJSON<Diagnostics>("/api/diagnostics/protocols");
 

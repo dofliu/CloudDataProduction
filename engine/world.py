@@ -244,6 +244,13 @@ class World:
                     "note": "整包 JSON;訂閱 park/# 收全部",
                 },
             }
+            # multi_port 疊加層:每台設備的專屬 Modbus 埠(啟用時才有)
+            mp = getattr(self, "multiport_modbus", None)
+            if mp and d.id in mp:
+                entry["connection"]["modbus_multiport"] = {
+                    "host": host, "port": mp[d.id], "unit_id": "any",
+                    "note": "專屬埠,一台一連線(multi_port);register 同 channel_mux",
+                }
             entries.append(entry)
         return {
             "park": self.park.get("name"),

@@ -26,6 +26,19 @@ _HOLDING_FC = 3          # function code 3 = read holding registers
 _DATABLOCK_SIZE = 256    # 每個 slave 預留的 holding register 數(夠 P0 所有 tag)
 
 
+def encode_value(datatype: str, value) -> list[int]:
+    """tag 值 → holding register(s)。float32/int32 佔 2 個、int16 佔 1 個(big-endian)。
+    channel_mux 與 multi_port 兩個 adapter 共用此編碼。"""
+    builder = BinaryPayloadBuilder(byteorder=Endian.BIG, wordorder=Endian.BIG)
+    if datatype == "int16":
+        builder.add_16bit_int(int(value))
+    elif datatype == "int32":
+        builder.add_32bit_int(int(value))
+    else:  # float32(預設)
+        builder.add_32bit_float(float(value))
+    return builder.to_registers()
+
+
 class ModbusAdapter:
     def __init__(self, world: World, host: str = "0.0.0.0", port: int = 502):
         self.world = world
@@ -50,18 +63,6 @@ class ModbusAdapter:
         self.context = ModbusServerContext(slaves=self._slaves, single=False)
         self._server_task: asyncio.Task | None = None
 
-    # ── 編碼 ────────────────────────────────────────────────
-    @staticmethod
-    def _encode(datatype: str, value) -> list[int]:
-        builder = BinaryPayloadBuilder(byteorder=Endian.BIG, wordorder=Endian.BIG)
-        if datatype == "int16":
-            builder.add_16bit_int(int(value))
-        elif datatype == "int32":
-            builder.add_32bit_int(int(value))
-        else:  # float32(預設)
-            builder.add_32bit_float(float(value))
-        return builder.to_registers()
-
     # ── 訂閱者:每 tick 把 snapshot 寫進 registers ──────────
     async def on_snapshot(self, snapshot: dict) -> None:
         for device in self.world.devices.values():
@@ -71,7 +72,7 @@ class ModbusAdapter:
                 continue
             for tag in device.tags:
                 try:
-                    regs = self._encode(tag.datatype, tag.value)
+                    regs = encode_value(tag.datatype, tag.value)
                     slave.setValues(_HOLDING_FC, tag.modbus_register, regs)
                 except Exception as exc:  # 單一 tag 編碼失敗不應中斷整批
                     print(f"[modbus] tag {device.id}.{tag.name} 編碼失敗:{exc}")

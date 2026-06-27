@@ -12,6 +12,7 @@ import os
 import uvicorn
 from dotenv import load_dotenv
 
+from adapters.modbus_multiport import ModbusMultiPortAdapter
 from adapters.modbus_server import ModbusAdapter
 from adapters.mqtt_publisher import MqttPublisher
 from adapters.opcua_server import OpcUaAdapter
@@ -53,11 +54,19 @@ def build():
         world.ports["mqtt"] = mqtt_port
         mqtt = MqttPublisher(world, host=os.getenv("MQTT_HOST", "0.0.0.0"), port=mqtt_port)
 
+    # multi_port:疊加層,每台設備各一個專屬 Modbus 埠(預設關)
+    multiport = None
+    if os.getenv("MULTI_PORT_ENABLED", "false").lower() == "true":
+        multiport = ModbusMultiPortAdapter(
+            world, host=os.getenv("MODBUS_HOST", "0.0.0.0"),
+            base_port=int(os.getenv("MULTI_PORT_MODBUS_BASE", "5000")))
+        world.multiport_modbus = multiport.port_map   # 給設備目錄 / 戰情版顯示
+
     config = {
         "public_host": os.getenv("PUBLIC_HOST", "127.0.0.1"),
         "teacher_token": os.getenv("TEACHER_TOKEN", ""),
     }
-    app = create_app(world, historian, modbus, config, opcua=opcua, mqtt=mqtt)
+    app = create_app(world, historian, modbus, config, opcua=opcua, mqtt=mqtt, multiport=multiport)
     return app
 
 

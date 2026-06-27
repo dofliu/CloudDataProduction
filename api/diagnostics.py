@@ -67,6 +67,38 @@ async def check_modbus(world: World, host: str, port: int) -> list[dict]:
     return results
 
 
+# ── Modbus multi_port(每台專屬埠)─────────────────────────
+async def check_modbus_multiport(world: World, host: str, port_map: dict) -> list[dict]:
+    from pymodbus.client import AsyncModbusTcpClient
+    from pymodbus.constants import Endian
+    from pymodbus.payload import BinaryPayloadDecoder
+
+    results = []
+    for d in world.devices.values():
+        port = port_map.get(d.id)
+        tag = _sample_tag(d)
+        if port is None:
+            results.append({"device": d.id, "ok": False, "error": "無專屬埠(熱載入需重啟)"})
+            continue
+        t0 = time.perf_counter()
+        client = AsyncModbusTcpClient(host, port=port)
+        try:
+            await asyncio.wait_for(client.connect(), timeout=2)
+            rr = await asyncio.wait_for(
+                client.read_holding_registers(tag.modbus_register, count=2, slave=1), timeout=2)
+            if rr.isError():
+                raise IOError(str(rr))
+            dec = BinaryPayloadDecoder.fromRegisters(rr.registers, byteorder=Endian.BIG, wordorder=Endian.BIG)
+            results.append({"device": d.id, "addr": f"port {port} / reg {tag.modbus_register}",
+                            "tag": tag.name, "value": round(dec.decode_32bit_float(), 2), "ok": True,
+                            "latency_ms": round((time.perf_counter() - t0) * 1000, 1)})
+        except Exception as e:
+            results.append({"device": d.id, "addr": f"port {port}", "tag": tag.name, "ok": False, "error": str(e)})
+        finally:
+            client.close()
+    return results
+
+
 # ── OPC-UA ──────────────────────────────────────────────────
 async def check_opcua(world: World, endpoint: str) -> list[dict]:
     from asyncua import Client
@@ -165,12 +197,20 @@ async def run_diagnostics(world: World, host: str, ports: dict) -> dict:
         ok = sum(1 for r in rows if r.get("ok"))
         return {"reachable": ok, "total": len(rows), "port": port}
 
-    return {
-        "synthetic": True,
-        "host": host,
-        "protocols": {
-            "modbus": {"summary": _summary(modbus, ports.get("modbus")), "devices": modbus},
-            "opcua": {"summary": _summary(opcua, ports.get("opcua")), "devices": opcua},
-            "mqtt": {"summary": _summary(mqtt, ports.get("mqtt")), "devices": mqtt},
-        },
+    protocols = {
+        "modbus": {"summary": _summary(modbus, ports.get("modbus")), "devices": modbus},
+        "opcua": {"summary": _summary(opcua, ports.get("opcua")), "devices": opcua},
+        "mqtt": {"summary": _summary(mqtt, ports.get("mqtt")), "devices": mqtt},
     }
+
+    # multi_port 啟用時,額外測每台設備的專屬埠
+    port_map = getattr(world, "multiport_modbus", None)
+    if port_map:
+        mp = await check_modbus_multiport(world, host, port_map)
+        if not isinstance(mp, list):
+            mp = _norm(mp)
+        ports_sorted = sorted(port_map.values())
+        rng = f"{ports_sorted[0]}–{ports_sorted[-1]}" if ports_sorted else None
+        protocols["modbus_multiport"] = {"summary": _summary(mp, rng), "devices": mp}
+
+    return {"synthetic": True, "host": host, "protocols": protocols}

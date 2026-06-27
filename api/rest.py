@@ -64,6 +64,7 @@ def create_app(
     config: dict,
     opcua=None,
     mqtt=None,
+    multiport=None,
 ) -> FastAPI:
     public_host = config.get("public_host", "127.0.0.1")
     teacher_token = config.get("teacher_token", "")
@@ -101,6 +102,8 @@ def create_app(
         if mqtt is not None:
             await mqtt.start()
         world.subscribe(modbus.on_snapshot)
+        if multiport is not None:
+            world.subscribe(multiport.on_snapshot)        # 同一 snapshot → 每台專屬埠
         if opcua is not None:
             world.subscribe(opcua.on_snapshot)            # 同一 snapshot → OPC-UA 節點
         if mqtt is not None:
@@ -111,6 +114,8 @@ def create_app(
         world.subscribe_events(tickets.on_event)          # 故障事件 → 自動開工單
         world.subscribe_events(predictions.on_event)      # 故障事件 → 比對預測命中
         modbus.start_background()
+        if multiport is not None:
+            multiport.start_background()
         world_task = asyncio.create_task(world.run())
         print("[api] 世界已啟動,等待連線。")
         try:
@@ -118,6 +123,8 @@ def create_app(
         finally:
             world.stop()
             world_task.cancel()
+            if multiport is not None:
+                await multiport.stop()
             if mqtt is not None:
                 await mqtt.stop()
             if opcua is not None:

@@ -14,6 +14,7 @@ export default function App() {
   const [events, setEvents] = useState<EventMsg[]>([]);
   const [view, setView] = useState<"world" | "catalog" | "teacher">("world");
   const [selected, setSelected] = useState<string | null>(null);
+  const [predicted, setPredicted] = useState<Set<string>>(new Set());
   const telemetryRef = useRef<TelemetryMsg | null>(null);
 
   useEffect(() => {
@@ -23,9 +24,16 @@ export default function App() {
       telemetryRef.current = m;
       setTelemetry(m);
     });
-    const unEv = subscribe<EventMsg>("/ws/events", (e) =>
-      setEvents((prev) => [e, ...prev].slice(0, 40))
-    );
+    const unEv = subscribe<EventMsg>("/ws/events", (e) => {
+      setEvents((prev) => [e, ...prev].slice(0, 40));
+      setPredicted((prev) => {
+        const next = new Set(prev);
+        if (e.type === "prediction") next.add(e.device);
+        else if (e.type === "fault") next.delete(e.device);          // 真故障→紅,撤橘
+        else if (e.type === "state_change" && e.to === "idle") next.delete(e.device); // reset
+        return next;
+      });
+    });
     return () => { unTel(); unEv(); };
   }, []);
 
@@ -52,7 +60,8 @@ export default function App() {
           <>
             <div className="stage">
               {park && (
-                <WorldView park={park} telemetry={telemetry} selected={selected} onSelect={setSelected} />
+                <WorldView park={park} telemetry={telemetry} selected={selected}
+                           onSelect={setSelected} predicted={predicted} />
               )}
             </div>
             <aside className="side">
@@ -88,6 +97,10 @@ export default function App() {
                     <span className="t">{(e.sim_t / 3600).toFixed(1)}h</span>{" "}
                     {e.type === "fault" ? (
                       <span style={{ color: "#e24c4c" }}>⚠ {e.device} 故障（{e.component}）</span>
+                    ) : e.type === "prediction" ? (
+                      <span style={{ color: "#f08c2e" }}>🔮 {e.device} 預測故障（{e.student}）</span>
+                    ) : e.type === "prediction_hit" ? (
+                      <span style={{ color: "#37d67a" }}>✅ {e.device} 預測命中 lead {((e.lead_time_sim ?? 0) / 3600).toFixed(1)}h（{e.student}）</span>
                     ) : (
                       <span>{e.device}：{e.from} → {e.to}</span>
                     )}

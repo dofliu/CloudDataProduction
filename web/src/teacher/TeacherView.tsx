@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import {
-  Park, TelemetryMsg, HealthGT, Ticket, ScoreRow,
+  Park, TelemetryMsg, HealthGT, Ticket, ScoreRow, PredScoreRow,
   setTeacherToken, getTeacherToken, setClock,
-  injectFault, resetDevice, getHealth, getTickets, ackTicket, resolveTicket, getScores,
+  injectFault, resetDevice, getHealth, getTickets, ackTicket, resolveTicket, getScores, getPredictionScores,
 } from "../api";
 
 const FAULT_TYPES = [
@@ -23,6 +23,7 @@ export default function TeacherView({
   const [health, setHealth] = useState<HealthGT | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [scores, setScores] = useState<ScoreRow[]>([]);
+  const [predScores, setPredScores] = useState<PredScoreRow[]>([]);
 
   const deviceIds = telemetry ? Object.keys(telemetry.devices) : [];
   const isSensor = ftype.startsWith("sensor_");
@@ -39,6 +40,7 @@ export default function TeacherView({
       try { if (dev) setHealth(await getHealth(dev)); } catch { /* token 未設會 401 */ }
       try { setTickets((await getTickets()).tickets); } catch { /* */ }
       try { setScores((await getScores()).ranking); } catch { /* */ }
+      try { setPredScores((await getPredictionScores()).ranking); } catch { /* */ }
     };
     tick();
     const id = setInterval(tick, 2000);
@@ -168,6 +170,25 @@ export default function TeacherView({
               <td>{i + 1}</td><td>{s.name}</td><td>{s.owner ?? "—"}</td>
               <td>{s.faults}</td><td>{s.detected}</td><td>{s.resolved}</td><td>{s.missed}</td>
               <td>{s.avg_detection_h ?? "—"}</td><td>{s.avg_mttr_h ?? "—"}</td>
+              <td><b>{s.score}</b></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* 階段二預測榜 */}
+      <h3 style={{ marginTop: 22 }}>階段二預測榜（lead time）</h3>
+      <table>
+        <thead><tr><th>#</th><th>學生</th><th>預測數</th><th>命中</th><th>誤報</th><th>待定</th><th>平均提前(h)</th><th>命中率</th><th>分數</th></tr></thead>
+        <tbody>
+          {predScores.length === 0 && <tr><td colSpan={9} className="hint">尚無預測（學生用 student_kit/p3_predictor.py 上傳）</td></tr>}
+          {predScores.map((s, i) => (
+            <tr key={s.student}>
+              <td>{i + 1}</td><td>{s.student}</td><td>{s.predictions}</td>
+              <td style={{ color: "#37d67a" }}>{s.hits}</td>
+              <td style={{ color: "#e24c4c" }}>{s.false_alarms}</td>
+              <td>{s.pending}</td>
+              <td>{s.avg_lead_time_h ?? "—"}</td><td>{s.hit_rate ?? "—"}</td>
               <td><b>{s.score}</b></td>
             </tr>
           ))}

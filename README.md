@@ -193,4 +193,39 @@ python mcp/server.py                          # 掛進 Claude Desktop;勿用 -m(
 
 ---
 
+## P3 階段二閉環即時推論
+
+P3 已完成:學生模型訂閱遙測 → 在故障**之前** POST 預測 → 系統用 ground-truth 算
+**lead time(提前量)**、設備在 2D 世界翻**橘**、上預測榜。
+
+- **預測端點**:`POST /api/predictions {device, student, predicted_fault, eta_sim_s, confidence}`
+  (公開,學生面)。`GET /api/predictions`、`GET /api/predictions/scores`。
+- **比對**:[predictions.py](api/predictions.py) 訂閱故障事件,設備故障時把先前的 pending 預測標記
+  hit,`lead_time = fault_onset − prediction_time`;發 `prediction` / `prediction_hit` 事件。
+- **預測榜**:命中數、平均 lead time、誤報、命中率、分數(命中按提前量加分、誤報扣分);
+  教師控制台底部「階段二預測榜」即時顯示。
+- **2D 世界**:預測中設備翻**橘**(真故障紅優先)、公司燈號同步;**AGV 改補間平滑移動**
+  (解決高倍率下綠點瞬移)。
+
+學生範例:[student_kit/p3_predictor.py](student_kit/p3_predictor.py) —— 訂閱 `/ws/telemetry`、
+振動越界就 POST 預測的最小服務骨架(學生把啟發式換成自己用 Historian 訓練的模型)。
+
+```powershell
+.\.venv\Scripts\python.exe student_kit\p3_predictor.py --student S001 --threshold 5.0
+```
+
+> ⚠ **Windows / PowerShell 注意**:PowerShell 會把 `curl` 的 JSON body 搞壞(送出空物件 → 422)。
+> 要發 POST(預測 / 注入故障)請用 student_kit 的 Python 腳本或網頁 UI,**不要用 PowerShell 的 curl**。
+
+### P3 驗收狀態
+
+| 驗收項 | 狀態 | 備註 |
+|--------|------|------|
+| 故障前預測 → 命中算 lead time | ✅ 已驗 | 預測 cnc-01 → 注入 gradual → 故障,命中 lead time **8.9 sim h** |
+| 預測榜(lead time / 命中率 / 誤報) | ✅ 已驗 | S007 hits=1、hit_rate=1.0、score 64.6 |
+| 2D 世界預測故障翻橘 | ✅ 已驗 | cnc-01/comp-01/comp-02 橘色脈動 + 公司燈號橘、事件列 🔮 預測故障 |
+| 誤報判定與 eta 脫鉤 | ✅ 已修 | eta 估錯不再把真故障誤判成誤報;誤報只看「設備到底有沒有壞」 |
+
+---
+
 作者:勤益科大 劉瑞弘 · DofLab

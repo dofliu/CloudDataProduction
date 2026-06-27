@@ -11,16 +11,18 @@ interface DeviceVisual {
   container: Container;
   ring: Graphics;
   base: { x: number; y: number };  // 相對 worldContainer 的基準座標
+  target: { x: number; y: number };  // 移動目標(AGV 用,ticker 補間逼近)
   companyId: string;
 }
 
 export default function WorldView({
-  park, telemetry, selected, onSelect,
+  park, telemetry, selected, onSelect, predicted,
 }: {
   park: Park;
   telemetry: TelemetryMsg | null;
   selected: string | null;
   onSelect: (id: string) => void;
+  predicted: Set<string>;
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const appRef = useRef<Application | null>(null);
@@ -29,8 +31,10 @@ export default function WorldView({
   const devicesRef = useRef<Record<string, DeviceVisual>>({});
   const onSelectRef = useRef(onSelect);
   const selectedRef = useRef(selected);
+  const predictedRef = useRef(predicted);
   onSelectRef.current = onSelect;
   selectedRef.current = selected;
+  predictedRef.current = predicted;
 
   // ── 建場景(只在掛載 / park 變動時)──────────────────
   useEffect(() => {
@@ -114,9 +118,17 @@ export default function WorldView({
           cont.addChild(dlabel);
 
           world.addChild(cont);
-          devicesRef.current[did] = { container: cont, ring, base, companyId: c.id };
+          devicesRef.current[did] = { container: cont, ring, base, target: { ...base }, companyId: c.id };
         });
       }
+
+      // 補間 ticker:每幀把標記逼近目標位置 → AGV 平順滑行(不受高倍率瞬移影響)
+      app.ticker.add(() => {
+        for (const v of Object.values(devicesRef.current)) {
+          v.container.x += (v.target.x - v.container.x) * 0.18;
+          v.container.y += (v.target.y - v.container.y) * 0.18;
+        }
+      });
 
       update(); // 首次上色
     })();
@@ -141,8 +153,8 @@ export default function WorldView({
     };
   }, [park]);
 
-  // ── 每次 telemetry 更新顏色 / AGV 位置 ────────────────
-  useEffect(() => { update(); }, [telemetry, selected]);
+  // ── 每次 telemetry / 選取 / 預測集合變動時重新上色 ────
+  useEffect(() => { update(); }, [telemetry, selected, predicted]);
 
   function update() {
     const tel = telemetry;
@@ -154,16 +166,19 @@ export default function WorldView({
       const snap = tel.devices[did];
       if (!snap) continue;
       const isSel = did === selectedRef.current;
-      const color = colorOf(snap.state);
+      // 預測中(且尚未真故障)→ 橘;真故障紅優先
+      const isPredicted = predictedRef.current.has(did) && snap.state !== "fault";
+      const color = isPredicted ? 0xf08c2e : colorOf(snap.state);
       const r = isSel ? 11 : 8;
       v.ring.clear();
       v.ring.circle(0, 0, r).fill(color).stroke({ width: isSel ? 3 : 1.5, color: isSel ? 0xffffff : 0x0f141b });
       if (snap.state === "fault") v.ring.circle(0, 0, r + 5).stroke({ width: 1.5, color: 0xe24c4c });
+      else if (isPredicted) v.ring.circle(0, 0, r + 5).stroke({ width: 1.5, color: 0xf08c2e });
 
-      // AGV 依 pos_x/y 移動(局部 0..20m,中心 (10,7))
+      // AGV 依 pos_x/y 移動(局部 0..20m,中心 (10,7));設目標,由 ticker 平滑逼近
       if (snap.template === "agv_mobile_robot" && "pos_x" in snap.tags) {
-        v.container.x = v.base.x + (snap.tags["pos_x"] - 10) * AGV_SCALE;
-        v.container.y = v.base.y + (snap.tags["pos_y"] - 7) * AGV_SCALE;
+        v.target.x = v.base.x + (snap.tags["pos_x"] - 10) * AGV_SCALE;
+        v.target.y = v.base.y + (snap.tags["pos_y"] - 7) * AGV_SCALE;
       }
     }
 
@@ -171,7 +186,11 @@ export default function WorldView({
     for (const c of park.companies) {
       const light = lightsRef.current[c.id];
       if (!light) continue;
-      const states = c.device_ids.map((d) => tel.devices[d]?.state).filter(Boolean) as string[];
+      const states = c.device_ids.map((d) => {
+        const st = tel.devices[d]?.state;
+        if (st && st !== "fault" && predictedRef.current.has(d)) return "predicted_fault";
+        return st;
+      }).filter(Boolean) as string[];
       const ws = states.length ? worstState(states) : "idle";
       light.clear();
       light.circle(0, 0, 7).fill(colorOf(ws)).stroke({ width: 2, color: 0x0f141b });

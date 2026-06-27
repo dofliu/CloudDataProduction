@@ -18,6 +18,7 @@ from adapters.modbus_server import ModbusAdapter
 from engine.world import World
 from historian.writer import Historian
 from .catalog import build_catalog
+from .predictions import PredictionStore
 from .scoring import ScoringEngine
 from .tickets import TicketStore
 from .ws import ConnectionManager, register_ws_routes
@@ -46,6 +47,14 @@ class FactoryRequest(BaseModel):
     yaml: Optional[str] = None           # 或直接給公司設定 YAML
 
 
+class PredictionRequest(BaseModel):
+    device: str
+    student: str = "anon"
+    predicted_fault: str = "fault"
+    eta_sim_s: Optional[float] = None
+    confidence: float = 1.0
+
+
 def create_app(
     world: World,
     historian: Historian,
@@ -72,6 +81,10 @@ def create_app(
     tickets = TicketStore(world)
     scoring = ScoringEngine(world, tickets)
 
+    # 階段二預測(發 prediction / prediction_hit 走 events 通道)
+    predictions = PredictionStore(world)
+    predictions.set_emitter(events_mgr.broadcast)
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         # 啟動順序:先連 Historian、起協定 server,再把各訂閱者掛進世界,最後起世界迴圈
@@ -90,6 +103,7 @@ def create_app(
         world.subscribe(telemetry_mgr.on_message)        # telemetry → 瀏覽器
         world.subscribe_events(events_mgr.on_message)     # 事件 → 瀏覽器
         world.subscribe_events(tickets.on_event)          # 故障事件 → 自動開工單
+        world.subscribe_events(predictions.on_event)      # 故障事件 → 比對預測命中
         modbus.start_background()
         world_task = asyncio.create_task(world.run())
         print("[api] 世界已啟動,等待連線。")
@@ -186,6 +200,22 @@ def create_app(
     @app.get("/api/scores")
     def get_scores():
         return scoring.scores()
+
+    # ── 階段二:預測上傳 / 預測榜(學生面公開)──────────────
+    @app.post("/api/predictions")
+    async def post_prediction(req: PredictionRequest):
+        try:
+            return await predictions.add(req.model_dump())
+        except KeyError:
+            raise HTTPException(404, f"無此設備:{req.device}")
+
+    @app.get("/api/predictions")
+    def list_predictions(student: Optional[str] = None):
+        return {"predictions": predictions.list(student=student)}
+
+    @app.get("/api/predictions/scores")
+    def prediction_scores():
+        return predictions.scores()
 
     # 學生認領公司(公開)
     @app.post("/api/companies/{company_id}/claim")

@@ -23,6 +23,7 @@ export interface EventMsg {
   type: string; device: string; company?: string;
   from?: string; to?: string; component?: string;
   fault_type?: string; sim_t: number;
+  student?: string; lead_time_sim?: number; confidence?: number;  // 預測事件
 }
 
 export interface CatalogTag {
@@ -113,6 +114,19 @@ export interface ScoreRow {
   avg_detection_h: number | null; avg_mttr_h: number | null; score: number;
 }
 export const getScores = () => getJSON<{ ranking: ScoreRow[] }>("/api/scores");
+
+// ── 階段二:預測(學生面公開)───────────────────────────
+export interface PredictionBody {
+  device: string; student: string; predicted_fault?: string;
+  eta_sim_s?: number; confidence?: number;
+}
+export const postPrediction = (body: PredictionBody) => post("/api/predictions", body);
+
+export interface PredScoreRow {
+  student: string; predictions: number; hits: number; false_alarms: number;
+  pending: number; avg_lead_time_h: number | null; hit_rate: number | null; score: number;
+}
+export const getPredictionScores = () => getJSON<{ ranking: PredScoreRow[] }>("/api/predictions/scores");
 
 // 自動重連的 WebSocket 訂閱;回傳 close 函式。
 export function subscribe<T>(path: string, onMessage: (msg: T) => void): () => void {

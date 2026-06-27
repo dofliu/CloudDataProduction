@@ -1,7 +1,7 @@
 name: CloudDataProduction
 name_zh: 雲端生產數據導論 — 虛擬智慧工業區教學平台
 category: edtech
-progress: 98
+progress: 99
 status: active
 last_updated: "2026-06-28"
 next_milestone: "對外接入(Cloudflare Tunnel + Tailscale)——待能存取校內 5090 主機"

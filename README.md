@@ -52,35 +52,48 @@
 ## P0 快速啟動
 
 P0 已完成:單台 CNC 從健康自然退化到軸承故障,Modbus 讀得到、目錄查得到、Historian 有歷史曲線。
+**不需要 Docker** —— Historian 沒連到 DB 會自動降級為 in-memory。
 
-```bash
+### 第一次:建虛擬環境
+
+```powershell
 python -m venv .venv
-.venv\Scripts\activate            # Windows;Linux/mac 用 source .venv/bin/activate
-pip install -r requirements.txt
-
-cp .env.example .env              # Windows:copy .env.example .env
-# Windows 綁 502 需系統管理員;開發建議在 .env 設 MODBUS_PORT=5020
-python main.py                   # 起 引擎 + Modbus + Historian + FastAPI(同進程)
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+copy .env.example .env            # 預設埠:API 8077、Modbus 5020(避開 Windows 502 權限與被占用的 8000)
 ```
 
-連線驗證(另開一個終端機):
+### 啟動
 
-```bash
-# 設備目錄(學生規格書):每個 tag 的 register / 型別 / 連線資訊
-curl http://127.0.0.1:8000/api/catalog
+```powershell
+.\run.ps1                         # 或雙擊 run.bat;會自動用 venv 的 python 跑 main.py
+```
 
+> ⚠ 常見錯誤:不要在 `.venv\Scripts\` 目錄裡、也不要用全域 `python` 執行 ——
+> `main.py` 在**專案根目錄**,且相依套件只裝在 `.venv` 裡。用上面的 `run.ps1` / `run.bat` 最保險。
+
+啟動後打開瀏覽器:
+
+- API 互動文件(Swagger):**http://127.0.0.1:8077/docs**
+- 設備目錄(學生規格書):http://127.0.0.1:8077/api/catalog
+- 即時值:http://127.0.0.1:8077/api/devices/cnc-01
+
+連線驗證(另開一個終端機,在專案根目錄):
+
+```powershell
 # 用 pymodbus 客戶端連線監看,應看見 vibration_rms 上升、最後 state 跳 fault
-python student_kit/p0_modbus_reader.py --port 5020 --api http://127.0.0.1:8000/api/catalog
+.\.venv\Scripts\python.exe student_kit\p0_modbus_reader.py --port 5020 --api http://127.0.0.1:8077/api/catalog
 
 # 退化歷史曲線(Historian)
-curl "http://127.0.0.1:8000/api/history?device=cnc-01&tag=vibration_rms"
+curl "http://127.0.0.1:8077/api/history?device=cnc-01&tag=vibration_rms"
 ```
 
 主要端點:`/api/park`、`/api/catalog`、`/api/devices/{id}`、`/api/history`、
 `/api/devices/{id}/health`(ground-truth)、`GET/POST /api/sim/clock`(調倍率 / 暫停)。
 
-> Historian 連不上 TimescaleDB 時會自動降級為 in-memory(`degraded: true`),引擎照常運行。
-> 要用真正的 TimescaleDB:先 `docker compose up -d timescaledb`,並 `pip install asyncpg`。
+> 預設 `time_multiplier=3600`,約 90 秒就跑到故障。想慢慢看,POST 調倍率:
+> `curl -X POST http://127.0.0.1:8077/api/sim/clock -H "Content-Type: application/json" -d "{\"multiplier\":600}"`,
+> 或直接改 `scenarios/p0_single_cnc.yaml` 的 `time_multiplier`(故障後重跑即重置)。
+> 要改用真正的 TimescaleDB:`.env` 設 `HISTORIAN_ENABLED=true`、`pip install asyncpg`、`docker compose up -d timescaledb`。
 
 ### P0 驗收狀態
 

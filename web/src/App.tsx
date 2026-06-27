@@ -122,7 +122,8 @@ export default function App() {
         ) : view === "oee" ? (
           <OeeView />
         ) : (
-          park && <TeacherView park={park} telemetry={telemetry} />
+          park && <TeacherView park={park} telemetry={telemetry}
+                               onParkChanged={() => getPark().then(setPark).catch(console.error)} />
         )}
       </div>
     </div>

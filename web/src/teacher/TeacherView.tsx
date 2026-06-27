@@ -3,7 +3,7 @@ import {
   Park, TelemetryMsg, HealthGT, Ticket, ScoreRow, PredScoreRow, ScenarioScript, ScenarioStatus,
   setTeacherToken, getTeacherToken, setClock,
   injectFault, resetDevice, getHealth, getTickets, ackTicket, resolveTicket, getScores, getPredictionScores,
-  getScenarios, runScenario, stopScenario,
+  getScenarios, runScenario, stopScenario, createFactory,
 } from "../api";
 
 const FAULT_TYPES = [
@@ -12,8 +12,8 @@ const FAULT_TYPES = [
 ];
 
 export default function TeacherView({
-  park, telemetry,
-}: { park: Park; telemetry: TelemetryMsg | null }) {
+  park, telemetry, onParkChanged,
+}: { park: Park; telemetry: TelemetryMsg | null; onParkChanged: () => void }) {
   const [token, setTok] = useState(getTeacherToken());
   const [dev, setDev] = useState<string>("");
   const [ftype, setFtype] = useState("gradual");
@@ -28,6 +28,7 @@ export default function TeacherView({
   const [scripts, setScripts] = useState<ScenarioScript[]>([]);
   const [scenStatus, setScenStatus] = useState<ScenarioStatus | null>(null);
   const [scenName, setScenName] = useState("disaster_day");
+  const [factoryDesc, setFactoryDesc] = useState("建一間有 3 台機械手臂的公司");
 
   const deviceIds = telemetry ? Object.keys(telemetry.devices) : [];
   const isSensor = ftype.startsWith("sensor_");
@@ -69,6 +70,17 @@ export default function TeacherView({
     try { await resetDevice(dev); setMsg(`已 reset ${dev}`); }
     catch (e: any) { setMsg(`reset 失敗:${e.message}`); }
   };
+  const doFactory = async () => {
+    try {
+      const r = await createFactory(factoryDesc);
+      setMsg(`已建廠:${r?._summary ?? r?.name ?? "新公司"}（2D 世界已更新;原生協定埠需重啟 server)`);
+      onParkChanged();   // 重抓 park → 2D 世界 / 目錄 / OEE 顯示新公司
+    } catch (e: any) {
+      const hint = String(e.message).includes("401") ? "先填 dev-teacher-token 並儲存"
+        : String(e.message).includes("422") ? "描述需含設備類型(CNC/空壓機/AGV/機械手臂)與數量" : "";
+      setMsg(`建廠失敗:${e.message} ${hint}`);
+    }
+  };
 
   return (
     <div className="catalog">
@@ -92,8 +104,17 @@ export default function TeacherView({
         </div>
       </div>
 
+      {/* 建廠(自然語言) */}
+      <h3>建廠（自然語言)</h3>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <input value={factoryDesc} onChange={(e) => setFactoryDesc(e.target.value)}
+               placeholder="例:建一間有 3 台機械手臂的公司" style={{ ...inp, width: 360 }} />
+        <button style={{ ...btn, background: "#37d67a", color: "#08121e" }} onClick={doFactory}>＋ 建立公司</button>
+      </div>
+      <div className="hint" style={{ marginTop: 4 }}>支援:CNC / 空壓機 / AGV / 機械手臂 + 數量(如「5 台 CNC」)。建立後即時長出新公司。</div>
+
       {/* 故障注入 */}
-      <h3>注入故障</h3>
+      <h3 style={{ marginTop: 22 }}>注入故障</h3>
       <div style={{ display: "flex", gap: 10, alignItems: "end", flexWrap: "wrap" }}>
         <Field label="設備">
           <select value={dev} onChange={(e) => setDev(e.target.value)} style={inp}>

@@ -83,6 +83,9 @@ export interface FaultBody {
   severity?: number; onset_sim_s?: number; params?: Record<string, any>;
 }
 export const injectFault = (body: FaultBody) => post("/api/faults", body, true);
+
+// 自然語言建廠(教師面):一句話 → 即時長出新公司
+export const createFactory = (description: string) => post("/api/factory", { description }, true);
 export const resetDevice = (id: string) => post(`/api/devices/${id}/reset`, undefined, true);
 
 export interface ComponentGT { name: string; health: number; rul_sim_s: number | null; failed: boolean; trajectory: string; }

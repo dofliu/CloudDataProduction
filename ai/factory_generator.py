@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import re
 
-# 關鍵字 → template(只含已實作的 template)
+# 關鍵字 → template(只含已實作的 template)。注意:含子字串的關鍵字要避免誤判。
 _TEMPLATE_KEYWORDS = {
     "cnc": "cnc_machining_center", "加工中心": "cnc_machining_center", "工具機": "cnc_machining_center",
     "空壓機": "air_compressor", "壓縮機": "air_compressor", "compressor": "air_compressor",
     "agv": "agv_mobile_robot", "搬運車": "agv_mobile_robot", "自走車": "agv_mobile_robot",
+    "機械手臂": "robot_arm_6axis", "手臂": "robot_arm_6axis", "robot_arm": "robot_arm_6axis",
+    "robot": "robot_arm_6axis", "六軸": "robot_arm_6axis",
 }
 
 # 各 template 的預設退化元件(讓新設備會自然退化,與場景一致)
@@ -30,8 +32,13 @@ _DEFAULT_DEGRADATION = {
         "motor_bearing": {"rate": 0.0000011, "trajectory": "exponential", "k": 3.0, "sigma": 0.1, "init_health": 0.93},
         "battery_capacity_fade": {"rate": 0.0000008, "trajectory": "linear", "sigma": 0.1, "init_health": 1.0, "causes_device_fault": False},
     },
+    "robot_arm_6axis": {
+        "reducer_wear": {"rate": 0.0000010, "trajectory": "exponential", "k": 3.0, "sigma": 0.1, "init_health": 0.94},
+        "joint_bearing": {"rate": 0.0000009, "trajectory": "exponential", "k": 2.5, "sigma": 0.12, "init_health": 0.96, "causes_device_fault": False},
+    },
 }
-_PREFIX = {"cnc_machining_center": "cnc", "air_compressor": "comp", "agv_mobile_robot": "agv"}
+_PREFIX = {"cnc_machining_center": "cnc", "air_compressor": "comp",
+           "agv_mobile_robot": "agv", "robot_arm_6axis": "arm"}
 
 _CH_NUM = {"一": 1, "二": 2, "兩": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
 

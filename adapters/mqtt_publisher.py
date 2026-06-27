@@ -31,11 +31,13 @@ class MqttPublisher:
         self._client: MQTTClient | None = None
         self._started = False
         self._last_pub_wall = 0.0
-        # 每台設備的 topic 前綴
-        self._topics = {
-            d.id: (d.protocols.get("mqtt", {}) or {}).get("topic_prefix", f"park/{d.company_id}/{d.id}")
-            for d in world.devices.values()
-        }
+
+    def _topic_prefix(self, did: str) -> str:
+        # 從引擎當前設備設定取 topic(熱載入新設備也一致),查不到才退回預設
+        dev = self.world.devices.get(did)
+        if dev is not None:
+            return (dev.protocols.get("mqtt", {}) or {}).get("topic_prefix", f"park/{did}")
+        return f"park/{did}"
 
     async def start(self) -> None:
         """啟動內嵌 broker 並連上 client。須在訂閱 on_snapshot 之前 await。"""
@@ -60,7 +62,7 @@ class MqttPublisher:
         self._last_pub_wall = wall_t
 
         for did, dev in snapshot["devices"].items():
-            topic = f"{self._topics.get(did, f'park/{did}')}/state"
+            topic = f"{self._topic_prefix(did)}/state"
             payload = json.dumps({
                 "sim_t": snapshot["sim_t"], "state": dev["state"],
                 "tags": dev["tags"], "synthetic": True,

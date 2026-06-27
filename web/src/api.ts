@@ -128,6 +128,18 @@ export interface PredScoreRow {
 }
 export const getPredictionScores = () => getJSON<{ ranking: PredScoreRow[] }>("/api/predictions/scores");
 
+// ── 協定連線自測 / 戰情版 ───────────────────────────────
+export interface DiagRow {
+  device?: string; ok: boolean; value?: number;
+  tag?: string; addr?: string; latency_ms?: number; error?: string;
+}
+export interface DiagProto { summary: { reachable: number; total: number; port: number }; devices: DiagRow[]; }
+export interface Diagnostics {
+  host: string;
+  protocols: { modbus: DiagProto; opcua: DiagProto; mqtt: DiagProto };
+}
+export const getDiagnostics = () => getJSON<Diagnostics>("/api/diagnostics/protocols");
+
 // 自動重連的 WebSocket 訂閱;回傳 close 函式。
 export function subscribe<T>(path: string, onMessage: (msg: T) => void): () => void {
   let ws: WebSocket | null = null;

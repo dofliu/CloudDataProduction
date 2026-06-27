@@ -18,6 +18,7 @@ from adapters.modbus_server import ModbusAdapter
 from engine.world import World
 from historian.writer import Historian
 from .catalog import build_catalog
+from .diagnostics import run_diagnostics
 from .predictions import PredictionStore
 from .scoring import ScoringEngine
 from .tickets import TicketStore
@@ -151,6 +152,11 @@ def create_app(
     @app.get("/api/catalog")
     def get_catalog():
         return build_catalog(world, host=public_host)
+
+    @app.get("/api/diagnostics/protocols")
+    async def diagnostics_protocols():
+        # 戰情版 / 連線自測:用三協定 client 連回自己的 server(loopback)逐設備讀樣本值
+        return await run_diagnostics(world, host="127.0.0.1", ports=world.ports)
 
     @app.get("/api/devices/{device_id}")
     def get_device(device_id: str):

@@ -88,10 +88,14 @@ def create_app(
     telemetry_mgr = ConnectionManager("telemetry")
     events_mgr = ConnectionManager("events")
 
-    # 營運狀態持久化:開 state.db,開機載入工單/預測、還原 OEE 累積器(進程重啟不歸零)
+    # 營運狀態持久化:開 state.db,開機載入工單/預測、還原 OEE 累積器、公司認領(進程重啟不歸零)
     if state is not None:
         state.connect()
         world.restore_oee(state.load("oee", {}))
+        _saved_owners = state.load("owners", {}) or {}
+        for _c in world.park.get("companies", []):
+            if _c.get("id") in _saved_owners:
+                _c["owner"] = _saved_owners[_c["id"]]
 
     # 工單 + 評分(工單訂閱故障事件自動開單)
     tickets = TicketStore(world, persist=state)
@@ -287,12 +291,18 @@ def create_app(
         return predictions.scores()
 
     # 學生認領公司(公開)
+    def _save_owners():
+        if state is not None:
+            owners = {c["id"]: c["owner"] for c in world.park.get("companies", []) if c.get("owner")}
+            state.save("owners", owners)
+
     @app.post("/api/companies/{company_id}/claim")
     def claim_company(company_id: str, req: ClaimRequest):
         for c in world.park.get("companies", []):
             if c.get("id") == company_id:
-                c["owner"] = req.student_id
-                return {"company": company_id, "owner": req.student_id}
+                c["owner"] = req.student_id or None
+                _save_owners()                       # 認領寫穿,進程重啟不歸零
+                return {"company": company_id, "owner": c["owner"]}
         raise HTTPException(404, f"無此公司:{company_id}")
 
     # ── 教師面(需 teacher token)──────────────────────────

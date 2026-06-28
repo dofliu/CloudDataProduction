@@ -8,13 +8,14 @@ import CatalogView from "./catalog/CatalogView";
 import TeacherView from "./teacher/TeacherView";
 import DiagnosticsView from "./diagnostics/DiagnosticsView";
 import OeeView from "./oee/OeeView";
+import StudentView from "./student/StudentView";
 
 export default function App() {
   const [park, setPark] = useState<Park | null>(null);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [telemetry, setTelemetry] = useState<TelemetryMsg | null>(null);
   const [events, setEvents] = useState<EventMsg[]>([]);
-  const [view, setView] = useState<"world" | "catalog" | "teacher" | "diag" | "oee">("world");
+  const [view, setView] = useState<"world" | "student" | "catalog" | "teacher" | "diag" | "oee">("world");
   const [selected, setSelected] = useState<string | null>(null);
   const [predicted, setPredicted] = useState<Set<string>>(new Set());
   const [resetMsg, setResetMsg] = useState("");
@@ -53,6 +54,7 @@ export default function App() {
         <div className="spacer" />
         <nav className="nav">
           <button className={view === "world" ? "active" : ""} onClick={() => setView("world")}>2D 世界</button>
+          <button className={view === "student" ? "active" : ""} onClick={() => setView("student")}>學生面</button>
           <button className={view === "catalog" ? "active" : ""} onClick={() => setView("catalog")}>設備目錄</button>
           <button className={view === "diag" ? "active" : ""} onClick={() => setView("diag")}>戰情版</button>
           <button className={view === "oee" ? "active" : ""} onClick={() => setView("oee")}>OEE 榜</button>
@@ -198,6 +200,8 @@ export default function App() {
               </div>
             </aside>
           </>
+        ) : view === "student" ? (
+          park && <StudentView park={park} telemetry={telemetry} />
         ) : view === "catalog" ? (
           <CatalogView catalog={catalog} telemetry={telemetry} />
         ) : view === "diag" ? (

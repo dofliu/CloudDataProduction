@@ -143,6 +143,10 @@ export interface ScoreRow {
 }
 export const getScores = () => getJSON<{ ranking: ScoreRow[] }>("/api/scores");
 
+// 學生認領公司(公開,免 auth)
+export const claimCompany = (companyId: string, studentId: string) =>
+  post(`/api/companies/${companyId}/claim`, { student_id: studentId });
+
 // ── 階段二:預測(學生面公開)───────────────────────────
 export interface PredictionBody {
   device: string; student: string; predicted_fault?: string;

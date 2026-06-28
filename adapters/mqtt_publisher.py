@@ -80,6 +80,7 @@ class MqttPublisher:
                 "tags": dev["tags"],
                 "discretes": dev.get("discretes", {}),     # 離散輸入(FC02 對應)
                 "input_regs": dev.get("input_regs", {}),   # 輸入暫存器(FC04 對應)
+                "coils": dev.get("coils", {}),             # 命令線圈(FC01/05 對應)
                 "synthetic": True,
             }).encode("utf-8")
             try:

@@ -69,8 +69,10 @@ def main():
     holding = dev.get("tags", [])
     discretes = dev.get("discrete_inputs", [])
     input_regs = dev.get("input_registers", [])
+    coils = dev.get("coils", [])
     print(f"[reader] {dev['id']}({dev['template']}) @ {args.host}:{args.port} unit={args.unit}")
-    print(f"         holding={len(holding)} 個、discrete_input={len(discretes)} 個、input_register={len(input_regs)} 個\n")
+    print(f"         holding={len(holding)}、discrete_input={len(discretes)}、"
+          f"input_register={len(input_regs)}、coil={len(coils)}\n")
 
     client = ModbusTcpClient(args.host, port=args.port)
     if not client.connect():
@@ -113,6 +115,15 @@ def main():
                     eu = raw / p["scale"] if p.get("scale", 1) not in (0, 1) else raw
                     extra = f"  (÷{p['scale']} = {eu:.2f})" if p.get("scale", 1) not in (0, 1) else ""
                     print(f"   {p['name']:<18} addr{p['address']:>2}/30{p['address']+1:03d}  {p['datatype']:<7} = {raw}{extra}")
+
+            # FC01 Coil:命令線圈(學生唯讀;教師才可寫 FC05)
+            if coils:
+                print(" [FC01 coil](唯讀;教師才可寫)")
+                for c in coils:
+                    rr = client.read_coils(address=c["address"], count=1, slave=args.unit)
+                    bit = "ERR" if rr.isError() else (1 if rr.bits[0] else 0)
+                    tag = "瞬時" if c.get("momentary") else "持續"
+                    print(f"   {c['name']:<18} addr{c['address']:>2}/00{c['address']+1:03d}  bool    = {bit}  ({tag})")
 
             print()
             n += 1

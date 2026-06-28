@@ -32,6 +32,11 @@ class ClockPatch(BaseModel):
     paused: Optional[bool] = None
 
 
+class CoilRequest(BaseModel):
+    name: str                       # run_enable / reset_fault
+    value: bool = True
+
+
 class FaultRequest(BaseModel):
     device: str
     fault_type: str                 # sudden/gradual/intermittent/cascading/sensor_*
@@ -66,6 +71,7 @@ def create_app(
     opcua=None,
     mqtt=None,
     multiport=None,
+    control=None,
 ) -> FastAPI:
     public_host = config.get("public_host", "127.0.0.1")
     teacher_token = config.get("teacher_token", "")
@@ -107,6 +113,8 @@ def create_app(
             await mqtt.start()
         if modbus is not None:
             world.subscribe(modbus.on_snapshot)
+        if control is not None:
+            world.subscribe(control.on_snapshot)          # 教師控制埠:反射狀態 + 接受 FC05 寫線圈
         if multiport is not None:
             world.subscribe(multiport.on_snapshot)        # 同一 snapshot → 每台專屬埠
         if opcua is not None:
@@ -120,6 +128,8 @@ def create_app(
         world.subscribe_events(predictions.on_event)      # 故障事件 → 比對預測命中
         if modbus is not None:
             modbus.start_background()
+        if control is not None:
+            control.start_background()
         if multiport is not None:
             multiport.start_background()
         world_task = asyncio.create_task(world.run())
@@ -311,6 +321,21 @@ def create_app(
         if device is None:
             raise HTTPException(404, f"無此設備:{device_id}")
         return device.reset()
+
+    @app.post("/api/devices/{device_id}/coil", dependencies=[Depends(require_teacher)])
+    async def write_coil(device_id: str, req: CoilRequest):
+        """教師寫命令線圈(FC05 的認證版):run_enable 停機/復機、reset_fault 清故障。"""
+        device = world.devices.get(device_id)
+        if device is None:
+            raise HTTPException(404, f"無此設備:{device_id}")
+        result = device.set_coil(req.name, req.value)
+        if not result.get("ok"):
+            raise HTTPException(400, result.get("error", "線圈寫入失敗"))
+        await events_mgr.broadcast({                       # 廣播命令事件,前端事件列可見
+            "type": "command", "device": device_id, "coil": req.name,
+            "value": bool(req.value), "sim_t": world.clock.now(),
+        })
+        return result
 
     @app.get("/api/sim/clock")
     def get_clock():

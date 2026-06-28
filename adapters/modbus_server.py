@@ -26,12 +26,45 @@ _HOLDING_FC = 3          # function code 3 = read holding registers
 _DATABLOCK_SIZE = 256    # 每個 slave 預留的暫存器/位元數(夠所有 tag 與衍生點位)
 
 
-def _new_slave() -> "ModbusSlaveContext":
-    """一台設備一個 slave context,四種 object type 各備一個資料區(co 留給 Phase B 線圈)。
+class _WritableCoilBlock(ModbusSequentialDataBlock):
+    """可寫線圈區(教師控制埠用):client 的 FC05/FC15 寫入 → on_write 轉成引擎命令;
+    引擎每 tick 反射線圈狀態走 reflect() 旗標,不會回觸發 on_write。"""
+
+    def __init__(self, size: int, on_write):
+        super().__init__(0, [0] * size)
+        self._on_write = on_write
+        self._reflecting = False
+
+    def setValues(self, address, values):
+        if not self._reflecting and self._on_write is not None:
+            try:
+                self._on_write(address, list(values))   # 來自 client 的寫入 → 引擎命令
+            except Exception as exc:
+                print(f"[modbus-coil] 寫入處理失敗:{exc}")
+        super().setValues(address, values)
+
+
+def _coil_writer(device):
+    """產生某設備的線圈寫入處理器:依 co_address 找線圈名,呼叫 device.set_coil。"""
+    addr_map = {c.co_address: c.name for c in device.command_coils}
+
+    def on_write(address, values):
+        for i, v in enumerate(values):
+            name = addr_map.get(address + i)
+            if name is not None:
+                device.set_coil(name, bool(v))
+    return on_write
+
+
+def _new_slave(on_coil_write=None) -> "ModbusSlaveContext":
+    """一台設備一個 slave context,四種 object type 各一個資料區。
+    on_coil_write 有給(教師控制埠)→ coil 用可寫區;否則用一般區(學生埠 FC01 唯讀)。
     zero_mode:位址 0 對應 index 0,學生讀 register N 就拿到目錄上標的 N。"""
+    co = (_WritableCoilBlock(_DATABLOCK_SIZE, on_coil_write) if on_coil_write is not None
+          else ModbusSequentialDataBlock(0, [0] * _DATABLOCK_SIZE))
     return ModbusSlaveContext(
         di=ModbusSequentialDataBlock(0, [0] * _DATABLOCK_SIZE),   # discrete input(FC02)
-        co=ModbusSequentialDataBlock(0, [0] * _DATABLOCK_SIZE),   # coil(FC01/05,Phase B)
+        co=co,                                                    # coil(FC01 讀 / FC05 寫)
         ir=ModbusSequentialDataBlock(0, [0] * _DATABLOCK_SIZE),   # input register(FC04)
         hr=ModbusSequentialDataBlock(0, [0] * _DATABLOCK_SIZE),   # holding register(FC03)
         zero_mode=True,
@@ -72,21 +105,38 @@ def apply_device_to_slave(slave, device) -> None:
             slave.setValues(4, p.ir_address, encode_value(p.datatype, p.value))
         except Exception as exc:
             print(f"[modbus] {device.id}.ir.{p.name} 失敗:{exc}")
+    # 線圈反射(FC01 唯讀視圖):可寫區要先抬 _reflecting,避免被當成 client 寫入回觸發
+    co_block = getattr(slave, "store", {}).get("c")
+    writable = isinstance(co_block, _WritableCoilBlock)
+    if writable:
+        co_block._reflecting = True
+    try:
+        for c in device.command_coils:
+            slave.setValues(1, c.co_address, [1 if c.value else 0])
+    except Exception as exc:
+        print(f"[modbus] {device.id}.co 反射失敗:{exc}")
+    finally:
+        if writable:
+            co_block._reflecting = False
 
 
 class ModbusAdapter:
-    def __init__(self, world: World, host: str = "0.0.0.0", port: int = 502):
+    def __init__(self, world: World, host: str = "0.0.0.0", port: int = 502,
+                 writable_coils: bool = False):
         self.world = world
         self.host = host
         self.port = port
+        self.writable_coils = writable_coils   # 教師控制埠 → True(FC05 寫線圈轉引擎命令)
 
         # 為每個 unit_id 建一個 slave context(zero_mode:位址 0 對應 index 0,
-        # 學生讀 holding register N 就拿到目錄上標的 register N)
+        # 學生讀 holding register N 就拿到目錄上標的 register N)。
+        # writable_coils 時,每台的 coil 區綁定該設備的寫入處理器。
         self._slaves: Dict[int, ModbusSlaveContext] = {}
         for device in world.devices.values():
             unit_id = (device.protocols.get("modbus", {}) or {}).get("unit_id", 1)
             if unit_id not in self._slaves:
-                self._slaves[unit_id] = _new_slave()
+                on_write = _coil_writer(device) if writable_coils else None
+                self._slaves[unit_id] = _new_slave(on_coil_write=on_write)
         if not self._slaves:                      # 沒有任何 Modbus 設備時也給一個預設 slave
             self._slaves[1] = _new_slave()
 
@@ -106,7 +156,8 @@ class ModbusAdapter:
     async def start(self) -> None:
         """啟動 async TCP server(會持續執行直到被取消)。"""
         units = sorted(self._slaves)
-        print(f"[modbus] TCP server 啟動於 {self.host}:{self.port},unit_id={units}")
+        kind = "教師控制埠(可寫線圈)" if self.writable_coils else "channel-mux"
+        print(f"[modbus] TCP server({kind})啟動於 {self.host}:{self.port},unit_id={units}")
         await StartAsyncTcpServer(context=self.context, address=(self.host, self.port))
 
     def start_background(self) -> asyncio.Task:

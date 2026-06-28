@@ -26,4 +26,4 @@ outputs:
   - tool
 description: "2D virtual industrial park teaching platform: simulation engine emits realistic (synthetic, ground-truth-labelled) equipment data over Modbus/OPC-UA/MQTT for students to monitor, diagnose, and build predictive maintenance models."
 description_zh: "虛擬 2D 工業園區教學平台:模擬引擎產生擬真(合成且帶 ground-truth 標籤)設備數據,經 Modbus/OPC-UA/MQTT 暴露,供學生監控、處置故障與訓練預測性維護模型。"
-key_metrics: "22 間台中主題公司 / 45 設備;6 產業 template(CNC/空壓機/AGV/機械手臂/射出成型/風力機);3 協定 + multi_port(45 專屬埠);多 object type 點位(holding FC03 量測 / discrete input FC02 狀態 bit / input register FC04 唯讀 int 含 ×100 定點鏡像;coil FC01/05 為 Phase B 教師可寫);廠內產線編排(機台出件→機械手臂夾取→輸送帶送出);畫面/資料平靜更新(每 5 秒 = 10 模擬分鐘);OEE/災難日/資料集產生器/UI建廠;壓測 200 WS 零錯誤"
+key_metrics: "22 間台中主題公司 / 45 設備;6 產業 template(CNC/空壓機/AGV/機械手臂/射出成型/風力機);3 協定 + multi_port(45 專屬埠);四種 object type 點位(holding FC03 量測 / discrete input FC02 狀態 bit / input register FC04 唯讀 int 含 ×100 定點鏡像 / coil FC01 讀 + FC05 寫 run_enable 停機復機·reset_fault,學生唯讀、教師 REST token 或控制埠可寫);廠內產線編排(機台出件→機械手臂夾取→輸送帶送出);畫面/資料平靜更新(每 5 秒 = 10 模擬分鐘);OEE/災難日/資料集產生器/UI建廠;壓測 200 WS 零錯誤"

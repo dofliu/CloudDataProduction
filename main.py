@@ -65,11 +65,20 @@ def build():
             base_port=int(os.getenv("MULTI_PORT_MODBUS_BASE", "5000")))
         world.multiport_modbus = multiport.port_map   # 給設備目錄 / 戰情版顯示
 
+    # 教師控制埠(預設關):可寫線圈(FC05)→ 引擎命令。學生埠的線圈仍 FC01 唯讀。
+    # 「教師碼才可寫」的網路隔離版:此埠只給教師(走 Tailscale / 不對學生公布)。
+    control = None
+    if os.getenv("MODBUS_CONTROL_PORT"):
+        control = ModbusAdapter(
+            world, host=os.getenv("MODBUS_HOST", "0.0.0.0"),
+            port=int(os.getenv("MODBUS_CONTROL_PORT")), writable_coils=True)
+
     config = {
         "public_host": os.getenv("PUBLIC_HOST", "127.0.0.1"),
         "teacher_token": os.getenv("TEACHER_TOKEN", ""),
     }
-    app = create_app(world, historian, modbus, config, opcua=opcua, mqtt=mqtt, multiport=multiport)
+    app = create_app(world, historian, modbus, config, opcua=opcua, mqtt=mqtt,
+                     multiport=multiport, control=control)
     return app
 
 

@@ -17,6 +17,7 @@ export interface DeviceSnapshot {
   state_code: number; tags: Record<string, number>;
   discretes?: Record<string, boolean>;     // 離散輸入(FC02)
   input_regs?: Record<string, number>;     // 輸入暫存器(FC04)
+  coils?: Record<string, boolean>;         // 命令線圈(FC01/05)
 }
 export interface TelemetryMsg {
   wall_t: number; sim_t: number; multiplier: number;
@@ -28,6 +29,7 @@ export interface EventMsg {
   fault_type?: string; sim_t: number;
   student?: string; lead_time_sim?: number; confidence?: number;  // 預測事件
   message?: string;                                                // 情境事件
+  coil?: string; value?: boolean;                                  // 命令線圈事件
 }
 
 export interface CatalogTag {
@@ -43,12 +45,17 @@ export interface CatalogInputReg {
   name: string; unit: string; object: string; fc: number; datatype: string;
   access: string; scale: number; address: number; opcua_node: string; mqtt_field: string;
 }
+export interface CatalogCoil {
+  name: string; object: string; fc_read: number; fc_write: number; datatype: string;
+  access: string; momentary: boolean; address: number; opcua_node: string; mqtt_field: string;
+}
 export interface CatalogDevice {
   id: string; template: string; company_id: string;
   protocols: Record<string, any>;
   tags: CatalogTag[];
   discrete_inputs?: CatalogDiscrete[];
   input_registers?: CatalogInputReg[];
+  coils?: CatalogCoil[];
   connection: Record<string, any>;
 }
 export interface Catalog {
@@ -101,6 +108,9 @@ export const injectFault = (body: FaultBody) => post("/api/faults", body, true);
 // 自然語言建廠(教師面):一句話 → 即時長出新公司
 export const createFactory = (description: string) => post("/api/factory", { description }, true);
 export const resetDevice = (id: string) => post(`/api/devices/${id}/reset`, undefined, true);
+// 教師命令線圈(FC05 認證版):run_enable 停機/復機、reset_fault 清故障
+export const setCoil = (id: string, name: string, value: boolean) =>
+  post(`/api/devices/${id}/coil`, { name, value }, true);
 
 export interface ComponentGT { name: string; health: number; rul_sim_s: number | null; failed: boolean; trajectory: string; }
 export interface HealthGT {

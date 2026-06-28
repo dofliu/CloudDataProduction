@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Catalog, EventMsg, Park, TelemetryMsg,
-  getCatalog, getPark, subscribe, STATUS_COLOR_CSS, getTeacherToken, resetDevice,
+  getCatalog, getPark, subscribe, STATUS_COLOR_CSS, getTeacherToken, resetDevice, setCoil,
 } from "./api";
 import WorldView from "./world/WorldView";
 import CatalogView from "./catalog/CatalogView";
@@ -80,19 +80,37 @@ export default function App() {
                   </h2>
                   <div className="muted">{sel.template}</div>
                   {getTeacherToken() ? (
-                    <div style={{ margin: "8px 0" }}>
+                    <div style={{ margin: "8px 0", display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      {(() => {
+                        const runEnabled = sel.coils?.run_enable !== false;   // 預設視為運轉
+                        return (
+                          <button
+                            onClick={async () => {
+                              try { await setCoil(sel.id, "run_enable", !runEnabled);
+                                    setResetMsg(`已寫線圈 run_enable=${!runEnabled}:${sel.id}`); }
+                              catch (e: any) { setResetMsg(`線圈寫入失敗:${e.message}(檢查教師 token)`); }
+                            }}
+                            style={{ background: runEnabled ? "#e0a23a" : "#37d67a", color: "#08121e", border: "none",
+                                     borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontWeight: 600 }}>
+                            {runEnabled ? "⏸ 停機 (run_enable→0)" : "▶ 復機 (run_enable→1)"}
+                          </button>
+                        );
+                      })()}
                       <button
                         onClick={async () => {
-                          try { await resetDevice(sel.id); setResetMsg(`已重置 / 清除故障:${sel.id}`); }
-                          catch (e: any) { setResetMsg(`重置失敗:${e.message}(檢查教師 token)`); }
+                          try { await setCoil(sel.id, "reset_fault", true); setResetMsg(`已寫線圈 reset_fault:${sel.id}`); }
+                          catch (e: any) {
+                            try { await resetDevice(sel.id); setResetMsg(`已重置 / 清除故障:${sel.id}`); }
+                            catch (e2: any) { setResetMsg(`重置失敗:${e2.message}(檢查教師 token)`); }
+                          }
                         }}
                         style={{ background: "#37d67a", color: "#08121e", border: "none", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontWeight: 600 }}>
                         ↺ 重置 / 清除故障
                       </button>
-                      {resetMsg && <div className="muted" style={{ marginTop: 6, color: "#5b9bd5" }}>{resetMsg}</div>}
+                      {resetMsg && <div className="muted" style={{ width: "100%", marginTop: 2, color: "#5b9bd5" }}>{resetMsg}</div>}
                     </div>
                   ) : (
-                    <div className="muted" style={{ fontSize: 12, margin: "6px 0" }}>（教師控制台輸入 token 後,這裡可直接重置 / 清除故障)</div>
+                    <div className="muted" style={{ fontSize: 12, margin: "6px 0" }}>（教師控制台輸入 token 後,這裡可寫命令線圈:停機/復機、清除故障)</div>
                   )}
                   <div className="muted" style={{ fontSize: 12, margin: "8px 0 2px" }}>保持暫存器 Holding（FC03）</div>
                   <table className="taglist">
@@ -136,6 +154,21 @@ export default function App() {
                       </table>
                     </>
                   )}
+
+                  {sel.coils && Object.keys(sel.coils).length > 0 && (
+                    <>
+                      <div className="muted" style={{ fontSize: 12, margin: "10px 0 2px" }}>命令線圈 Coil（FC01 讀 / FC05 寫,教師可寫）</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {Object.entries(sel.coils).map(([k, v]) => (
+                          <span key={k} style={{ fontSize: 12, padding: "2px 8px", borderRadius: 10,
+                                                  background: v ? "#15402a" : "#262d3a", color: v ? "#37d67a" : "#8a93a6",
+                                                  border: `1px solid ${v ? "#2f7a4f" : "#333b4a"}` }}>
+                            {v ? "●" : "○"} {k}
+                          </span>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </>
               ) : (
                 <div className="muted">點公司進廠內 → 點設備看即時值。一公司一燈號:綠=正常、紅=有設備故障。</div>
@@ -155,6 +188,8 @@ export default function App() {
                       <span style={{ color: "#37d67a" }}>✅ {e.device} 預測命中 lead {((e.lead_time_sim ?? 0) / 3600).toFixed(1)}h（{e.student}）</span>
                     ) : e.type === "scenario" ? (
                       <span style={{ color: "#f08c2e" }}>🎬 {e.message}</span>
+                    ) : e.type === "command" ? (
+                      <span style={{ color: "#5b9bd5" }}>🎛 {e.device} 線圈 {e.coil}={e.value ? "1" : "0"}（教師）</span>
                     ) : (
                       <span>{e.device}：{e.from} → {e.to}</span>
                     )}

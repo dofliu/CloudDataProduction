@@ -251,7 +251,7 @@ class World:
                         "holding_register": "FC03,量測(float32 佔 2 格 / int16 佔 1 格 / int32 佔 2 格,big-endian)",
                         "discrete_input": "FC02,狀態旗標 bit(唯讀)",
                         "input_register": "FC04,唯讀 int(狀態碼 / 量測縮放鏡像,工程單位 = 值 / scale)",
-                        "coil": "FC01 讀 / FC05 寫,命令 bit —— Phase B(教師碼可寫)",
+                        "coil": "FC01 讀(學生唯讀看命令狀態)/ FC05 寫(教師:REST token 或教師控制埠)",
                     },
                     "note": "各點位 object / fc / address 見本設備 tags、discrete_inputs、input_registers;"
                             "holding 第 1 格是 state(int16),float 量測由第 2 格起",

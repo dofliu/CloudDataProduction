@@ -24,6 +24,7 @@ class OpcUaAdapter:
         self._nodes: dict[str, dict[str, tuple]] = {}   # device_id -> {tag: (node, datatype)}
         self._di_nodes: dict[str, list[tuple]] = {}      # device_id -> [(point, node), ...]
         self._ir_nodes: dict[str, list[tuple]] = {}      # device_id -> [(point, node), ...]
+        self._co_nodes: dict[str, list[tuple]] = {}      # device_id -> [(coil, node), ...]
         self._folders: dict[str, object] = {}
         self._started = False
 
@@ -56,6 +57,11 @@ class OpcUaAdapter:
                 leaf = p.opcua_node.rsplit("/", 1)[-1]
                 node = await folder.add_variable(self._idx, leaf, 0)
                 self._ir_nodes[device.id].append((p, node))
+            # 命令線圈(唯讀布林反射;寫入走 REST/控制埠)
+            self._co_nodes[device.id] = []
+            for c in device.command_coils:
+                node = await folder.add_variable(self._idx, f"co_{c.name}", False)
+                self._co_nodes[device.id].append((c, node))
 
         await self.server.start()
         self._started = True
@@ -98,6 +104,11 @@ class OpcUaAdapter:
                     await node.write_value(int(p.value))
                 except Exception as exc:
                     print(f"[opcua] 寫 {device.id}.ir.{p.name} 失敗:{exc}")
+            for c, node in self._co_nodes.get(device.id, []):
+                try:
+                    await node.write_value(bool(c.value))
+                except Exception as exc:
+                    print(f"[opcua] 寫 {device.id}.co.{c.name} 失敗:{exc}")
 
     async def stop(self) -> None:
         if self._started:

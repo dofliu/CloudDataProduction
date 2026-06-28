@@ -77,6 +77,19 @@ class InputRegPoint:
         return 1 if self.datatype == "int16" else 2
 
 
+@dataclass
+class CoilPoint:
+    """命令線圈(Modbus FC01 讀 / FC05 寫)。可寫,但「教師碼才可寫」——寫入路徑帶 auth
+    (REST token / 教師控制埠);學生埠 FC01 唯讀看命令狀態。值是引擎命令狀態,不違反鐵則 #1。"""
+
+    name: str
+    co_address: int               # coil 位址(0-based)
+    opcua_node: str
+    mqtt_field: str
+    momentary: bool = False       # 瞬時:動作後自動歸 0(如 reset_fault)
+    value: bool = False
+
+
 class DutyProfile:
     """班表 / 負載輪廓,驅動運轉點(docs/02 §7)。
 
@@ -175,10 +188,11 @@ class Device:
         self._fault_onset_sim_t: Optional[float] = None
         self._injected: List[dict] = []   # 已生效的注入紀錄(供 ground-truth 顯示)
 
-        # 唯讀衍生點位:離散輸入(狀態 bit,FC02)+ 輸入暫存器(狀態碼 / 量測鏡像,FC04)。
-        # 自 tags + state 自動產生,模板無需逐一宣告;轉接層只讀不存(鐵則 #1)。
+        # 唯讀衍生點位:離散輸入(狀態 bit,FC02)+ 輸入暫存器(狀態碼 / 量測鏡像,FC04)
+        # + 命令線圈(FC01/05,教師可寫)。自 tags + state 自動產生,模板無需逐一宣告。
         self.discrete_inputs: List[DiscretePoint] = []
         self.input_registers: List[InputRegPoint] = []
+        self.command_coils: List[CoilPoint] = []
         self._build_derived_points()
 
     # ── 唯讀衍生點位(DI / IR)──────────────────────────────
@@ -220,6 +234,32 @@ class Device:
                 fn=lambda d, t=first_i32: int(t.value), scale=1.0))
             addr += 2
         self.input_registers = irs
+        # 命令線圈(FC01/05):run_enable(持續)、reset_fault(瞬時)
+        self.command_coils = [
+            CoilPoint(name="run_enable", co_address=0,
+                      opcua_node=f"{folder}/co_run_enable", mqtt_field="co_run_enable", value=True),
+            CoilPoint(name="reset_fault", co_address=1,
+                      opcua_node=f"{folder}/co_reset_fault", mqtt_field="co_reset_fault",
+                      momentary=True, value=False),
+        ]
+
+    def coil(self, name: str) -> bool:
+        return next((bool(c.value) for c in self.command_coils if c.name == name), False)
+
+    def set_coil(self, name: str, value) -> dict:
+        """設命令線圈(教師命令)。run_enable=False → 停機(stress 歸 0,退化暫停);
+        reset_fault=True → 清故障 / 感測器故障 / 注入,動作後線圈瞬時歸 0。"""
+        target = next((c for c in self.command_coils if c.name == name), None)
+        if target is None:
+            return {"ok": False, "error": f"無此線圈:{name}"}
+        value = bool(value)
+        if name == "reset_fault":
+            if value:
+                self.reset()
+            target.value = False        # 瞬時:動作後歸 0
+            return {"ok": True, "device": self.id, "coil": name, "action": "reset" if value else "noop"}
+        target.value = value
+        return {"ok": True, "device": self.id, "coil": name, "value": value}
 
     def _update_derived_points(self) -> None:
         for p in self.discrete_inputs:
@@ -245,6 +285,8 @@ class Device:
         # sim_t 由 world 在呼叫前注入(見 world.step / set_sim_t),duty cycle 需要絕對時間
         self._apply_pending_injections()
         op = self.duty.operating_point(self._sim_t)
+        if not self.coil("run_enable"):     # 教師線圈停機:覆寫運轉點為閒置(stress 歸 0)
+            op = {"running": False, "load": 0.0, "load_nom": op["load_nom"], "speed_factor": 0.0}
         # 有狀態物理先跑一次(tag drivers 之後才讀其結果)
         if self.pre_step_fn is not None:
             self.pre_step_fn(dt_sim, op)
@@ -386,6 +428,7 @@ class Device:
             "tags": {t.name: t.value for t in self.tags},
             "discretes": {p.name: bool(p.value) for p in self.discrete_inputs},
             "input_regs": {p.name: p.value for p in self.input_registers},
+            "coils": {c.name: bool(c.value) for c in self.command_coils},
         }
 
     def ground_truth(self) -> dict:
@@ -457,5 +500,20 @@ class Device:
                     "mqtt_field": p.mqtt_field,
                 }
                 for p in self.input_registers
+            ],
+            "coils": [
+                {
+                    "name": c.name,
+                    "object": "coil",
+                    "fc_read": 1,
+                    "fc_write": 5,
+                    "datatype": "bool",
+                    "access": "rw-teacher",   # 學生 FC01 唯讀;FC05 寫入需教師(token / 控制埠)
+                    "momentary": c.momentary,
+                    "address": c.co_address,
+                    "opcua_node": c.opcua_node,
+                    "mqtt_field": c.mqtt_field,
+                }
+                for c in self.command_coils
             ],
         }

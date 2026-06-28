@@ -111,6 +111,31 @@ export default function CatalogView({
                 </tbody>
               </table>
             )}
+
+            {/* Coils（FC01 讀 / FC05 寫,教師可寫）*/}
+            {d.coils && d.coils.length > 0 && (
+              <table style={{ marginTop: 8 }}>
+                <thead>
+                  <tr><th>coil (FC01讀/FC05寫)</th><th>型別</th><th>addr</th><th>ModScan</th><th>瞬時</th><th>寫入權限</th><th>即時值</th></tr>
+                </thead>
+                <tbody>
+                  {d.coils.map((c) => {
+                    const v = live?.coils?.[c.name];
+                    return (
+                      <tr key={c.name}>
+                        <td>{c.name}</td>
+                        <td><code>bool</code></td>
+                        <td><code>{c.address}</code></td>
+                        <td><code>{1 + c.address}</code></td>
+                        <td>{c.momentary ? "瞬時" : "持續"}</td>
+                        <td style={{ color: "var(--muted)" }}>{c.access}</td>
+                        <td style={{ textAlign: "right" }}>{v === undefined ? "—" : v ? "1 ●" : "0 ○"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         );
       })}

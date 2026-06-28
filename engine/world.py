@@ -31,6 +31,10 @@ class World:
             time_multiplier=sim.get("time_multiplier", 1.0),
             tick_hz=sim.get("tick_hz", 10.0),
         )
+        # telemetry 廣播節流:引擎照常步進(物理準確),但每隔這麼久才把 snapshot 推給
+        # adapters / WS / historian → 畫面與資料以「平靜」的間隔更新(預設 0=每 tick)。
+        # 事件(故障/狀態轉換)不受節流,永遠即時。
+        self.broadcast_interval_s: float = float(sim.get("broadcast_interval_s", 0.0))
         self.protocol_mode: str = park.get("protocol_mode", "channel_mux")
         self.ports: dict = park.get("ports", {"modbus": 502, "opcua": 4840, "mqtt": 1883})
 
@@ -165,6 +169,7 @@ class World:
         """主迴圈:對 wall clock 取實際 dt,乘倍率推進 sim,確保加速時不漂移。"""
         self._running = True
         last = time.monotonic()
+        last_broadcast = 0.0
         while self._running:
             now = time.monotonic()
             dt_wall = now - last
@@ -173,13 +178,16 @@ class World:
             dt_sim = self.clock.advance(dt_wall)
             snapshot = self.step(dt_sim)
 
-            for cb in self._subscribers:
-                try:
-                    await cb(snapshot)
-                except Exception as exc:  # 單一訂閱者出錯不應拖垮整個世界
-                    print(f"[world] telemetry 訂閱者錯誤:{exc}")
+            # telemetry 節流:每隔 broadcast_interval_s 才推一次(畫面/資料平靜更新)
+            if now - last_broadcast >= self.broadcast_interval_s:
+                last_broadcast = now
+                for cb in self._subscribers:
+                    try:
+                        await cb(snapshot)
+                    except Exception as exc:  # 單一訂閱者出錯不應拖垮整個世界
+                        print(f"[world] telemetry 訂閱者錯誤:{exc}")
 
-            # 事件(狀態轉換 / 故障)在 telemetry 之後廣播
+            # 事件(狀態轉換 / 故障)永遠即時廣播,不受節流
             for ev in self._pending_events:
                 for cb in self._event_subscribers:
                     try:

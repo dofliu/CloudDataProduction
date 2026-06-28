@@ -11,8 +11,16 @@ from __future__ import annotations
 import json
 import logging
 
-from amqtt.broker import Broker
-from amqtt.client import MQTTClient
+# amqtt 為「選用」純 Python broker。未安裝時不應拖垮整個引擎(no-Docker 純 Python 備援原則):
+# 模組仍可 import,MqttPublisher.start() 會在缺少 amqtt 時印警告並轉為 no-op。
+try:
+    from amqtt.broker import Broker
+    from amqtt.client import MQTTClient
+    _AMQTT_OK = True
+except Exception:  # ImportError 或 amqtt 內部相依問題
+    Broker = None  # type: ignore
+    MQTTClient = None  # type: ignore
+    _AMQTT_OK = False
 
 from engine.world import World
 
@@ -41,6 +49,10 @@ class MqttPublisher:
 
     async def start(self) -> None:
         """啟動內嵌 broker 並連上 client。須在訂閱 on_snapshot 之前 await。"""
+        if not _AMQTT_OK:
+            print("[mqtt] 未安裝 amqtt,MQTT 轉接層停用(其餘協定/世界照常運作)。"
+                  "安裝:pip install amqtt")
+            return
         config = {
             "listeners": {"default": {"type": "tcp", "bind": f"{self.host}:{self.port}"}},
             "sys_interval": 0,

@@ -29,13 +29,16 @@ def build():
 
     # Modbus 埠可由 .env 覆寫(Windows 綁 502 需管理員;開發用 5020 之類)。
     # 覆寫後同步回 world.ports,讓設備目錄公布的埠與實際一致。
-    modbus_port = int(os.getenv("MODBUS_PORT", world.ports.get("modbus", 502)))
-    world.ports["modbus"] = modbus_port
-    modbus = ModbusAdapter(
-        world,
-        host=os.getenv("MODBUS_HOST", "0.0.0.0"),
-        port=modbus_port,
-    )
+    # MODBUS_ENABLED 預設開;關閉時世界 / API / WebSocket 照常(供純前端或缺相依時開發)。
+    modbus = None
+    if os.getenv("MODBUS_ENABLED", "true").lower() == "true":
+        modbus_port = int(os.getenv("MODBUS_PORT", world.ports.get("modbus", 502)))
+        world.ports["modbus"] = modbus_port
+        modbus = ModbusAdapter(
+            world,
+            host=os.getenv("MODBUS_HOST", "0.0.0.0"),
+            port=modbus_port,
+        )
 
     historian = Historian(
         dsn=os.getenv("TIMESCALE_DSN", "postgresql://postgres:postgres@localhost:5432/clouddata"),

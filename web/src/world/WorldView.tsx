@@ -37,6 +37,32 @@ function isoBox(g: Graphics, gx: number, gy: number, w: number, h: number, heigh
 interface DeviceVisual { container: Container; ring: Graphics; pulse: Graphics; kind: string; }
 interface Station { id: string; template: string; container: Container; art: Graphics; ring: Graphics; }
 interface Smoke { g: Graphics; x: number; y: number; vy: number; life: number; max: number; }
+type Pt = { x: number; y: number };
+// 產線工件:沿 waypoints 走的小方塊(feed=機台→手臂 pickup;belt=輸送帶→出口)
+interface Part { g: Graphics; pts: Pt[]; seg: number; t: number; speed: number; kind: "feed" | "belt"; done?: boolean; }
+// 產線編排:機台輸出 → (手臂夾取) → 輸送帶 → 出口。純視覺,走 animT(實時),與遙測節流脫鉤。
+interface Flow {
+  beltA: Pt; beltB: Pt; pickup: Pt; drop: Pt;
+  machines: { id: string; output: Pt }[];
+  pickerId: string | null;         // 擔任搬運的手臂(有產出機台時才指派)
+  parts: Part[]; layer: Container;
+  lastFeed: number; feedInterval: number; dropCycle: number;
+}
+const ARM_CYCLE = 4.5;             // 搬運手臂一個夾取-放置循環秒數(實時)
+const ease = (x: number) => x * x * (3 - 2 * x);
+const lerpPt = (a: Pt, b: Pt, f: number): Pt => ({ x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f });
+// 兩節手臂 IK:base→target,回傳肘關節與末端(夾爪)點,超出可達範圍時夾到邊界。
+function solveArm(bx: number, by: number, px: number, py: number, L1: number, L2: number) {
+  const dx = px - bx, dy = py - by; let d = Math.hypot(dx, dy) || 0.01;
+  const a = Math.atan2(dy, dx);
+  d = Math.max(Math.abs(L1 - L2) + 0.5, Math.min(L1 + L2 - 0.5, d));
+  const cosA = (d * d + L1 * L1 - L2 * L2) / (2 * L1 * d);
+  const sh = a - Math.acos(Math.max(-1, Math.min(1, cosA)));
+  return {
+    joint: { x: bx + L1 * Math.cos(sh), y: by + L1 * Math.sin(sh) },
+    end: { x: bx + Math.cos(a) * d, y: by + Math.sin(a) * d },
+  };
+}
 
 export default function WorldView({
   park, telemetry, selected, onSelect, predicted,
@@ -56,6 +82,7 @@ export default function WorldView({
   const smokeRef = useRef<Smoke[]>([]);
   const fxRef = useRef<Container | null>(null);
   const beltRef = useRef<Graphics | null>(null);
+  const flowRef = useRef<Flow | null>(null);
   const telRef = useRef(telemetry);
   const onSelectRef = useRef(onSelect); const selectedRef = useRef(selected); const predictedRef = useRef(predicted);
   telRef.current = telemetry; onSelectRef.current = onSelect; selectedRef.current = selected; predictedRef.current = predicted;
@@ -153,26 +180,48 @@ export default function WorldView({
     function buildInterior(world: Container, cid: string) {
       const company = park.companies.find((c) => c.id === cid);
       const devIds = company?.device_ids || [];
-      const FW = Math.max(9, devIds.length * 3 + 3), FH = 9;
+      const PRODUCING = new Set(["cnc_machining_center", "injection_molding"]);
+      // 先取得各設備 template,決定誰是產出機台、哪支手臂擔任搬運
+      const items = devIds.map((did) => ({ did, tmpl: telRef.current?.devices[did]?.template || "" }));
+      const hasMachine = items.some((it) => PRODUCING.has(it.tmpl));
+      const picker = hasMachine ? items.find((it) => it.tmpl === "robot_arm_6axis") : undefined;
+      const topItems = items.filter((it) => it !== picker);        // 上排:機台與其他設備
+      const FW = Math.max(9, topItems.length * 3 + 3), FH = 9;
       const fiso = (gx: number, gy: number) => ({ x: (gx - gy) * 34, y: (gx + gy) * 17 });
+
       const floor = new Graphics();
       for (let gx = 0; gx < FW; gx++) for (let gy = 0; gy < FH; gy++) {
         const N = fiso(gx, gy), E = fiso(gx + 1, gy), S = fiso(gx + 1, gy + 1), W = fiso(gx, gy + 1);
         floor.poly([N.x, N.y, E.x, E.y, S.x, S.y, W.x, W.y]).fill((gx + gy) % 2 ? 0x222b39 : 0x1d2532).stroke({ width: 0.5, color: 0x2a3446 });
       }
       world.addChild(floor);
-      // 輸送帶 + 物件
+      // 輸送帶(底排,左→右出口)
       const bA = fiso(1, FH - 1.6), bB = fiso(FW - 1, FH - 1.6);
       const belt = new Graphics();
       belt.poly([bA.x, bA.y - 9, bB.x, bB.y - 9, bB.x, bB.y + 9, bA.x, bA.y + 9]).fill(0x2c3340).stroke({ width: 1, color: 0x3a4458 });
       world.addChild(belt);
       const beltDash = new Graphics(); world.addChild(beltDash);
       (beltDash as any)._a = bA; (beltDash as any)._b = bB; beltRef.current = beltDash;
+      // 出口標記
+      const exit = new Graphics();
+      exit.poly([bB.x, bB.y - 9, bB.x + 16, bB.y - 9, bB.x + 16, bB.y + 9, bB.x, bB.y + 9]).fill({ color: 0x1a212c, alpha: 0.9 });
+      world.addChild(exit);
+      const exitLab = new Text({ text: "出貨 →", style: { fill: 0x6b7488, fontSize: 10, fontFamily: "Microsoft JhengHei" } });
+      exitLab.x = bB.x + 2; exitLab.y = bB.y + 10; world.addChild(exitLab);
+
+      const partsLayer = new Container(); world.addChild(partsLayer);  // 工件畫在輸送帶之上
+
       // 設備站
       const stations: Station[] = [];
-      devIds.forEach((did, i) => {
-        const tmpl = telRef.current?.devices[did]?.template || "";
-        const pos = fiso(2.5 + i * 3, 3);
+      const machines: { id: string; output: Pt }[] = [];
+      const armGX = 2.2;                                              // 搬運手臂(橋接機台與輸送帶)位置
+      const armPos = fiso(armGX, FH - 2.6);
+      let topCol = 0;
+      items.forEach((it) => {
+        const { did, tmpl } = it;
+        const isPicker = picker && it === picker;
+        const pos = isPicker ? armPos : fiso(2.5 + topCol * 3, 2.6);
+        if (!isPicker) topCol++;
         const cont = new Container(); cont.x = pos.x; cont.y = pos.y;
         cont.eventMode = "static"; cont.cursor = "pointer"; cont.on("pointertap", () => onSelectRef.current(did));
         const ring = new Graphics(); cont.addChild(ring);
@@ -182,8 +231,19 @@ export default function WorldView({
         (cont as any)._track = { a: fiso(2, 1), b: fiso(FW - 2, 1), c: fiso(FW - 2, FH - 3), d: fiso(2, FH - 3) }; // AGV 軌跡
         world.addChild(cont);
         stations.push({ id: did, template: tmpl, container: cont, art, ring });
+        if (PRODUCING.has(tmpl)) machines.push({ id: did, output: { x: pos.x, y: pos.y + 30 } });
       });
       stationsRef.current = stations;
+
+      flowRef.current = {
+        beltA: bA, beltB: bB,
+        pickup: fiso(armGX, FH - 4.0),     // 手臂上方:工件送達夾取點
+        drop: fiso(armGX, FH - 1.6),       // 手臂下方:放上輸送帶
+        machines,
+        pickerId: picker ? picker.did : null,
+        parts: [], layer: partsLayer,
+        lastFeed: 0, feedInterval: 2.6, dropCycle: -1,
+      };
     }
 
     function tickInterior(animT: number, dt: number) {
@@ -193,9 +253,8 @@ export default function WorldView({
         bd.clear(); const a = bd._a, b = bd._b, off = (animT * 0.4) % 1;
         for (let i = 0; i < 16; i++) { const f = (i + off) / 16, x = a.x + (b.x - a.x) * f, y = a.y + (b.y - a.y) * f;
           bd.rect(x - 2, y - 7, 4, 14).fill({ color: 0x3c465c }); }
-        for (let i = 0; i < 4; i++) { const f = ((i / 4 + animT * 0.06) % 1), x = a.x + (b.x - a.x) * f, y = a.y + (b.y - a.y) * f;  // 物件
-          bd.roundRect(x - 8, y - 16, 16, 12, 2).fill(0xb08948).stroke({ width: 1, color: 0x7a5d2e }); }
       }
+      updateFlow(animT, dt);
       for (const st of stationsRef.current) {
         const snap = tel?.devices[st.id]; const t = snap?.tags || {}; const state = snap?.state || "idle";
         const running = state === "running" || state === "moving";
@@ -214,32 +273,90 @@ export default function WorldView({
             st.container.x += ((A.x + (B.x - A.x) * f) - st.container.x) * 0.1;
             st.container.y += ((A.y + (B.y - A.y) * f) - st.container.y) * 0.1; }
         }
-        drawStation(st.art, st.template, t, running, animT, col);
+        const armCtx = st.template === "robot_arm_6axis" ? computeArmCtx(st, animT, running) : null;
+        drawStation(st.art, st.template, t, running, animT, col, armCtx);
       }
       smoke(animT, dt);
     }
 
-    function drawStation(g: Graphics, tmpl: string, t: Record<string, number>, running: boolean, animT: number, col: number) {
+    // 手臂目標(local 座標)+ 是否夾著工件:搬運手臂走產線編排,其餘手臂自走 pick-place
+    function computeArmCtx(st: Station, animT: number, running: boolean) {
+      const flow = flowRef.current; const cont = st.container;
+      if (flow && flow.pickerId === st.id) {
+        const p = (animT % ARM_CYCLE) / ARM_CYCLE;
+        let wt: Pt, carrying = false;
+        if (p < 0.40) wt = lerpPt(flow.drop, flow.pickup, ease(p / 0.40));           // 空手上行取件
+        else if (p < 0.50) { wt = flow.pickup; carrying = p >= 0.45; }                // 夾取
+        else if (p < 0.92) { wt = lerpPt(flow.pickup, flow.drop, ease((p - 0.50) / 0.42)); carrying = true; } // 搬下放帶
+        else wt = flow.drop;                                                          // 放開
+        return { tx: wt.x - cont.x, ty: wt.y - cont.y, carrying };
+      }
+      // 非搬運手臂:左右擺動的 pick-place,僅當運轉時夾著工件
+      const off = st.id.length * 0.7;
+      const s = (Math.sin(animT * 1.05 + off) + 1) / 2;
+      return { tx: -24 + 48 * s, ty: 16 - 12 * Math.sin(Math.PI * s), carrying: running && Math.cos(animT * 1.05 + off) > 0 };
+    }
+
+    function updateFlow(animT: number, dt: number) {
+      const flow = flowRef.current; if (!flow) return; const tel = telRef.current;
+      const hasArm = !!flow.pickerId;
+      // 機台輸出工件(僅運轉中的機台會出件)
+      if (flow.machines.length && animT - flow.lastFeed >= flow.feedInterval) {
+        flow.lastFeed = animT;
+        for (const m of flow.machines) {
+          const stt = tel?.devices[m.id]?.state;
+          if (stt && stt !== "running") continue;
+          const g = new Graphics(); flow.layer.addChild(g);
+          const pts: Pt[] = hasArm ? [m.output, flow.pickup] : [m.output, flow.beltA, flow.beltB];
+          flow.parts.push({ g, pts, seg: 0, t: 0, speed: hasArm ? 40 : 34, kind: hasArm ? "feed" : "belt" });
+        }
+      }
+      // 搬運手臂每個循環在放件相位於輸送帶生出一個工件(隨帶外送)
+      if (hasArm && flow.machines.length) {
+        const cyc = Math.floor(animT / ARM_CYCLE);
+        if (flow.dropCycle < 0) flow.dropCycle = cyc;
+        else if (cyc > flow.dropCycle) {
+          flow.dropCycle = cyc;
+          const g = new Graphics(); flow.layer.addChild(g);
+          flow.parts.push({ g, pts: [flow.drop, flow.beltB], seg: 0, t: 0, speed: 30, kind: "belt" });
+        }
+      }
+      for (const pt of flow.parts) {
+        const a = pt.pts[pt.seg], b = pt.pts[pt.seg + 1];
+        const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+        pt.t += (pt.speed * dt) / len;
+        if (pt.t >= 1) { pt.t = 0; pt.seg++; if (pt.seg >= pt.pts.length - 1) pt.done = true; }
+        const aa = pt.pts[Math.min(pt.seg, pt.pts.length - 1)], bb = pt.pts[Math.min(pt.seg + 1, pt.pts.length - 1)];
+        const x = aa.x + (bb.x - aa.x) * pt.t, y = aa.y + (bb.y - aa.y) * pt.t;
+        pt.g.clear();
+        pt.g.roundRect(x - 7, y - 7, 14, 12, 2).fill(0xd9a441).stroke({ width: 1, color: 0x8a6b2e });
+        pt.g.rect(x - 7, y - 7, 14, 3).fill({ color: 0xf0c674, alpha: 0.7 });
+      }
+      for (let i = flow.parts.length - 1; i >= 0; i--)
+        if (flow.parts[i].done) { flow.parts[i].g.destroy(); flow.parts.splice(i, 1); }
+    }
+
+    function drawStation(g: Graphics, tmpl: string, t: Record<string, number>, running: boolean, animT: number, col: number,
+                         armCtx?: { tx: number; ty: number; carrying: boolean } | null) {
       if (tmpl === "robot_arm_6axis") {
-        // 較逼真的六軸手臂:底座 + 轉盤 + 肩/肘/腕 + 兩指夾爪
-        const a1 = (t["joint_angle_1"] ?? 0), a2 = (t["joint_angle_2"] ?? 0), a3 = (t["joint_angle_3"] ?? 0);
+        // 六軸手臂:底座 + 轉盤 + 兩節臂 IK 伸向目標 + 夾爪(編排驅動,平滑不跳動)
         g.ellipse(0, 22, 20, 9).fill(0x2c3650);                       // 地座陰影
         g.roundRect(-14, 6, 28, 18, 3).fill(0x3a4862).stroke({ width: 1, color: 0x4d5e7e }); // 底座
         g.roundRect(-9, 0, 18, 9, 2).fill(0x46587a);                  // 轉盤
         const base = { x: 0, y: 2 };
-        const th1 = (-72 + a1 * 0.5) * Math.PI / 180;
-        const th2 = th1 + (a2 * 0.6 - 18) * Math.PI / 180;
-        const th3 = th2 + (a3 * 0.4) * Math.PI / 180;
-        const L = [30, 26, 14]; const ths = [th1, th2, th3];
-        const pts = [base]; let x = base.x, y = base.y;
-        for (let i = 0; i < 3; i++) { x += L[i] * Math.cos(ths[i]); y += L[i] * Math.sin(ths[i]); pts.push({ x, y }); }
-        for (let i = 0; i < 3; i++) g.moveTo(pts[i].x, pts[i].y).lineTo(pts[i + 1].x, pts[i + 1].y).stroke({ width: 8 - i * 2, color: i === 0 ? 0xf08c2e : 0xcdd9ec, cap: "round" });
-        for (let i = 0; i < 3; i++) g.circle(pts[i].x, pts[i].y, 4 - i * 0.5).fill(0x5b9bd5).stroke({ width: 1, color: 0x2c3650 });
-        // 夾爪
-        const e = pts[3], d = ths[2];
-        const gx = Math.cos(d + Math.PI / 2) * 5, gy = Math.sin(d + Math.PI / 2) * 5;
-        g.moveTo(e.x, e.y).lineTo(e.x + gx + Math.cos(d) * 6, e.y + gy + Math.sin(d) * 6).stroke({ width: 3, color: col });
-        g.moveTo(e.x, e.y).lineTo(e.x - gx + Math.cos(d) * 6, e.y - gy + Math.sin(d) * 6).stroke({ width: 3, color: col });
+        const tx = armCtx?.tx ?? 28, ty = armCtx?.ty ?? 6;            // 預設略向右伸
+        const { joint, end } = solveArm(base.x, base.y, tx, ty, 28, 22);
+        g.moveTo(base.x, base.y).lineTo(joint.x, joint.y).stroke({ width: 8, color: 0xf08c2e, cap: "round" }); // 大臂
+        g.moveTo(joint.x, joint.y).lineTo(end.x, end.y).stroke({ width: 5, color: 0xcdd9ec, cap: "round" });   // 小臂
+        g.circle(base.x, base.y, 4).fill(0x5b9bd5).stroke({ width: 1, color: 0x2c3650 });
+        g.circle(joint.x, joint.y, 3.4).fill(0x5b9bd5).stroke({ width: 1, color: 0x2c3650 });
+        // 夾爪(夾著工件時收合)
+        const d = Math.atan2(end.y - joint.y, end.x - joint.x);
+        const gap = armCtx?.carrying ? 3 : 5.5;
+        const nx = Math.cos(d + Math.PI / 2) * gap, ny = Math.sin(d + Math.PI / 2) * gap;
+        g.moveTo(end.x, end.y).lineTo(end.x + nx + Math.cos(d) * 6, end.y + ny + Math.sin(d) * 6).stroke({ width: 3, color: col });
+        g.moveTo(end.x, end.y).lineTo(end.x - nx + Math.cos(d) * 6, end.y - ny + Math.sin(d) * 6).stroke({ width: 3, color: col });
+        if (armCtx?.carrying) g.roundRect(end.x - 5, end.y - 4, 10, 9, 1.5).fill(0xd9a441).stroke({ width: 1, color: 0x8a6b2e }); // 夾持工件
       } else if (tmpl === "cnc_machining_center") {
         g.roundRect(-20, -4, 40, 30, 3).fill(0x37445c).stroke({ width: 1, color: 0x4a5a78 });
         g.roundRect(-14, -22, 28, 18, 3).fill(0x2c3850);              // 主軸箱
@@ -295,7 +412,7 @@ export default function WorldView({
     window.addEventListener("resize", onResize);
     return () => { cancelled = true; window.removeEventListener("resize", onResize);
       lightsRef.current = {}; devicesRef.current = {}; stationsRef.current = []; chimneysRef.current = []; smokeRef.current = [];
-      worldRef.current = null; appRef.current = null; fxRef.current = null; beltRef.current = null;
+      worldRef.current = null; appRef.current = null; fxRef.current = null; beltRef.current = null; flowRef.current = null;
       if (ready) safeDestroy(); };
   }, [park, focus]);
 

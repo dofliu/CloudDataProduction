@@ -61,7 +61,7 @@ class PredictionRequest(BaseModel):
 def create_app(
     world: World,
     historian: Historian,
-    modbus: ModbusAdapter,
+    modbus: ModbusAdapter | None,
     config: dict,
     opcua=None,
     mqtt=None,
@@ -105,7 +105,8 @@ def create_app(
             await opcua.start()
         if mqtt is not None:
             await mqtt.start()
-        world.subscribe(modbus.on_snapshot)
+        if modbus is not None:
+            world.subscribe(modbus.on_snapshot)
         if multiport is not None:
             world.subscribe(multiport.on_snapshot)        # 同一 snapshot → 每台專屬埠
         if opcua is not None:
@@ -117,7 +118,8 @@ def create_app(
         world.subscribe_events(events_mgr.on_message)     # 事件 → 瀏覽器
         world.subscribe_events(tickets.on_event)          # 故障事件 → 自動開工單
         world.subscribe_events(predictions.on_event)      # 故障事件 → 比對預測命中
-        modbus.start_background()
+        if modbus is not None:
+            modbus.start_background()
         if multiport is not None:
             multiport.start_background()
         world_task = asyncio.create_task(world.run())

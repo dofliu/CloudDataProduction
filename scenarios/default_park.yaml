@@ -8,8 +8,9 @@
 park:
   name: "勤益智慧工業區(台中精密機械主題)"
   sim:
-    tick_hz: 10
-    time_multiplier: 600
+    tick_hz: 2                 # 引擎每秒步進 2 次,每步 = 1 模擬分鐘(退化積分維持細緻度)
+    time_multiplier: 120       # 1 真實秒 = 2 模擬分鐘
+    broadcast_interval_s: 5    # telemetry / 資料每 5 真實秒才推一次 = 一次跳 10 模擬分鐘(畫面平靜;動畫走前端 ticker 仍滑順)
   protocol_mode: channel_mux
   ports: {modbus: 502, opcua: 4840, mqtt: 1883}
 

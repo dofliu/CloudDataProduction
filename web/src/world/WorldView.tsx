@@ -21,6 +21,9 @@ function darken(c: number, f: number) {
   return ((Math.min(255, r * f) | 0) << 16) | ((Math.min(255, g * f) | 0) << 8) | (Math.min(255, b * f) | 0);
 }
 const ROOFS = [0x3a4a63, 0x4a4036, 0x394f4a, 0x44485a, 0x53473a, 0x35506b, 0x4d3f4a];
+// 公司建築多彩色盤(較飽和,讓園區有大有小、多彩)
+const COMPANY_COLORS = [0x3f6ea5, 0x4a8a7b, 0xb5743a, 0x7a5ca8, 0x4f9d5b, 0xa85a6a,
+  0x3a8fb0, 0xb0883e, 0x5a6bb0, 0x9a5040, 0x4aa0a0, 0x8e6fb5];
 
 function isoBox(g: Graphics, gx: number, gy: number, w: number, h: number, height: number, roof: number) {
   const N = iso(gx, gy), E = iso(gx + w, gy), S = iso(gx + w, gy + h), W = iso(gx, gy + h);
@@ -94,44 +97,54 @@ export default function WorldView({
       const props: any[] = [];
       for (let gx = 1; gx < GRID - 1; gx++) for (let gy = 1; gy < GRID - 1; gy++) {
         if (isRoad(gx, gy) || reserved.has(`${gx},${gy}`) || rnd() > 0.12) continue;
-        props.push({ gx, gy, ht: 12 + Math.floor(rnd() * 30), roof: ROOFS[Math.floor(rnd() * ROOFS.length)], chimney: rnd() > 0.8 });
+        const roof = rnd() > 0.6 ? COMPANY_COLORS[Math.floor(rnd() * COMPANY_COLORS.length)] : ROOFS[Math.floor(rnd() * ROOFS.length)];
+        props.push({ gx, gy, ht: 12 + Math.floor(rnd() * 34), roof, chimney: rnd() > 0.82 });
       }
       props.sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy));
       for (const b of props) { const g = new Graphics(); isoBox(g, b.gx, b.gy, 1, 1, b.ht, b.roof); world.addChild(g);
         if (b.chimney) { const t = iso(b.gx + 0.5, b.gy + 0.5); chimneysRef.current.push({ x: t.x, y: t.y - b.ht - 3 }); } }
 
-      const slots = [[-20, -6], [20, -6], [-20, 10], [20, 10], [0, 18]];
       park.companies.forEach((c, i) => {
         const { gx, gy } = companyTile(i); const p = iso(gx, gy);
-        const g = new Graphics(); isoBox(g, gx, gy, 2, 2, 40, 0x2b3950);
+        // 每間公司:確定性的多彩、高低、大小
+        const rc = mulberry32(7000 + i * 13);
+        const roof = COMPANY_COLORS[Math.floor(rc() * COMPANY_COLORS.length)];
+        const ht = 26 + Math.floor(rc() * 36);
+        const fw = rc() > 0.62 ? 3 : 2, fh = rc() > 0.62 ? 3 : 2;
+        const g = new Graphics(); isoBox(g, gx, gy, fw, fh, ht, roof);
         g.eventMode = "static"; g.cursor = "pointer";
         g.on("pointertap", () => { setTip(null); setFocus(c.id); });
         g.on("pointerover", (e: any) => setTip({ x: e.global.x, y: e.global.y, c }));
         g.on("pointermove", (e: any) => setTip((t) => t ? { ...t, x: e.global.x, y: e.global.y } : t));
         g.on("pointerout", () => setTip(null));
         world.addChild(g);
-        chimneysRef.current.push({ x: p.x + 12, y: p.y - 44 });
+        chimneysRef.current.push({ x: p.x + fw * 6, y: p.y - ht - 4 });
         const label = new Text({ text: c.name, style: { fill: 0xc7d2e0, fontSize: 10, fontFamily: "Microsoft JhengHei", fontWeight: "600" } });
-        label.anchor.set(0.5, 0); label.x = p.x; label.y = p.y + 22; world.addChild(label);
-        const light = new Graphics(); light.x = p.x; light.y = p.y - 50; world.addChild(light); lightsRef.current[c.id] = light;
-        (c.device_ids || []).forEach((did, j) => {
-          const slot = slots[j % slots.length];
-          const cont = new Container(); cont.x = p.x + slot[0]; cont.y = p.y + slot[1] + Math.floor(j / slots.length) * 12;
-          cont.eventMode = "static"; cont.cursor = "pointer"; cont.on("pointertap", () => onSelectRef.current(did));
-          const pulse = new Graphics(); cont.addChild(pulse);
-          const ring = new Graphics(); cont.addChild(ring);
-          world.addChild(cont);
-          devicesRef.current[did] = { container: cont, ring, pulse, kind: "idle" };
-        });
+        label.anchor.set(0.5, 0); label.x = p.x; label.y = p.y + fh * 7 + 6; world.addChild(label);
+        // 一公司一燈號(屋頂上方),點燈也能進廠內
+        const light = new Graphics(); light.x = p.x; light.y = p.y - ht - 14;
+        light.eventMode = "static"; light.cursor = "pointer"; light.on("pointertap", () => { setTip(null); setFocus(c.id); });
+        world.addChild(light); lightsRef.current[c.id] = light;
       });
     }
 
     function tickOverview(animT: number, dt: number) {
-      for (const v of Object.values(devicesRef.current)) {
-        v.pulse.clear();
-        if (v.kind === "fault") { const a = 0.5 + 0.5 * Math.sin(animT * 6); v.pulse.circle(0, 0, 7 + a * 6).fill({ color: 0xe24c4c, alpha: 0.18 + 0.22 * a }); }
-        else if (v.kind === "predicted") { const a = 0.5 + 0.5 * Math.sin(animT * 3); v.pulse.circle(0, 0, 7 + a * 5).fill({ color: 0xf08c2e, alpha: 0.12 + 0.16 * a }); }
-        else if (v.kind === "running" || v.kind === "moving") { const a = 0.5 + 0.5 * Math.sin(animT * 2); v.pulse.circle(0, 0, 9).fill({ color: 0x37d67a, alpha: 0.05 + 0.06 * a }); }
+      // 一公司一燈號:紅(有設備故障)閃 / 橘(有預測)脈 / 綠(正常)
+      for (const light of Object.values(lightsRef.current)) {
+        const kind = (light as any)._kind || "ok";
+        light.clear();
+        if (kind === "fault") {
+          const a = 0.5 + 0.5 * Math.sin(animT * 5);
+          light.circle(0, 0, 13 + a * 6).fill({ color: 0xe24c4c, alpha: 0.12 + 0.16 * a });
+          light.circle(0, 0, 7).fill(0xe24c4c).stroke({ width: 2, color: 0x10151d });
+        } else if (kind === "predicted") {
+          const a = 0.5 + 0.5 * Math.sin(animT * 3);
+          light.circle(0, 0, 12 + a * 4).fill({ color: 0xf08c2e, alpha: 0.1 + 0.12 * a });
+          light.circle(0, 0, 7).fill(0xf08c2e).stroke({ width: 2, color: 0x10151d });
+        } else {
+          light.circle(0, 0, 10).fill({ color: 0x37d67a, alpha: 0.08 });
+          light.circle(0, 0, 6.5).fill(0x37d67a).stroke({ width: 2, color: 0x10151d });
+        }
       }
       smoke(animT, dt);
     }
@@ -270,7 +283,14 @@ export default function WorldView({
         if (smokeRef.current[i].life >= smokeRef.current[i].max) { smokeRef.current[i].g.destroy(); smokeRef.current.splice(i, 1); }
     }
 
-    function recenter() { const w = worldRef.current; if (w && app.renderer) { w.x = app.screen.width / 2; w.y = app.screen.height * (focus ? 0.28 : 0.30); } }
+    function recenter() {
+      const w = worldRef.current;
+      if (w && app.renderer) {
+        w.scale.set(focus ? 1 : 0.86);                 // 俯瞰縮小一點,整座園區進畫面
+        w.x = app.screen.width / 2;
+        w.y = app.screen.height * (focus ? 0.28 : 0.5); // 俯瞰往下移,上方不被頂列切到
+      }
+    }
     const onResize = () => { if (ready && app.renderer) { app.renderer.resize(host.clientWidth || 800, host.clientHeight || 600); recenter(); } };
     window.addEventListener("resize", onResize);
     return () => { cancelled = true; window.removeEventListener("resize", onResize);
@@ -283,20 +303,13 @@ export default function WorldView({
 
   function update() {
     const tel = telemetry; if (!tel || focus) return;
-    for (const [did, v] of Object.entries(devicesRef.current)) {
-      const snap = tel.devices[did]; if (!snap) continue;
-      const isSel = did === selectedRef.current;
-      const isPredicted = predictedRef.current.has(did) && snap.state !== "fault";
-      v.kind = snap.state === "fault" ? "fault" : isPredicted ? "predicted" : snap.state;
-      const color = isPredicted ? 0xf08c2e : colorOf(snap.state);
-      v.ring.clear();
-      v.ring.circle(0, 0, isSel ? 9 : 6).fill(color).stroke({ width: isSel ? 3 : 1.5, color: isSel ? 0xffffff : 0x10151d });
-    }
+    // 一公司一燈號:紅=任一設備故障、橘=任一預測中、否則綠(正常)
     for (const c of park.companies) {
       const light = lightsRef.current[c.id]; if (!light) continue;
-      const states = (c.device_ids || []).map((d) => { const st = tel.devices[d]?.state;
-        return (st && st !== "fault" && predictedRef.current.has(d)) ? "predicted_fault" : st; }).filter(Boolean) as string[];
-      light.clear(); light.circle(0, 0, 5).fill(colorOf(states.length ? worstState(states) : "idle")).stroke({ width: 2, color: 0x10151d });
+      const devs = c.device_ids || [];
+      const hasFault = devs.some((d) => tel.devices[d]?.state === "fault");
+      const hasPred = devs.some((d) => tel.devices[d]?.state !== "fault" && predictedRef.current.has(d));
+      (light as any)._kind = hasFault ? "fault" : hasPred ? "predicted" : "ok";
     }
   }
 

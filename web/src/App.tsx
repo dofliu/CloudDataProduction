@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Catalog, EventMsg, Park, TelemetryMsg,
-  getCatalog, getPark, subscribe, STATUS_COLOR_CSS,
+  getCatalog, getPark, subscribe, STATUS_COLOR_CSS, getTeacherToken, resetDevice,
 } from "./api";
 import WorldView from "./world/WorldView";
 import CatalogView from "./catalog/CatalogView";
@@ -17,6 +17,7 @@ export default function App() {
   const [view, setView] = useState<"world" | "catalog" | "teacher" | "diag" | "oee">("world");
   const [selected, setSelected] = useState<string | null>(null);
   const [predicted, setPredicted] = useState<Set<string>>(new Set());
+  const [resetMsg, setResetMsg] = useState("");
   const telemetryRef = useRef<TelemetryMsg | null>(null);
 
   useEffect(() => {
@@ -78,6 +79,21 @@ export default function App() {
                     </span>
                   </h2>
                   <div className="muted">{sel.template}</div>
+                  {getTeacherToken() ? (
+                    <div style={{ margin: "8px 0" }}>
+                      <button
+                        onClick={async () => {
+                          try { await resetDevice(sel.id); setResetMsg(`已重置 / 清除故障:${sel.id}`); }
+                          catch (e: any) { setResetMsg(`重置失敗:${e.message}(檢查教師 token)`); }
+                        }}
+                        style={{ background: "#37d67a", color: "#08121e", border: "none", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontWeight: 600 }}>
+                        ↺ 重置 / 清除故障
+                      </button>
+                      {resetMsg && <div className="muted" style={{ marginTop: 6, color: "#5b9bd5" }}>{resetMsg}</div>}
+                    </div>
+                  ) : (
+                    <div className="muted" style={{ fontSize: 12, margin: "6px 0" }}>（教師控制台輸入 token 後,這裡可直接重置 / 清除故障)</div>
+                  )}
                   <table className="taglist">
                     <tbody>
                       {Object.entries(sel.tags).map(([k, v]) => (
@@ -90,7 +106,7 @@ export default function App() {
                   </table>
                 </>
               ) : (
-                <div className="muted">點地圖上的設備看即時值。綠=正常、黃=警告、紅=故障、灰=停機/充電。</div>
+                <div className="muted">點公司進廠內 → 點設備看即時值。一公司一燈號:綠=正常、紅=有設備故障。</div>
               )}
 
               <div className="events">

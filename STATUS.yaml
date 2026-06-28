@@ -25,4 +25,4 @@ outputs:
   - tool
 description: "2D virtual industrial park teaching platform: simulation engine emits realistic (synthetic, ground-truth-labelled) equipment data over Modbus/OPC-UA/MQTT for students to monitor, diagnose, and build predictive maintenance models."
 description_zh: "虛擬 2D 工業園區教學平台:模擬引擎產生擬真(合成且帶 ground-truth 標籤)設備數據,經 Modbus/OPC-UA/MQTT 暴露,供學生監控、處置故障與訓練預測性維護模型。"
-key_metrics: "P0~P4(進行中)完成;階段一+二可開課;戰情版三協定自測;情境腳本(災難日);4 產業 template(CNC/空壓機/AGV/機械手臂);2.5D 工業區世界(街道+多棟建築+冒煙/紅閃/橘脈動動畫)"
+key_metrics: "P0~P4 完成;階段一+二可開課;4 產業 template;3 協定 + multi_port;OEE 榜;災難日;資料集產生器;UI 建廠;公司鑽入廠內動畫;壓測 200 WS+50 Modbus 零錯誤、sim 迴圈 100% 滿速"

@@ -40,7 +40,11 @@
 | `docs/04-scenario-and-api.md` | 場景 YAML schema、REST + WebSocket API、協定轉接綁定 |
 | `docs/05-world-and-teaching.md` | 2D 等距世界前端、公司認領、工單、兩階段教學、自動評分、閉環推論 |
 | `docs/06-mcp.md` | MCP server 工具定義(自然語言建廠 / 注入故障) |
-| `docs/07-roadmap.md` | P0–P4 建置順序與具體任務拆解 |
+| `docs/07-roadmap.md` | P0–P4 建置順序與具體任務拆解(原始規劃) |
+| **`README.en.md`** | English project overview |
+| **`docs/ROADMAP.md`** | 現況路線圖 · 待辦 · 已知限制(中英)Roadmap / TODO / known issues |
+| **`docs/STRESS_TEST.md`** | 壓力測試方法與實測結果(中英)Stress test method & results |
+| `docs/連線教學.md` | 學生用第三方工具連三協定的圖文步驟 Connection guide |
 
 ## 一句話的建議起手式
 

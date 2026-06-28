@@ -12,10 +12,19 @@ from engine.world import World
 
 
 class TicketStore:
-    def __init__(self, world: World):
+    def __init__(self, world: World, persist=None):
         self.world = world
+        self.persist = persist
         self.tickets: dict[str, dict] = {}
         self._seq = 0
+        if persist is not None:                       # 開機載入既有工單(進程重啟不歸零)
+            saved = persist.load("tickets") or {}
+            self.tickets = saved.get("tickets", {})
+            self._seq = saved.get("seq", 0)
+
+    def _save(self) -> None:
+        if self.persist is not None:
+            self.persist.save("tickets", {"tickets": self.tickets, "seq": self._seq})
 
     # ── 事件訂閱:故障自動開單 ──────────────────────────────
     async def on_event(self, ev: dict) -> None:
@@ -47,6 +56,7 @@ class TicketStore:
             "mttr_sim_s": None,
         }
         self.tickets[tid] = ticket
+        self._save()
         return ticket
 
     # ── 查詢 / 處置 ────────────────────────────────────────
@@ -68,6 +78,7 @@ class TicketStore:
                 t["detection_latency_sim_s"] = t["ack_sim_t"] - t["onset_sim_t"]
         if t["status"] == "open":
             t["status"] = "acked"
+        self._save()
         return t
 
     def resolve(self, tid: str) -> Optional[dict]:
@@ -87,4 +98,5 @@ class TicketStore:
         device = self.world.devices.get(t["device"])
         if device is not None:
             device.reset()
+        self._save()
         return t

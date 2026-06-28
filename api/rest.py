@@ -72,6 +72,7 @@ def create_app(
     mqtt=None,
     multiport=None,
     control=None,
+    state=None,
 ) -> FastAPI:
     public_host = config.get("public_host", "127.0.0.1")
     teacher_token = config.get("teacher_token", "")
@@ -87,12 +88,17 @@ def create_app(
     telemetry_mgr = ConnectionManager("telemetry")
     events_mgr = ConnectionManager("events")
 
+    # 營運狀態持久化:開 state.db,開機載入工單/預測、還原 OEE 累積器(進程重啟不歸零)
+    if state is not None:
+        state.connect()
+        world.restore_oee(state.load("oee", {}))
+
     # 工單 + 評分(工單訂閱故障事件自動開單)
-    tickets = TicketStore(world)
+    tickets = TicketStore(world, persist=state)
     scoring = ScoringEngine(world, tickets)
 
     # 階段二預測(發 prediction / prediction_hit 走 events 通道)
-    predictions = PredictionStore(world)
+    predictions = PredictionStore(world, persist=state)
     predictions.set_emitter(events_mgr.broadcast)
 
     # 情境腳本(災難日);步驟事件走 events 通道
@@ -133,12 +139,21 @@ def create_app(
         if multiport is not None:
             multiport.start_background()
         world_task = asyncio.create_task(world.run())
+
+        async def oee_save_loop():                        # OEE 累積器定期落盤(每 30s),關閉時再存一次
+            while True:
+                await asyncio.sleep(30.0)
+                if state is not None:
+                    state.save("oee", world.oee_snapshot())
+        oee_task = asyncio.create_task(oee_save_loop()) if state is not None else None
         print("[api] 世界已啟動,等待連線。")
         try:
             yield
         finally:
             world.stop()
             world_task.cancel()
+            if oee_task is not None:
+                oee_task.cancel()
             if multiport is not None:
                 await multiport.stop()
             if mqtt is not None:
@@ -146,6 +161,9 @@ def create_app(
             if opcua is not None:
                 await opcua.stop()
             await historian.close()
+            if state is not None:                         # 關閉前把 OEE 最後狀態落盤(工單/預測已寫穿)
+                state.save("oee", world.oee_snapshot())
+                state.close()
             print("[api] 已關閉。")
 
     app = FastAPI(

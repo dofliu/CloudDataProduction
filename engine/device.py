@@ -337,6 +337,17 @@ class Device:
             "down_h": round(self._oee_down / 3600.0, 1),
         }
 
+    def oee_state(self) -> dict:
+        """匯出 OEE 累積器(供持久化:進程重啟後 OEE 不歸零)。"""
+        return {"run": self._oee_run, "down": self._oee_down,
+                "perf": self._oee_perf_acc, "qual": self._oee_qual_acc}
+
+    def load_oee_state(self, d: dict) -> None:
+        self._oee_run = float(d.get("run", 0.0))
+        self._oee_down = float(d.get("down", 0.0))
+        self._oee_perf_acc = float(d.get("perf", 0.0))
+        self._oee_qual_acc = float(d.get("qual", 0.0))
+
     def set_sim_t(self, sim_t: float) -> None:
         """world 在 step 前注入當前模擬時間(duty cycle 需要絕對時間)。"""
         self._sim_t = sim_t

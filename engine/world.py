@@ -200,6 +200,16 @@ class World:
     def stop(self) -> None:
         self._running = False
 
+    # ── OEE 累積器持久化(進程重啟不歸零)──────────────────
+    def oee_snapshot(self) -> dict:
+        return {d.id: d.oee_state() for d in self.devices.values()}
+
+    def restore_oee(self, data: dict) -> None:
+        for did, st in (data or {}).items():
+            dev = self.devices.get(did)
+            if dev is not None:
+                dev.load_oee_state(st)
+
     # ── 視圖 ────────────────────────────────────────────────
     @property
     def last_snapshot(self) -> dict:

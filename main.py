@@ -18,6 +18,7 @@ from adapters.mqtt_publisher import MqttPublisher
 from adapters.opcua_server import OpcUaAdapter
 from api.rest import create_app
 from engine.world import World
+from historian.state_store import StateStore
 from historian.writer import Historian
 
 
@@ -45,6 +46,12 @@ def build():
         enabled=os.getenv("HISTORIAN_ENABLED", "true").lower() == "true",
         backend=os.getenv("DB_BACKEND", "sqlite"),       # sqlite(本機持久)| timescale | memory
         sqlite_path=os.getenv("SQLITE_PATH", "historian.db"),
+    )
+
+    # 營運狀態持久化(工單 / 學生預測 / OEE 累積器)→ 進程重啟不歸零
+    state = StateStore(
+        path=os.getenv("STATE_PATH", "state.db"),
+        enabled=os.getenv("STATE_ENABLED", "true").lower() == "true",
     )
 
     # OPC-UA / MQTT 轉接層(可由 .env 關閉)。MQTT 走內嵌純 Python broker,免 Docker。
@@ -80,7 +87,7 @@ def build():
         "teacher_token": os.getenv("TEACHER_TOKEN", ""),
     }
     app = create_app(world, historian, modbus, config, opcua=opcua, mqtt=mqtt,
-                     multiport=multiport, control=control)
+                     multiport=multiport, control=control, state=state)
     return app
 
 

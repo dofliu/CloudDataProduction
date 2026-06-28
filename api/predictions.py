@@ -19,13 +19,24 @@ FALSE_WINDOW_SIM_S = 7 * 86400.0   # 7 sim-天
 
 
 class PredictionStore:
-    def __init__(self, world: World):
+    def __init__(self, world: World, persist=None):
         self.world = world
+        self.persist = persist
         self.predictions: list[dict] = []
         self.fault_count: dict[str, int] = {}
         self._seq = 0
+        if persist is not None:                       # 開機載入既有預測(進程重啟不歸零)
+            saved = persist.load("predictions") or {}
+            self.predictions = saved.get("predictions", [])
+            self.fault_count = saved.get("fault_count", {})
+            self._seq = saved.get("seq", 0)
         # 廣播 prediction / prediction_hit 到 /ws/events(由 create_app 注入 events_mgr.broadcast)
         self._emit: Optional[Callable[[dict], Awaitable[None]]] = None
+
+    def _save(self) -> None:
+        if self.persist is not None:
+            self.persist.save("predictions", {
+                "predictions": self.predictions, "fault_count": self.fault_count, "seq": self._seq})
 
     def set_emitter(self, emit: Callable[[dict], Awaitable[None]]) -> None:
         self._emit = emit
@@ -53,6 +64,7 @@ class PredictionStore:
             "lead_time_sim_s": None,
         }
         self.predictions.append(pred)
+        self._save()
         await self._broadcast({
             "type": "prediction", "device": device, "student": pred["student"],
             "confidence": pred["confidence"], "sim_t": now,
@@ -74,15 +86,20 @@ class PredictionStore:
                     "type": "prediction_hit", "device": device, "student": p["student"],
                     "lead_time_sim": p["lead_time_sim_s"], "sim_t": onset,
                 })
+        self._save()
 
     # ── 查詢 / 評分 ────────────────────────────────────────
     def _lazy_mark_false(self, now: float) -> None:
+        changed = False
         for p in self.predictions:
             if p["status"] != "pending":
                 continue
             dev = self.world.devices.get(p["device"])
             if now > p["created_sim_t"] + FALSE_WINDOW_SIM_S and (dev is None or dev.state != "fault"):
                 p["status"] = "false"      # 預測後夠久仍沒故障 → 設備其實沒壞 → 誤報
+                changed = True
+        if changed:
+            self._save()
 
     def list(self, student: Optional[str] = None) -> list[dict]:
         self._lazy_mark_false(self.world.clock.now())

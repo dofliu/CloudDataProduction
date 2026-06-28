@@ -1,0 +1,88 @@
+{
+  "synthetic": true,
+  "pattern": "cnc-*.csv",
+  "window": 12,
+  "train_devices": [
+    "cnc-01",
+    "cnc-02",
+    "cnc-03",
+    "cnc-04",
+    "cnc-05",
+    "cnc-06",
+    "cnc-07",
+    "cnc-08",
+    "cnc-09",
+    "cnc-10",
+    "cnc-11",
+    "cnc-12",
+    "cnc-13",
+    "cnc-14",
+    "cnc-15",
+    "cnc-16"
+  ],
+  "test_devices": [
+    "cnc-17",
+    "cnc-18",
+    "cnc-19",
+    "cnc-20",
+    "cnc-21",
+    "cnc-22",
+    "cnc-23"
+  ],
+  "classification": {
+    "positive_rate": 0.238,
+    "accuracy": 0.976,
+    "precision": 0.924,
+    "recall": 0.979,
+    "f1": 0.951,
+    "roc_auc": 0.998,
+    "confusion_matrix": [
+      [
+        85210,
+        2184
+      ],
+      [
+        581,
+        26679
+      ]
+    ]
+  },
+  "rul_regression": {
+    "mae_h": 5.48,
+    "rmse_h": 10.47,
+    "r2": 0.935,
+    "naive_rmse_h": 41.13
+  },
+  "lead_time": {
+    "cycles": 188,
+    "median_lead_h": 24.4,
+    "p25_lead_h": 23.3
+  },
+  "top_features": [
+    [
+      "vibration_rms",
+      0.2179
+    ],
+    [
+      "vibration_rms_rmean",
+      0.1922
+    ],
+    [
+      "spindle_temp",
+      0.0988
+    ],
+    [
+      "spindle_temp_rmean",
+      0.0929
+    ],
+    [
+      "coolant_temp_rmean",
+      0.0832
+    ],
+    [
+      "vibration_rms_rstd",
+      0.0804
+    ]
+  ],
+  "note": "合成資料;模型學的是假設物理,適合教學,不保證遷移真實設備(domain gap)。"
+}

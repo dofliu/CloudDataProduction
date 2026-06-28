@@ -149,12 +149,14 @@ async def check_mqtt(world: World, host: str, port: int) -> list[dict]:
 
     collected: dict[str, object] = {}
     try:
-        deadline = time.perf_counter() + 2.0   # 發佈 ~2Hz,2 秒內應收齊
+        # 發佈節流到 broadcast_interval_s(45 台同一拍一起發),等窗需 > 一個間隔才收得齊
+        interval = float(getattr(world, "broadcast_interval_s", 0.0) or 0.0)
+        deadline = time.perf_counter() + max(2.5, interval + 2.5)
         while time.perf_counter() < deadline and len(collected) < len(devices):
             try:
                 msg = await asyncio.wait_for(client.deliver_message(), timeout=1.0)
             except asyncio.TimeoutError:
-                break
+                continue   # 尚未到發佈拍點,繼續等到 deadline(勿提早 break)
             topic = msg.topic
             did = next((i for i, pfx in prefixes.items() if topic.startswith(pfx + "/")), None)
             if did and did not in collected:

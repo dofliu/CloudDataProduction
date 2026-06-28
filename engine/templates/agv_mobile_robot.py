@@ -84,7 +84,7 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
           "x": 0.0, "y": 0.0, "heading": 0.0, "speed": 0.0, "payload": 0.0}
 
     def pre_step(dt_sim, op):
-        if device._fault_latched:            # 故障後停在原地,2D 世界顯示紅燈不再移動
+        if device._fault_latched or not op["running"]:   # 故障 / 教師停機(run_enable=0)→ 停在原地
             st["speed"] = 0.0
             return
         h_batt = health_of(comp_map, "battery_capacity_fade")
@@ -104,6 +104,8 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
         st["x"], st["y"], st["heading"] = _pos_from_s(st["s"])
 
     def state_fn(op, comps):
+        if not op["running"]:                # 教師停機 → idle(不再 moving/charging)
+            return "idle"
         return "charging" if st["mode"] == "charging" else "moving"
 
     moving = lambda: st["mode"] == "moving"

@@ -69,14 +69,19 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
 
     def pre_step(dt_sim, op):
         st["t"] += dt_sim
-        # 風速:基準 + 多頻率陣風 + 隨機,夾在 0..28
+        # 風速是「環境」量測,風一直吹(感測器照讀),與停機/故障無關
         gust = 2.5 * math.sin(st["t"] / 600.0 + st["ph"]) + 1.2 * math.sin(st["t"] / 130.0)
         st["ws"] = float(np.clip(8.5 + gust + gaussian_noise(nrng, 0.4), 0.0, 28.0))
-        st["pf"] = _power_curve(st["ws"])                  # 0..1 功率因數
-        if not device._fault_latched and st["pf"] > 0:
+        # 但「發電」要看機組是否運轉:停機(run_enable=0 → op.running=False)或故障 → 變槳停轉,pf=0。
+        # 否則 rotor_rpm / power 不會歸零,資料與命令脫鉤(學生模型會被誤導)。
+        generating = op["running"] and not device._fault_latched
+        st["pf"] = _power_curve(st["ws"]) if generating else 0.0
+        if st["pf"] > 0:
             st["energy"] += RATED_KW * st["pf"] * dt_sim / 3600.0  # kWh
 
     def state_fn(op, comps):
+        if not op["running"]:           # 教師停機 → 機組停轉(idle),即使有風
+            return "idle"
         return "running" if st["pf"] > 0.02 else "idle"
 
     def drv_ws(op, c, dt): return st["ws"]
@@ -87,6 +92,8 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
     def drv_rpm(op, c, dt):
         return (6.0 + 9.0 * st["pf"]) + gaussian_noise(nrng, 0.2) if st["pf"] > 0 else gaussian_noise(nrng, 0.05)
     def drv_pitch(op, c, dt):
+        if not op["running"]:           # 停機:葉片順槳停轉(~88°)
+            return 88.0 + gaussian_noise(nrng, 0.3)
         # 額定以上靠變槳限制功率
         return max(0.0, (st["ws"] - RATED_WS) * 3.0) if st["ws"] > RATED_WS else gaussian_noise(nrng, 0.2)
     def drv_gen_temp(op, c, dt):

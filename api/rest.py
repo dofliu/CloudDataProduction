@@ -170,7 +170,20 @@ def create_app(
             "name": "CloudDataProduction",
             "phase": "P0",
             "synthetic_data": True,
-            "endpoints": ["/api/park", "/api/catalog", "/api/devices/{id}", "/api/history"],
+            "endpoints": ["/api/health", "/api/park", "/api/catalog", "/api/devices/{id}", "/api/history"],
+        }
+
+    @app.get("/api/health")
+    def health():
+        """輕量健康檢查(給排程器 / 監控輪詢):世界是否在跑、設備數、sim 時鐘、持久層狀態。"""
+        return {
+            "ok": world._running and len(world.devices) > 0,
+            "running": world._running,
+            "devices": len(world.devices),
+            "sim_t": round(world.clock.now(), 1),
+            "multiplier": world.clock.time_multiplier,
+            "historian": "degraded(in-memory)" if historian.degraded else historian.backend,
+            "synthetic": True,
         }
 
     @app.get("/api/park")

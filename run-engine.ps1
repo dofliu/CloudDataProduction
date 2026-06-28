@@ -1,4 +1,4 @@
-# 用專案 .venv 啟動引擎(避免誤用全域 Python — 全域那支版本會漂移)。
+﻿# 用專案 .venv 啟動引擎(避免誤用全域 Python — 全域那支版本會漂移)。
 # 用法:  .\run-engine.ps1            常駐 / 排程器 / NSSM 都呼叫這支。
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Definition

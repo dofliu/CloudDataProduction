@@ -39,16 +39,22 @@ Simulation engine ★  hidden health state + degradation + correlated signals + 
 Python 3.11 · asyncio + FastAPI · numpy · pymodbus 3.6.9 · asyncua (OPC-UA) · amqtt (pure-Python MQTT
 broker) · TimescaleDB · React + Vite + TypeScript + PixiJS.
 
-## Features (P0–P4, ~99% done)
+## Features (P0–P4 + hardening, ~99% done)
 
 - **Engine** — hidden per-component health, monotonic damage accumulation, multiple degradation
   trajectories (linear / exponential / …), correlated observable signals (vibration leads, current
   follows, temperature rises via first-order thermal lag), measurement noise, duty-cycle day/week
   structure, time acceleration against `sim_clock`.
-- **4 industry templates** — CNC machining center, air compressor, AGV (with battery/movement state
-  machine), 6-axis robot arm (articulated joints).
+- **6 industry templates** — CNC machining center, air compressor, AGV, 6-axis robot arm,
+  injection molding machine, wind turbine (wind→power curve, gearbox wear).
 - **3 protocols, two addressing modes** — channel-mux (shared ports, split by unit_id / folder / topic)
   **and** multi_port (each device gets its own dedicated Modbus port) coexisting.
+- **4 Modbus object types** — holding register (FC03, measurements), discrete input (FC02, status bits),
+  input register (FC04, read-only int incl. ×100 fixed-point mirror), **coil (FC01 read / FC05 write)**
+  for commands `run_enable` / `reset_fault` — students read-only, **only the teacher writes** (token REST
+  or an isolated control port). Writing `run_enable=0` actually stops the device (rpm/speed → 0).
+- **Persistence (no Docker)** — `DB_BACKEND=sqlite`: telemetry → `historian.db`, ops state (work orders /
+  predictions / OEE accumulators) → `state.db`; **survives process restart**. `timescale` for production.
 - **Real-time** — WebSocket `/ws/telemetry` + `/ws/events`.
 - **Stage 1 teaching** — fault injection (equipment + sensor faults), auto work orders + MTTR, auto
   scoring (detection latency / MTTR / missed), teacher console (god view), natural-language factory
@@ -67,11 +73,15 @@ broker) · TimescaleDB · React + Vite + TypeScript + PixiJS.
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-copy .env.example .env        # default ports: API 8077 / Modbus 5020 / OPC-UA 4841 / MQTT 1883
-.\run.ps1                     # engine + protocols + API (one process)
+copy .env.example .env        # industrial ports in the 6xxx range: Modbus 6020 / OPC-UA 6041 / MQTT 6083; API 8077
+.\run-engine.ps1              # forces the .venv python (global python drifts); engine + protocols + API in one process
 
 cd web && npm install && npm run dev    # 2D world at http://localhost:5173
 ```
+
+> Always use `run-engine.ps1` (or `.venv\Scripts\python.exe`), never bare `python`. For an always-on host
+> (watchdog + auto-restart + `/api/health`) see [docs/部署運維.md](docs/部署運維.md). Smoke test:
+> `.\.venv\Scripts\python.exe tools\smoke_test.py` (11 invariants, exit 0/1).
 
 - Connection guide for third-party tools (Modbus Poll / UaExpert / MQTT Explorer): [docs/連線教學.md](docs/連線教學.md)
 - Stage-2 dataset: `python tools/generate_dataset.py --sim-days 120 --step-min 5 --out dataset`
@@ -84,9 +94,11 @@ simulation loop kept **100% of its configured speed** under load. Plenty of head
 
 ## Status
 
-P0–P4 essentially complete (~99%): both teaching stages are deliverable. **Remaining: external access**
-(Cloudflare Tunnel for HTTP + Tailscale for native protocols) — deferred until the on-campus 5090 host
-is accessible. See [docs/ROADMAP.md](docs/ROADMAP.md).
+P0–P4 + production hardening complete (~99% of features): both teaching stages are deliverable, with
+four Modbus object types + teacher coil control, SQLite persistence (telemetry + ops state), 6xxx ports,
+venv launcher + watchdog + `/api/health` + smoke test, production-line choreography + in-plant people.
+**Remaining: external access** (Cloudflare Tunnel for HTTP + Tailscale for native protocols) — deferred
+until the on-campus 5090 host is accessible. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ---
 

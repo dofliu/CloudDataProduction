@@ -3,7 +3,8 @@ import { Application, Container, Graphics, Text } from "pixi.js";
 import { Park, Company, TelemetryMsg, colorOf, worstState } from "../api";
 
 // ── 俯瞰格狀佈局 ───────────────────────────────────────
-const COLS = 6, STEP = 4, GRID = 26;
+// STEP 拉大 → 公司間距更寬、道路更寬敞;GRID 隨之放大,俯瞰縮放在 recenter 自動配合。
+const COLS = 6, STEP = 5, GRID = 32;
 const HW = 18, HH = 9, CX = GRID / 2, CY = GRID / 2;
 
 function iso(gx: number, gy: number) {
@@ -27,11 +28,30 @@ const COMPANY_COLORS = [0x3f6ea5, 0x4a8a7b, 0xb5743a, 0x7a5ca8, 0x4f9d5b, 0xa85a
 
 function isoBox(g: Graphics, gx: number, gy: number, w: number, h: number, height: number, roof: number) {
   const N = iso(gx, gy), E = iso(gx + w, gy), S = iso(gx + w, gy + h), W = iso(gx, gy + h);
-  const up = (p: { x: number; y: number }) => ({ x: p.x, y: p.y - height });
-  g.poly([W.x, W.y, S.x, S.y, up(S).x, up(S).y, up(W).x, up(W).y]).fill(darken(roof, 0.62));
-  g.poly([S.x, S.y, E.x, E.y, up(E).x, up(E).y, up(S).x, up(S).y]).fill(darken(roof, 0.8));
+  const up = (p: Pt, f = 1) => ({ x: p.x, y: p.y - height * f });
+  const lerp2 = (a: Pt, b: Pt, f: number) => ({ x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f });
+  const cL = darken(roof, 0.62), cR = darken(roof, 0.8);
+  g.poly([W.x, W.y, S.x, S.y, up(S).x, up(S).y, up(W).x, up(W).y]).fill(cL);                  // 左牆(暗)
+  g.poly([S.x, S.y, E.x, E.y, up(E).x, up(E).y, up(S).x, up(S).y]).fill(cR);                  // 右牆
+  // 牆面紋路:樓層橫線 + 窗格直線(低 alpha,做出建築立面質感)
+  const floors = Math.max(2, Math.floor(height / 13));
+  for (let k = 1; k < floors; k++) {
+    const f = k / floors;
+    g.moveTo(up(W, f).x, up(W, f).y).lineTo(up(S, f).x, up(S, f).y).stroke({ width: 1, color: darken(roof, 0.45), alpha: 0.45 });
+    g.moveTo(up(S, f).x, up(S, f).y).lineTo(up(E, f).x, up(E, f).y).stroke({ width: 1, color: darken(roof, 0.6), alpha: 0.4 });
+  }
+  const colsL = Math.max(2, Math.round(h * 1.4));
+  for (let c = 1; c < colsL; c++) {
+    const b = lerp2(W, S, c / colsL);
+    g.moveTo(b.x, b.y).lineTo(b.x, b.y - height).stroke({ width: 1, color: darken(roof, 0.5), alpha: 0.3 });
+  }
+  const colsR = Math.max(2, Math.round(w * 1.4));
+  for (let c = 1; c < colsR; c++) {
+    const b = lerp2(S, E, c / colsR);
+    g.moveTo(b.x, b.y).lineTo(b.x, b.y - height).stroke({ width: 1, color: darken(roof, 0.66), alpha: 0.28 });
+  }
   g.poly([up(N).x, up(N).y, up(E).x, up(E).y, up(S).x, up(S).y, up(W).x, up(W).y])
-    .fill(roof).stroke({ width: 1, color: darken(roof, 1.15) });
+    .fill(roof).stroke({ width: 1, color: darken(roof, 1.15) });                              // 屋頂
 }
 
 interface DeviceVisual { container: Container; ring: Graphics; pulse: Graphics; kind: string; }
@@ -83,6 +103,7 @@ export default function WorldView({
   const fxRef = useRef<Container | null>(null);
   const beltRef = useRef<Graphics | null>(null);
   const flowRef = useRef<Flow | null>(null);
+  const peopleRef = useRef<{ g: Graphics; pts: Pt[]; t: number; speed: number; color: number; work: boolean }[]>([]);
   const telRef = useRef(telemetry);
   const onSelectRef = useRef(onSelect); const selectedRef = useRef(selected); const predictedRef = useRef(predicted);
   telRef.current = telemetry; onSelectRef.current = onSelect; selectedRef.current = selected; predictedRef.current = predicted;
@@ -125,7 +146,7 @@ export default function WorldView({
       for (let gx = 1; gx < GRID - 1; gx++) for (let gy = 1; gy < GRID - 1; gy++) {
         if (isRoad(gx, gy) || reserved.has(`${gx},${gy}`) || rnd() > 0.12) continue;
         const roof = rnd() > 0.6 ? COMPANY_COLORS[Math.floor(rnd() * COMPANY_COLORS.length)] : ROOFS[Math.floor(rnd() * ROOFS.length)];
-        props.push({ gx, gy, ht: 12 + Math.floor(rnd() * 34), roof, chimney: rnd() > 0.82 });
+        props.push({ gx, gy, ht: 10 + Math.floor(rnd() * 48), roof, chimney: rnd() > 0.82 });
       }
       props.sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy));
       for (const b of props) { const g = new Graphics(); isoBox(g, b.gx, b.gy, 1, 1, b.ht, b.roof); world.addChild(g);
@@ -136,8 +157,9 @@ export default function WorldView({
         // 每間公司:確定性的多彩、高低、大小
         const rc = mulberry32(7000 + i * 13);
         const roof = COMPANY_COLORS[Math.floor(rc() * COMPANY_COLORS.length)];
-        const ht = 26 + Math.floor(rc() * 36);
-        const fw = rc() > 0.62 ? 3 : 2, fh = rc() > 0.62 ? 3 : 2;
+        const ht = 20 + Math.floor(rc() * 70);                 // 高低差更大
+        const sz = () => { const r = rc(); return r > 0.82 ? 4 : r > 0.45 ? 3 : 2; };
+        const fw = sz(), fh = sz();                            // 大小更多樣(2~4)
         const g = new Graphics(); isoBox(g, gx, gy, fw, fh, ht, roof);
         g.eventMode = "static"; g.cursor = "pointer";
         g.on("pointertap", () => { setTip(null); setFocus(c.id); });
@@ -244,6 +266,30 @@ export default function WorldView({
         parts: [], layer: partsLayer,
         lastFeed: 0, feedInterval: 2.6, dropCycle: -1,
       };
+
+      // 廠內人員:沿走道巡走 + 機台旁作業(純視覺,animT 驅動)
+      const peopleLayer = new Container(); world.addChild(peopleLayer);
+      const SHIRTS = [0x4f9d5b, 0x3f6ea5, 0xb5743a, 0xa85a6a, 0x7a5ca8];
+      const aisle = [fiso(1.6, FH - 2.3), fiso(FW - 1.6, FH - 2.3), fiso(FW - 1.6, 1.4), fiso(1.6, 1.4)];
+      const people: { g: Graphics; pts: Pt[]; t: number; speed: number; color: number; work: boolean }[] = [];
+      for (let i = 0; i < 3; i++) {       // 巡走的人(沿走道矩形)
+        const g = new Graphics(); peopleLayer.addChild(g);
+        people.push({ g, pts: aisle, t: i * 1.33, speed: 0.5 + i * 0.12, color: SHIRTS[i % SHIRTS.length], work: false });
+      }
+      stations.slice(0, 2).forEach((st, i) => {   // 站在前兩台設備旁「作業」的人
+        const g = new Graphics(); peopleLayer.addChild(g);
+        const here = { x: st.container.x - 22, y: st.container.y + 14 };
+        people.push({ g, pts: [here, here], t: i * 0.7, speed: 0, color: SHIRTS[(i + 2) % SHIRTS.length], work: true });
+      });
+      peopleRef.current = people;
+    }
+
+    function drawPerson(g: Graphics, x: number, y: number, color: number, bob: number, arm: number) {
+      g.ellipse(x, y + 2, 5, 2.2).fill({ color: 0x000000, alpha: 0.22 });        // 影
+      g.roundRect(x - 3, y - 11 + bob, 6, 11, 2).fill(color);                    // 身體
+      g.moveTo(x - 3, y - 8 + bob).lineTo(x - 6, y - 8 + bob + arm).stroke({ width: 2, color, cap: "round" }); // 手臂
+      g.moveTo(x + 3, y - 8 + bob).lineTo(x + 6, y - 8 + bob - arm).stroke({ width: 2, color, cap: "round" });
+      g.circle(x, y - 14 + bob, 3).fill(0xe7c9a8).stroke({ width: 0.8, color: 0x6b5036 }); // 頭
     }
 
     function tickInterior(animT: number, dt: number) {
@@ -275,6 +321,20 @@ export default function WorldView({
         }
         const armCtx = st.template === "robot_arm_6axis" ? computeArmCtx(st, animT, running) : null;
         drawStation(st.art, st.template, t, running, animT, col, armCtx);
+      }
+      // 廠內人員:巡走的沿走道矩形移動;作業的站定做手部動作
+      for (const pr of peopleRef.current) {
+        pr.g.clear();
+        if (pr.work) {
+          const here = pr.pts[0];
+          drawPerson(pr.g, here.x, here.y, pr.color, 0, 2.5 * Math.sin(animT * 3 + pr.t));
+        } else {
+          pr.t += dt * pr.speed * 0.25;
+          const P = pr.pts.length, pp = ((pr.t % P) + P) % P;
+          const i0 = Math.floor(pp), f = pp - i0;
+          const A = pr.pts[i0], B = pr.pts[(i0 + 1) % P];
+          drawPerson(pr.g, A.x + (B.x - A.x) * f, A.y + (B.y - A.y) * f, pr.color, Math.sin(pr.t * 9) * 1.1, 1.2 * Math.sin(pr.t * 9));
+        }
       }
       smoke(animT, dt);
     }
@@ -403,7 +463,7 @@ export default function WorldView({
     function recenter() {
       const w = worldRef.current;
       if (w && app.renderer) {
-        w.scale.set(focus ? 1 : 0.86);                 // 俯瞰縮小一點,整座園區進畫面
+        w.scale.set(focus ? 1 : 0.7);                  // 俯瞰縮小(GRID 放大後整座園區仍進畫面)
         w.x = app.screen.width / 2;
         w.y = app.screen.height * (focus ? 0.28 : 0.5); // 俯瞰往下移,上方不被頂列切到
       }
@@ -411,7 +471,7 @@ export default function WorldView({
     const onResize = () => { if (ready && app.renderer) { app.renderer.resize(host.clientWidth || 800, host.clientHeight || 600); recenter(); } };
     window.addEventListener("resize", onResize);
     return () => { cancelled = true; window.removeEventListener("resize", onResize);
-      lightsRef.current = {}; devicesRef.current = {}; stationsRef.current = []; chimneysRef.current = []; smokeRef.current = [];
+      lightsRef.current = {}; devicesRef.current = {}; stationsRef.current = []; chimneysRef.current = []; smokeRef.current = []; peopleRef.current = [];
       worldRef.current = null; appRef.current = null; fxRef.current = null; beltRef.current = null; flowRef.current = null;
       if (ready) safeDestroy(); };
   }, [park, focus]);

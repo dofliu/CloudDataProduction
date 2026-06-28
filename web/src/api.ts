@@ -4,7 +4,8 @@
 export interface MapPos { x: number; y: number; }
 export interface Company {
   id: string; name: string; industry: string;
-  owner: string | null; map_pos: MapPos; device_ids: string[];
+  owner: string | null; map_pos: MapPos | null; device_ids: string[];
+  product?: string | null; intro?: string | null;
 }
 export interface Park {
   name: string; protocol_mode: string;

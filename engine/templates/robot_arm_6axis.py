@@ -30,6 +30,10 @@ _TAG_SPEC = (
     + [("vibration_rms", "mm/s", "float32"), ("cycle_count", "count", "int32")]
 )
 _INDICATORS = {"encoder_drift", "joint_bearing"}
+_DEFAULT_DEGRADATION = {
+    "reducer_wear": {"rate": 0.0000010, "trajectory": "exponential", "k": 3.0, "sigma": 0.1, "init_health": 0.94},
+    "joint_bearing": {"rate": 0.0000009, "trajectory": "exponential", "k": 2.5, "sigma": 0.12, "init_health": 0.96, "causes_device_fault": False},
+}
 
 
 def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device:
@@ -39,7 +43,7 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
 
     seed = cfg.get("seed", abs(hash(device_id)) % (2**31))
     rng = np.random.default_rng(seed)
-    components = build_components(cfg, _INDICATORS, rng)
+    components = build_components(cfg, _INDICATORS, rng, defaults=_DEFAULT_DEGRADATION)
     comp_map = {c.name: c for c in components}
 
     protocols = cfg.get("protocols", {}) or {}

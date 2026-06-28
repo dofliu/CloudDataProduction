@@ -40,6 +40,11 @@ _TAG_SPEC = [
     ("payload",         "kg",    "float32"),
 ]
 _INDICATORS = {"battery_capacity_fade", "wheel_wear"}
+_DEFAULT_DEGRADATION = {
+    "motor_bearing": {"rate": 0.0000011, "trajectory": "exponential", "k": 3.0, "sigma": 0.1, "init_health": 0.93},
+    "battery_capacity_fade": {"rate": 0.0000008, "trajectory": "linear", "sigma": 0.1, "init_health": 1.0, "causes_device_fault": False},
+    "wheel_wear": {"rate": 0.0000010, "trajectory": "linear", "sigma": 0.15, "init_health": 1.0, "causes_device_fault": False},
+}
 
 
 def _pos_from_s(s: float):
@@ -61,7 +66,7 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
 
     seed = cfg.get("seed", abs(hash(device_id)) % (2**31))
     rng = np.random.default_rng(seed)
-    components = build_components(cfg, _INDICATORS, rng)
+    components = build_components(cfg, _INDICATORS, rng, defaults=_DEFAULT_DEGRADATION)
     comp_map = {c.name: c for c in components}   # pre_step / 部分 driver 用名稱查健康度
 
     protocols = cfg.get("protocols", {}) or {}

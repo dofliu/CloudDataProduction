@@ -53,9 +53,17 @@ class World:
         return cls(data["park"])
 
     def _build_devices(self) -> None:
+        next_unit = 1   # 未指定 unit_id 時自動遞增配址(讓大型場景 YAML 不必逐台寫 protocols)
         for company in self.park.get("companies", []) or []:
             cid = company.get("id")
             for dev_cfg in company.get("devices", []) or []:
+                proto = dev_cfg.setdefault("protocols", {})
+                mb = proto.setdefault("modbus", {})
+                mb.setdefault("unit_id", next_unit)
+                mb.setdefault("register_base", 0)
+                next_unit = max(next_unit, mb["unit_id"]) + 1
+                proto.setdefault("opcua", {"node_folder": f"{cid}/{dev_cfg['id']}"})
+                proto.setdefault("mqtt", {"topic_prefix": f"park/{cid}/{dev_cfg['id']}"})
                 builder = get_builder(dev_cfg["template"])
                 device = builder(dev_cfg["id"], dev_cfg, cid)
                 if device.id in self.devices:
@@ -200,6 +208,8 @@ class World:
                     "industry": c.get("industry"),
                     "owner": c.get("owner"),
                     "map_pos": c.get("map_pos"),
+                    "product": c.get("product"),     # 主要產品(給 tooltip / 介紹面板)
+                    "intro": c.get("intro"),         # 公司介紹文字
                     "device_ids": [d.get("id") for d in c.get("devices", []) or []],
                 }
             )

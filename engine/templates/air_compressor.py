@@ -26,8 +26,13 @@ _TAG_SPEC = [
     ("vibration_rms",   "mm/s",  "float32"),   # ★ motor_bearing 退化主指標
     ("running_hours",   "h",     "float32"),
 ]
-# 指標型元件(不直接判定設備故障)
+# 指標型元件(不直接判定設備故障)+ 未指定時的預設退化
 _INDICATORS = {"valve_wear", "filter_clog"}
+_DEFAULT_DEGRADATION = {
+    "motor_bearing": {"rate": 0.0000010, "trajectory": "exponential", "k": 3.0, "sigma": 0.1, "init_health": 0.93},
+    "filter_clog": {"rate": 0.0000018, "trajectory": "linear", "sigma": 0.15, "init_health": 1.0, "causes_device_fault": False},
+    "valve_wear": {"rate": 0.0000008, "trajectory": "linear", "sigma": 0.15, "init_health": 1.0, "causes_device_fault": False},
+}
 
 
 def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device:
@@ -38,7 +43,7 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
 
     seed = cfg.get("seed", abs(hash(device_id)) % (2**31))
     rng = np.random.default_rng(seed)
-    components = build_components(cfg, _INDICATORS, rng)
+    components = build_components(cfg, _INDICATORS, rng, defaults=_DEFAULT_DEGRADATION)
 
     protocols = cfg.get("protocols", {}) or {}
     opcua_folder = (protocols.get("opcua", {}) or {}).get("node_folder", f"{company_id}/{device_id}")

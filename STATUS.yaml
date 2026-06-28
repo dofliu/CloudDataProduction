@@ -19,10 +19,11 @@ technologies:
   - Vite
   - TypeScript
   - PixiJS
+category_note: "公司取材自台中精密機械聚落代表廠商(上銀/友嘉/東台/台中精機/大立光/成霖等);數據全為合成"
   - FastMCP
 outputs:
   - course
   - tool
 description: "2D virtual industrial park teaching platform: simulation engine emits realistic (synthetic, ground-truth-labelled) equipment data over Modbus/OPC-UA/MQTT for students to monitor, diagnose, and build predictive maintenance models."
 description_zh: "虛擬 2D 工業園區教學平台:模擬引擎產生擬真(合成且帶 ground-truth 標籤)設備數據,經 Modbus/OPC-UA/MQTT 暴露,供學生監控、處置故障與訓練預測性維護模型。"
-key_metrics: "P0~P4 完成;階段一+二可開課;4 產業 template;3 協定 + multi_port;OEE 榜;災難日;資料集產生器;UI 建廠;公司鑽入廠內動畫;壓測 200 WS+50 Modbus 零錯誤、sim 迴圈 100% 滿速"
+key_metrics: "22 間台中主題公司 / 45 設備;6 產業 template(CNC/空壓機/AGV/機械手臂/射出成型/風力機);3 協定 + multi_port(45 專屬埠);公司 hover 簡介 + 廠內介紹面板 + 設備動畫(手臂/AGV軌跡/輸送帶物件/風機轉動);OEE/災難日/資料集產生器/UI建廠;壓測 200 WS 零錯誤"

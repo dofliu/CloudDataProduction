@@ -1,124 +1,214 @@
-# P1 多設備園區:3 家公司、3 種產業,錯開故障時間,給 2D 世界與三協定示範用。
+# 勤益智慧工業區 —— 取材自台中工業區 / 精密機械聚落代表廠商(22 間公司、~45 台設備)。
 #
-# time_multiplier=600(一秒走 10 分鐘):各設備在數分鐘~十幾分鐘內陸續退化到故障,
-# 適合課堂邊看世界邊處置。要快看把它調 3600,要慢看調 60。
+# ⚠ 公司名稱與「主要產品」為公開資訊;本園區的設備、數據、運轉狀態全為合成(synthetic),
+#   並非任何公司的真實產線或量測值,僅供教學。
+#
+# 設備只需寫 id + template:協定定址(unit_id / node / topic)由引擎自動遞增配,
+# 退化參數未指定時用 template 預設並做個體差異抖動(見 engine/templates/_common.py)。
 park:
-  name: "勤益智慧工業區"
+  name: "勤益智慧工業區(台中精密機械主題)"
   sim:
     tick_hz: 10
     time_multiplier: 600
   protocol_mode: channel_mux
-  ports:
-    modbus: 502
-    opcua: 4840
-    mqtt: 1883
+  ports: {modbus: 502, opcua: 4840, mqtt: 1883}
 
   companies:
     - id: c01
-      name: "精鋐機械"
-      industry: cnc_machining
-      owner: null
-      map_pos: {x: 6, y: 6}
+      name: "台中精機"
+      industry: machine_tool
+      product: "CNC 車床、加工中心、塑膠射出成型機"
+      intro: "成立於 1954 年,華人圈精密機械指標品牌之一;產品橫跨工具機與塑膠射出機,2019 年於台中精密機械園區啟用全球營運總部。"
       devices:
-        - id: cnc-01
-          template: cnc_machining_center
-          protocols:
-            modbus: {unit_id: 1, register_base: 0}
-            opcua:  {node_folder: "c01/cnc-01"}
-            mqtt:   {topic_prefix: "park/c01/cnc-01"}
-          duty_cycle: {profile: continuous, load_nom: 75}
-          degradation:
-            spindle_bearing: {rate: 0.0000012, trajectory: exponential, k: 3.0, sigma: 0.08, init_health: 0.90}
-            tool_wear:       {rate: 0.0000015, trajectory: linear, sigma: 0.15, init_health: 1.0, causes_device_fault: false}
-        - id: cnc-02
-          template: cnc_machining_center
-          protocols:
-            modbus: {unit_id: 2, register_base: 0}
-            opcua:  {node_folder: "c01/cnc-02"}
-            mqtt:   {topic_prefix: "park/c01/cnc-02"}
-          duty_cycle: {profile: two_shift, load_nom: 68}
-          degradation:
-            spindle_bearing: {rate: 0.0000009, trajectory: exponential, k: 3.0, sigma: 0.1, init_health: 0.95}
-            tool_wear:       {rate: 0.0000012, trajectory: linear, sigma: 0.2, init_health: 1.0, causes_device_fault: false}
+        - {id: cnc-01, template: cnc_machining_center}
+        - {id: im-01, template: injection_molding}
 
     - id: c02
-      name: "全動廠務"
-      industry: utility
-      owner: null
-      map_pos: {x: 16, y: 6}
+      name: "友嘉實業"
+      industry: machine_tool
+      product: "綜合加工中心、車削中心"
+      intro: "友嘉集團(FFG)以併購擴張,為全球前列工具機集團,台灣工具機業少數年營收破 500 億元者。"
       devices:
-        - id: comp-01
-          template: air_compressor
-          protocols:
-            modbus: {unit_id: 10, register_base: 0}
-            opcua:  {node_folder: "c02/comp-01"}
-            mqtt:   {topic_prefix: "park/c02/comp-01"}
-          duty_cycle: {profile: continuous, load_nom: 82}
-          degradation:
-            motor_bearing: {rate: 0.0000010, trajectory: exponential, k: 3.0, sigma: 0.1, init_health: 0.92}
-            filter_clog:   {rate: 0.0000020, trajectory: linear, sigma: 0.15, init_health: 1.0, causes_device_fault: false}
-            valve_wear:    {rate: 0.0000008, trajectory: linear, sigma: 0.15, init_health: 1.0, causes_device_fault: false}
-        - id: comp-02
-          template: air_compressor
-          protocols:
-            modbus: {unit_id: 11, register_base: 0}
-            opcua:  {node_folder: "c02/comp-02"}
-            mqtt:   {topic_prefix: "park/c02/comp-02"}
-          duty_cycle: {profile: continuous, load_nom: 78}
-          degradation:
-            motor_bearing: {rate: 0.0000007, trajectory: exponential, k: 3.0, sigma: 0.12, init_health: 0.96}
-            filter_clog:   {rate: 0.0000015, trajectory: linear, sigma: 0.2, init_health: 1.0, causes_device_fault: false}
+        - {id: cnc-02, template: cnc_machining_center}
+        - {id: cnc-03, template: cnc_machining_center, duty_cycle: {profile: two_shift}}
 
     - id: c03
-      name: "捷流物流"
-      industry: logistics
-      owner: null
-      map_pos: {x: 11, y: 14}
+      name: "東台精機"
+      industry: machine_tool
+      product: "CNC 加工機、放電加工機、航太加工"
+      intro: "東台集團(Tongtai),工具機與放電加工大廠,跨足航太、能源與半導體設備。"
       devices:
-        - id: agv-01
-          template: agv_mobile_robot
-          protocols:
-            modbus: {unit_id: 20, register_base: 0}
-            opcua:  {node_folder: "c03/agv-01"}
-            mqtt:   {topic_prefix: "park/c03/agv-01"}
-          duty_cycle: {load_nom: 60}
-          degradation:
-            motor_bearing:          {rate: 0.0000011, trajectory: exponential, k: 3.0, sigma: 0.1, init_health: 0.93}
-            battery_capacity_fade:  {rate: 0.0000008, trajectory: linear, sigma: 0.1, init_health: 1.0, causes_device_fault: false}
-            wheel_wear:             {rate: 0.0000010, trajectory: linear, sigma: 0.15, init_health: 1.0, causes_device_fault: false}
-        - id: agv-02
-          template: agv_mobile_robot
-          protocols:
-            modbus: {unit_id: 21, register_base: 0}
-            opcua:  {node_folder: "c03/agv-02"}
-            mqtt:   {topic_prefix: "park/c03/agv-02"}
-          duty_cycle: {load_nom: 55}
-          degradation:
-            motor_bearing:          {rate: 0.0000008, trajectory: exponential, k: 3.0, sigma: 0.12, init_health: 0.97}
-            battery_capacity_fade:  {rate: 0.0000006, trajectory: linear, sigma: 0.1, init_health: 1.0, causes_device_fault: false}
+        - {id: cnc-04, template: cnc_machining_center}
+        - {id: cnc-05, template: cnc_machining_center}
 
     - id: c04
-      name: "鴻運自動化"
-      industry: robotics
-      owner: null
-      map_pos: {x: 18, y: 16}
+      name: "永進機械"
+      industry: machine_tool
+      product: "立式 / 臥式綜合加工中心"
+      intro: "YCM,專注高剛性綜合加工中心與五軸機,外銷全球。"
       devices:
-        - id: arm-01
-          template: robot_arm_6axis
-          protocols:
-            modbus: {unit_id: 30, register_base: 0}
-            opcua:  {node_folder: "c04/arm-01"}
-            mqtt:   {topic_prefix: "park/c04/arm-01"}
-          duty_cycle: {profile: continuous, load_nom: 65}
-          degradation:
-            reducer_wear: {rate: 0.0000010, trajectory: exponential, k: 3.0, sigma: 0.1, init_health: 0.94}
-            joint_bearing: {rate: 0.0000009, trajectory: exponential, k: 2.5, sigma: 0.12, init_health: 0.96, causes_device_fault: false}
-        - id: arm-02
-          template: robot_arm_6axis
-          protocols:
-            modbus: {unit_id: 31, register_base: 0}
-            opcua:  {node_folder: "c04/arm-02"}
-            mqtt:   {topic_prefix: "park/c04/arm-02"}
-          duty_cycle: {profile: two_shift, load_nom: 60}
-          degradation:
-            reducer_wear: {rate: 0.0000008, trajectory: exponential, k: 3.0, sigma: 0.12, init_health: 0.97}
+        - {id: cnc-06, template: cnc_machining_center}
+        - {id: cnc-07, template: cnc_machining_center}
+
+    - id: c05
+      name: "上銀科技"
+      industry: motion_robotics
+      product: "線性滑軌、滾珠螺桿、工業機器人"
+      intro: "HIWIN,線性傳動與機器人大廠,產品為精密機械的關鍵零組件,進駐台中精密機械園區。"
+      devices:
+        - {id: arm-01, template: robot_arm_6axis}
+        - {id: arm-02, template: robot_arm_6axis}
+
+    - id: c06
+      name: "大立光電"
+      industry: optics
+      product: "手機 / 車載光學鏡頭"
+      intro: "Largan,全球領先的手機鏡頭模組廠,以高精度光學與自動化組裝著稱,進駐台中精密機械園區。"
+      devices:
+        - {id: arm-03, template: robot_arm_6axis}
+        - {id: arm-04, template: robot_arm_6axis, duty_cycle: {profile: two_shift}}
+
+    - id: c07
+      name: "成霖企業"
+      industry: hardware
+      product: "水龍頭、衛浴五金(水五金)"
+      intro: "Globe Union,總部台中,全球主要水龍頭與衛浴五金製造商,旗下含多個國際衛浴品牌。"
+      devices:
+        - {id: cnc-08, template: cnc_machining_center}
+        - {id: arm-05, template: robot_arm_6axis}
+
+    - id: c08
+      name: "全立發機械"
+      industry: plastics
+      product: "塑膠射出成型機"
+      intro: "Multiplas,台中潭子,專業塑膠射出成型機製造,含多模 / 立式 / 包覆射出機種。"
+      devices:
+        - {id: im-02, template: injection_molding}
+        - {id: im-03, template: injection_molding}
+
+    - id: c09
+      name: "高明精機"
+      industry: machine_tool
+      product: "精密平面磨床、龍門加工機"
+      intro: "Kaoming,平面磨床與大型龍門加工機製造商。"
+      devices:
+        - {id: cnc-09, template: cnc_machining_center}
+        - {id: cnc-10, template: cnc_machining_center}
+
+    - id: c10
+      name: "麗偉電腦機械"
+      industry: machine_tool
+      product: "CNC 綜合加工機、車床"
+      intro: "Leadwell,綜合加工中心與車床製造商,外銷導向。"
+      devices:
+        - {id: cnc-11, template: cnc_machining_center}
+        - {id: cnc-12, template: cnc_machining_center}
+
+    - id: c11
+      name: "慶鴻機電"
+      industry: machine_tool
+      product: "線切割 / 細孔放電加工機"
+      intro: "CHMER,放電加工(EDM)與線切割機大廠。"
+      devices:
+        - {id: cnc-13, template: cnc_machining_center}
+        - {id: cnc-14, template: cnc_machining_center, duty_cycle: {profile: two_shift}}
+
+    - id: c12
+      name: "喬福機械"
+      industry: machine_tool
+      product: "五面加工機、龍門加工中心"
+      intro: "Chiah Chyun,大型龍門與五面加工機製造商。"
+      devices:
+        - {id: cnc-15, template: cnc_machining_center}
+        - {id: arm-06, template: robot_arm_6axis}
+
+    - id: c13
+      name: "楊鐵工廠"
+      industry: machine_tool
+      product: "CNC 車床、車削中心"
+      intro: "Yang Iron,老牌車床製造商。"
+      devices:
+        - {id: cnc-16, template: cnc_machining_center}
+        - {id: cnc-17, template: cnc_machining_center}
+
+    - id: c14
+      name: "復盛應用科技"
+      industry: utility
+      product: "螺桿空壓機、無油式壓縮機"
+      intro: "Fusheng,空壓機與壓縮機領導品牌,廠務動力常見設備。"
+      devices:
+        - {id: comp-01, template: air_compressor}
+        - {id: comp-02, template: air_compressor}
+
+    - id: c15
+      name: "捷豹空壓機"
+      industry: utility
+      product: "活塞 / 螺桿空壓機"
+      intro: "Jaguar,中部空壓機製造商,涵蓋工業與商用機種。"
+      devices:
+        - {id: comp-03, template: air_compressor}
+        - {id: comp-04, template: air_compressor}
+
+    - id: c16
+      name: "盟立自動化"
+      industry: logistics
+      product: "AGV、自動倉儲、智慧搬運"
+      intro: "Mirle,自動化系統整合商,AGV 與自動倉儲解決方案供應者。"
+      devices:
+        - {id: agv-01, template: agv_mobile_robot}
+        - {id: agv-02, template: agv_mobile_robot}
+
+    - id: c17
+      name: "中科智慧物流中心"
+      industry: logistics
+      product: "AGV 廠內搬運、智慧物流"
+      intro: "示範性廠內物流中心,以 AGV 車隊串接各廠站料件搬運。"
+      devices:
+        - {id: agv-03, template: agv_mobile_robot}
+        - {id: agv-04, template: agv_mobile_robot}
+
+    - id: c18
+      name: "瀧澤科技"
+      industry: machine_tool
+      product: "CNC 車床"
+      intro: "Takisawa,精密 CNC 車床製造商。"
+      devices:
+        - {id: cnc-18, template: cnc_machining_center}
+        - {id: cnc-19, template: cnc_machining_center}
+
+    - id: c19
+      name: "程泰機械"
+      industry: machine_tool
+      product: "CNC 車床、車銑複合"
+      intro: "Goodway,車床與車銑複合加工機大廠。"
+      devices:
+        - {id: cnc-20, template: cnc_machining_center}
+        - {id: cnc-21, template: cnc_machining_center}
+
+    - id: c20
+      name: "亞崴機電"
+      industry: machine_tool
+      product: "大型 / 五軸綜合加工中心"
+      intro: "Awea,大型龍門與五軸加工中心製造商。"
+      devices:
+        - {id: cnc-22, template: cnc_machining_center}
+        - {id: cnc-23, template: cnc_machining_center, duty_cycle: {profile: two_shift}}
+
+    - id: c21
+      name: "哈伯精密"
+      industry: utility
+      product: "主軸油冷機、恆溫機(廠務動力)"
+      intro: "Habor,主軸油冷與精密溫控設備,工具機廠務常見動力源。"
+      devices:
+        - {id: comp-05, template: air_compressor}
+        - {id: comp-06, template: air_compressor}
+
+    - id: c22
+      name: "離岸風電示範場(假設)"
+      industry: wind_energy
+      product: "離岸風力發電機組"
+      intro: "教學假設:雖然風場不會在工業區內,本園區放入示範風機,呈現風速—功率曲線、轉子轉速與齒輪箱退化等風能 SCADA 訊號。"
+      devices:
+        - {id: wt-01, template: wind_turbine}
+        - {id: wt-02, template: wind_turbine}
+        - {id: wt-03, template: wind_turbine}

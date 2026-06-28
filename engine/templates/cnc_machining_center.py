@@ -13,13 +13,20 @@ from typing import Optional
 import numpy as np
 
 from ..device import STATE_CODES, Device, DutyProfile, Tag
-from ..health import DegradationComponent
 from ..signals import ThermalLag, gaussian_noise, health_of
+from ._common import build_components
 
 # ── 物理量級常數(讓學生畫出來像真的,docs/02 §7)────────────
 SPINDLE_NOM_RPM = 8000.0
 AMBIENT_C = 25.0
 COOLANT_AMBIENT_C = 22.0
+
+# 指標型元件 + 未指定時的預設退化(YAML 可覆寫)
+_INDICATORS = {"tool_wear", "ballscrew_backlash"}
+_DEFAULT_DEGRADATION = {
+    "spindle_bearing": {"rate": 0.0000012, "trajectory": "exponential", "k": 3.0, "sigma": 0.08, "init_health": 0.92},
+    "tool_wear": {"rate": 0.0000015, "trajectory": "linear", "sigma": 0.15, "init_health": 1.0, "causes_device_fault": False},
+}
 
 # 各 tag 的規格:(name, unit, datatype)。register 位址在 build() 內依序自動配。
 _TAG_SPEC = [
@@ -70,26 +77,7 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
     seed = cfg.get("seed", abs(hash(device_id)) % (2**31))
     rng = np.random.default_rng(seed)
 
-    components: list[DegradationComponent] = []
-    for comp_name, dc in (cfg.get("degradation", {}) or {}).items():
-        components.append(
-            DegradationComponent(
-                name=comp_name,
-                rate=dc["rate"],
-                trajectory=dc.get("trajectory", "linear"),
-                sigma=dc.get("sigma", 0.0),
-                D_fail=dc.get("D_fail", 1.0),
-                failure_threshold=dc.get("failure_threshold", 0.0),
-                init_health=dc.get("init_health", 1.0),
-                k=dc.get("k", 3.0),
-                # 只有 spindle_bearing 之類的本體退化才讓「設備」進 fault;
-                # tool_wear 是指標型,預設不直接判定設備故障(可被 YAML 覆寫)
-                causes_device_fault=dc.get(
-                    "causes_device_fault", comp_name not in ("tool_wear", "ballscrew_backlash")
-                ),
-                seed=int(rng.integers(0, 2**31)),
-            )
-        )
+    components = build_components(cfg, _INDICATORS, rng, defaults=_DEFAULT_DEGRADATION)
 
     # ── 協定定址 ────────────────────────────────────────────
     protocols = cfg.get("protocols", {}) or {}

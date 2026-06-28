@@ -43,6 +43,8 @@ def build():
     historian = Historian(
         dsn=os.getenv("TIMESCALE_DSN", "postgresql://postgres:postgres@localhost:5432/clouddata"),
         enabled=os.getenv("HISTORIAN_ENABLED", "true").lower() == "true",
+        backend=os.getenv("DB_BACKEND", "sqlite"),       # sqlite(本機持久)| timescale | memory
+        sqlite_path=os.getenv("SQLITE_PATH", "historian.db"),
     )
 
     # OPC-UA / MQTT 轉接層(可由 .env 關閉)。MQTT 走內嵌純 Python broker,免 Docker。
@@ -62,7 +64,7 @@ def build():
     if os.getenv("MULTI_PORT_ENABLED", "false").lower() == "true":
         multiport = ModbusMultiPortAdapter(
             world, host=os.getenv("MODBUS_HOST", "0.0.0.0"),
-            base_port=int(os.getenv("MULTI_PORT_MODBUS_BASE", "5000")))
+            base_port=int(os.getenv("MULTI_PORT_MODBUS_BASE", "6100")))
         world.multiport_modbus = multiport.port_map   # 給設備目錄 / 戰情版顯示
 
     # 教師控制埠(預設關):可寫線圈(FC05)→ 引擎命令。學生埠的線圈仍 FC01 唯讀。

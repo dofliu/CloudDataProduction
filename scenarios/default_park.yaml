@@ -12,7 +12,7 @@ park:
     time_multiplier: 120       # 1 真實秒 = 2 模擬分鐘
     broadcast_interval_s: 5    # telemetry / 資料每 5 真實秒才推一次 = 一次跳 10 模擬分鐘(畫面平靜;動畫走前端 ticker 仍滑順)
   protocol_mode: channel_mux
-  ports: {modbus: 502, opcua: 4840, mqtt: 1883}
+  ports: {modbus: 6020, opcua: 6041, mqtt: 6083}   # 預設;.env 可覆寫(統一 6xxx 區)
 
   companies:
     - id: c01

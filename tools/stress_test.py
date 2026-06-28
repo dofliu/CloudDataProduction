@@ -25,7 +25,7 @@ from pymodbus.payload import BinaryPayloadDecoder
 
 API = "http://127.0.0.1:8077"
 WS = "ws://127.0.0.1:8077/ws/telemetry"
-MB_PORT = 5020
+MB_PORT = 6020
 
 
 def pct(vals, q):

@@ -64,9 +64,9 @@ def decode(registers: list[int], datatype: str):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default="127.0.0.1")
-    ap.add_argument("--port", type=int, default=5020)
+    ap.add_argument("--port", type=int, default=6020)
     ap.add_argument("--unit", type=int, default=1)
-    ap.add_argument("--api", default="http://127.0.0.1:8000/api/catalog")
+    ap.add_argument("--api", default="http://127.0.0.1:8077/api/catalog")
     ap.add_argument("--tags", nargs="*",
                     default=["state", "vibration_rms", "spindle_current", "spindle_temp", "tool_wear"])
     ap.add_argument("--interval", type=float, default=1.0)

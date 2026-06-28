@@ -35,7 +35,7 @@ def _new_slave() -> ModbusSlaveContext:
 
 
 class ModbusMultiPortAdapter:
-    def __init__(self, world: World, host: str = "0.0.0.0", base_port: int = 5000):
+    def __init__(self, world: World, host: str = "0.0.0.0", base_port: int = 6100):
         self.world = world
         self.host = host
         self.base_port = base_port

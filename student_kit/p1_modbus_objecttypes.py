@@ -11,7 +11,7 @@
 
 用法:
     python student_kit/p1_modbus_objecttypes.py --unit 2          # im-01(射出機)
-    python student_kit/p1_modbus_objecttypes.py --host 127.0.0.1 --port 5020 --unit 2 \
+    python student_kit/p1_modbus_objecttypes.py --host 127.0.0.1 --port 6020 --unit 2 \
         --api http://127.0.0.1:8077/api/catalog --count 5
 """
 from __future__ import annotations
@@ -56,7 +56,7 @@ def decode(registers: list[int], datatype: str):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default="127.0.0.1")
-    ap.add_argument("--port", type=int, default=5020)
+    ap.add_argument("--port", type=int, default=6020)
     ap.add_argument("--unit", type=int, default=2)
     ap.add_argument("--api", default="http://127.0.0.1:8077/api/catalog")
     ap.add_argument("--interval", type=float, default=2.0)

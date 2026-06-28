@@ -13,6 +13,9 @@ env/
 # 資料與輸出
 *.log
 *.csv
+*.db
+*.sqlite
+*.sqlite3
 data/
 dataset/
 historian_data/

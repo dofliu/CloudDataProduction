@@ -32,13 +32,16 @@ export default function CatalogView({
             </h3>
             <div className="hint">
               Modbus TCP：<code>{mb.host}:{mb.port}</code> unit_id=<code>{mb.unit_id}</code>{" "}
-              holding registers（{mb.word_order}-endian）
+              {mb.word_order}-endian（高字組在前,不需 swap）。 ModScan 位址：holding=reg+40001、
+              discrete input=addr+10001、input register=addr+30001。第 1 個 holding 是 <code>state</code>（int16），float 量測由第 2 格起。
             </div>
+
+            {/* Holding registers（FC03,量測）*/}
             <table>
               <thead>
                 <tr>
-                  <th>tag</th><th>單位</th><th>型別</th>
-                  <th>modbus reg</th><th>opcua node</th><th>mqtt field</th><th>即時值</th>
+                  <th>tag (FC03 holding)</th><th>單位</th><th>型別</th>
+                  <th>reg</th><th>ModScan</th><th>mqtt field</th><th>即時值</th>
                 </tr>
               </thead>
               <tbody>
@@ -48,7 +51,7 @@ export default function CatalogView({
                     <td>{t.unit}</td>
                     <td><code>{t.datatype}</code></td>
                     <td><code>{t.modbus_register}</code></td>
-                    <td style={{ color: "var(--muted)" }}>{t.opcua_node}</td>
+                    <td><code>{40001 + t.modbus_register}</code></td>
                     <td style={{ color: "var(--muted)" }}>{t.mqtt_field}</td>
                     <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                       {live ? live.tags[t.name]?.toFixed(2) : "—"}
@@ -57,6 +60,57 @@ export default function CatalogView({
                 ))}
               </tbody>
             </table>
+
+            {/* Discrete inputs（FC02,狀態 bit）*/}
+            {d.discrete_inputs && d.discrete_inputs.length > 0 && (
+              <table style={{ marginTop: 8 }}>
+                <thead>
+                  <tr><th>discrete input (FC02)</th><th>型別</th><th>addr</th><th>ModScan</th><th>mqtt field</th><th>即時值</th></tr>
+                </thead>
+                <tbody>
+                  {d.discrete_inputs.map((p) => {
+                    const v = live?.discretes?.[p.name];
+                    return (
+                      <tr key={p.name}>
+                        <td>{p.name}</td>
+                        <td><code>bool</code></td>
+                        <td><code>{p.address}</code></td>
+                        <td><code>{10001 + p.address}</code></td>
+                        <td style={{ color: "var(--muted)" }}>{p.mqtt_field}</td>
+                        <td style={{ textAlign: "right" }}>{v === undefined ? "—" : v ? "1 ●" : "0 ○"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+
+            {/* Input registers（FC04,唯讀 int）*/}
+            {d.input_registers && d.input_registers.length > 0 && (
+              <table style={{ marginTop: 8 }}>
+                <thead>
+                  <tr><th>input register (FC04)</th><th>單位</th><th>型別</th><th>addr</th><th>ModScan</th><th>scale</th><th>即時值</th></tr>
+                </thead>
+                <tbody>
+                  {d.input_registers.map((p) => {
+                    const v = live?.input_regs?.[p.name];
+                    return (
+                      <tr key={p.name}>
+                        <td>{p.name}</td>
+                        <td>{p.unit}</td>
+                        <td><code>{p.datatype}</code></td>
+                        <td><code>{p.address}</code></td>
+                        <td><code>{30001 + p.address}</code></td>
+                        <td><code>÷{p.scale}</code></td>
+                        <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                          {v === undefined ? "—" : v}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         );
       })}

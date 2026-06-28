@@ -22,6 +22,8 @@ class OpcUaAdapter:
         self.server = Server()
         self._idx = 0
         self._nodes: dict[str, dict[str, tuple]] = {}   # device_id -> {tag: (node, datatype)}
+        self._di_nodes: dict[str, list[tuple]] = {}      # device_id -> [(point, node), ...]
+        self._ir_nodes: dict[str, list[tuple]] = {}      # device_id -> [(point, node), ...]
         self._folders: dict[str, object] = {}
         self._started = False
 
@@ -44,6 +46,16 @@ class OpcUaAdapter:
                 initial = 0.0 if is_float else 0
                 node = await folder.add_variable(self._idx, tag.name, initial)
                 self._nodes[device.id][tag.name] = (node, tag.datatype)
+            # 離散輸入(唯讀布林)+ 輸入暫存器(唯讀整數):與 Modbus FC02/FC04 對應
+            self._di_nodes[device.id] = []
+            for p in device.discrete_inputs:
+                node = await folder.add_variable(self._idx, f"di_{p.name}", False)
+                self._di_nodes[device.id].append((p, node))
+            self._ir_nodes[device.id] = []
+            for p in device.input_registers:
+                leaf = p.opcua_node.rsplit("/", 1)[-1]
+                node = await folder.add_variable(self._idx, leaf, 0)
+                self._ir_nodes[device.id].append((p, node))
 
         await self.server.start()
         self._started = True
@@ -76,6 +88,16 @@ class OpcUaAdapter:
                     await node.write_value(val)
                 except Exception as exc:
                     print(f"[opcua] 寫 {device.id}.{tag.name} 失敗:{exc}")
+            for p, node in self._di_nodes.get(device.id, []):
+                try:
+                    await node.write_value(bool(p.value))
+                except Exception as exc:
+                    print(f"[opcua] 寫 {device.id}.di.{p.name} 失敗:{exc}")
+            for p, node in self._ir_nodes.get(device.id, []):
+                try:
+                    await node.write_value(int(p.value))
+                except Exception as exc:
+                    print(f"[opcua] 寫 {device.id}.ir.{p.name} 失敗:{exc}")
 
     async def stop(self) -> None:
         if self._started:

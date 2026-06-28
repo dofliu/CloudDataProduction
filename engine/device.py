@@ -46,6 +46,37 @@ class Tag:
         return 1 if self.datatype == "int16" else 2
 
 
+@dataclass
+class DiscretePoint:
+    """唯讀離散輸入(Modbus FC02 / OPC-UA 布林 / MQTT 欄位)。值由 device 狀態推出,轉接層不自存。"""
+
+    name: str
+    di_address: int               # discrete input 位址(0-based)
+    opcua_node: str
+    mqtt_field: str
+    fn: Callable                  # fn(device) -> bool
+    value: bool = False
+
+
+@dataclass
+class InputRegPoint:
+    """唯讀輸入暫存器(Modbus FC04)。可帶 scale 教「raw 整數 vs 工程單位」(EU = register / scale)。"""
+
+    name: str
+    unit: str
+    datatype: str                 # "int16" | "int32"
+    ir_address: int               # input register 起始位址(0-based)
+    opcua_node: str
+    mqtt_field: str
+    fn: Callable                  # fn(device) -> int(已是要寫入 register 的整數)
+    scale: float = 1.0
+    value: float = 0.0
+
+    @property
+    def register_width(self) -> int:
+        return 1 if self.datatype == "int16" else 2
+
+
 class DutyProfile:
     """班表 / 負載輪廓,驅動運轉點(docs/02 §7)。
 
@@ -144,6 +175,64 @@ class Device:
         self._fault_onset_sim_t: Optional[float] = None
         self._injected: List[dict] = []   # 已生效的注入紀錄(供 ground-truth 顯示)
 
+        # 唯讀衍生點位:離散輸入(狀態 bit,FC02)+ 輸入暫存器(狀態碼 / 量測鏡像,FC04)。
+        # 自 tags + state 自動產生,模板無需逐一宣告;轉接層只讀不存(鐵則 #1)。
+        self.discrete_inputs: List[DiscretePoint] = []
+        self.input_registers: List[InputRegPoint] = []
+        self._build_derived_points()
+
+    # ── 唯讀衍生點位(DI / IR)──────────────────────────────
+    def _build_derived_points(self) -> None:
+        folder = (self.protocols.get("opcua", {}) or {}).get(
+            "node_folder", f"{self.company_id}/{self.id}")
+        # 離散輸入:狀態旗標(唯讀 bit)
+        di_specs = [
+            ("running", lambda d: d.state in ("running", "moving")),
+            ("fault", lambda d: d.state == "fault"),
+            ("idle", lambda d: d.state == "idle"),
+            ("warning", lambda d: d.state in ("alarm", "maintenance", "blocked", "tool_change")),
+            ("heartbeat", lambda d: True),   # 通訊心跳:恆為 1,教「always-on bit」
+        ]
+        for i, (name, fn) in enumerate(di_specs):
+            self.discrete_inputs.append(DiscretePoint(
+                name=name, di_address=i,
+                opcua_node=f"{folder}/di_{name}", mqtt_field=f"di_{name}", fn=fn))
+        # 輸入暫存器:state_code(int16 狀態碼)+ 第一個 float 的縮放鏡像 + 第一個 int32 累計量
+        irs: List[InputRegPoint] = [InputRegPoint(
+            name="state_code", unit="enum", datatype="int16", ir_address=0,
+            opcua_node=f"{folder}/ir_state_code", mqtt_field="ir_state_code",
+            fn=lambda d: STATE_CODES.get(d.state, 0), scale=1.0)]
+        addr = 1
+        first_float = next((t for t in self.tags if t.datatype == "float32"), None)
+        if first_float is not None:   # int32 定點 ×100:同一物理量,不同 object/型別/縮放(教 raw vs EU)
+            irs.append(InputRegPoint(                 # 用 int32 避免大值(如 8000 rpm)溢位
+                name=f"{first_float.name}_x100", unit=first_float.unit, datatype="int32",
+                ir_address=addr, opcua_node=f"{folder}/ir_{first_float.name}_x100",
+                mqtt_field=f"ir_{first_float.name}_x100",
+                fn=lambda d, t=first_float: int(round(t.value * 100)), scale=100.0))
+            addr += 2
+        first_i32 = next((t for t in self.tags if t.datatype == "int32"), None)
+        if first_i32 is not None:     # int32 累計量(shot_count / total_energy)鏡像
+            irs.append(InputRegPoint(
+                name=first_i32.name, unit=first_i32.unit, datatype="int32",
+                ir_address=addr, opcua_node=f"{folder}/ir_{first_i32.name}",
+                mqtt_field=f"ir_{first_i32.name}",
+                fn=lambda d, t=first_i32: int(t.value), scale=1.0))
+            addr += 2
+        self.input_registers = irs
+
+    def _update_derived_points(self) -> None:
+        for p in self.discrete_inputs:
+            try:
+                p.value = bool(p.fn(self))
+            except Exception:
+                p.value = False
+        for p in self.input_registers:
+            try:
+                p.value = p.fn(self)
+            except Exception:
+                p.value = 0
+
     # ── 運轉點 → 應力 ───────────────────────────────────────
     def _stress(self, op: dict) -> float:
         if not op["running"]:
@@ -176,6 +265,7 @@ class Device:
 
         self._update_state(op)
         self._accumulate_oee(dt_sim, op)
+        self._update_derived_points()   # 狀態/量測底定後,更新衍生 DI/IR 值
 
     def _accumulate_oee(self, dt_sim: float, op: dict) -> None:
         """OEE 累積:故障算停機;運轉算可用時間並加權 perf/qual;待機(off-shift)不計入。"""
@@ -287,13 +377,15 @@ class Device:
 
     # ── 視圖 ────────────────────────────────────────────────
     def public_snapshot(self) -> dict:
-        """學生面:狀態 + 觀測 tag 值。**不含** ground-truth。"""
+        """學生面:狀態 + 觀測 tag 值 + 衍生離散輸入 / 輸入暫存器。**不含** ground-truth。"""
         return {
             "id": self.id,
             "template": self.template,
             "state": self.state,
             "state_code": STATE_CODES.get(self.state, 0),
             "tags": {t.name: t.value for t in self.tags},
+            "discretes": {p.name: bool(p.value) for p in self.discrete_inputs},
+            "input_regs": {p.name: p.value for p in self.input_registers},
         }
 
     def ground_truth(self) -> dict:
@@ -316,7 +408,9 @@ class Device:
         }
 
     def catalog_entry(self) -> dict:
-        """設備目錄(規格書):協定定址 + tag 清單。供學生寫 client 用(docs/04)。"""
+        """設備目錄(規格書):各 object type 的點位清單。供學生寫 client 用(docs/04)。
+        holding(FC03,量測 float32/int)、discrete input(FC02,狀態 bit)、
+        input register(FC04,唯讀 int,含縮放鏡像)。Coil(FC01/05)為 Phase B。"""
         return {
             "id": self.id,
             "template": self.template,
@@ -327,10 +421,41 @@ class Device:
                     "name": t.name,
                     "unit": t.unit,
                     "datatype": t.datatype,
+                    "object": "holding_register",
+                    "fc": 3,
+                    "access": "r",          # 引擎每 tick 覆寫,實質唯讀
                     "modbus_register": t.modbus_register,
                     "opcua_node": t.opcua_node,
                     "mqtt_field": t.mqtt_field,
                 }
                 for t in self.tags
+            ],
+            "discrete_inputs": [
+                {
+                    "name": p.name,
+                    "object": "discrete_input",
+                    "fc": 2,
+                    "datatype": "bool",
+                    "access": "ro",
+                    "address": p.di_address,
+                    "opcua_node": p.opcua_node,
+                    "mqtt_field": p.mqtt_field,
+                }
+                for p in self.discrete_inputs
+            ],
+            "input_registers": [
+                {
+                    "name": p.name,
+                    "unit": p.unit,
+                    "object": "input_register",
+                    "fc": 4,
+                    "datatype": p.datatype,
+                    "access": "ro",
+                    "scale": p.scale,        # 工程單位 = register / scale
+                    "address": p.ir_address,
+                    "opcua_node": p.opcua_node,
+                    "mqtt_field": p.mqtt_field,
+                }
+                for p in self.input_registers
             ],
         }

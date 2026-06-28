@@ -23,11 +23,23 @@ from pymodbus.server import StartAsyncTcpServer
 from engine.world import World
 
 _HOLDING_FC = 3          # function code 3 = read holding registers
-_DATABLOCK_SIZE = 256    # 每個 slave 預留的 holding register 數(夠 P0 所有 tag)
+_DATABLOCK_SIZE = 256    # 每個 slave 預留的暫存器/位元數(夠所有 tag 與衍生點位)
+
+
+def _new_slave() -> "ModbusSlaveContext":
+    """一台設備一個 slave context,四種 object type 各備一個資料區(co 留給 Phase B 線圈)。
+    zero_mode:位址 0 對應 index 0,學生讀 register N 就拿到目錄上標的 N。"""
+    return ModbusSlaveContext(
+        di=ModbusSequentialDataBlock(0, [0] * _DATABLOCK_SIZE),   # discrete input(FC02)
+        co=ModbusSequentialDataBlock(0, [0] * _DATABLOCK_SIZE),   # coil(FC01/05,Phase B)
+        ir=ModbusSequentialDataBlock(0, [0] * _DATABLOCK_SIZE),   # input register(FC04)
+        hr=ModbusSequentialDataBlock(0, [0] * _DATABLOCK_SIZE),   # holding register(FC03)
+        zero_mode=True,
+    )
 
 
 def encode_value(datatype: str, value) -> list[int]:
-    """tag 值 → holding register(s)。float32/int32 佔 2 個、int16 佔 1 個(big-endian)。
+    """tag 值 → register(s)。float32/int32 佔 2 個、int16 佔 1 個(big-endian)。
     channel_mux 與 multi_port 兩個 adapter 共用此編碼。"""
     builder = BinaryPayloadBuilder(byteorder=Endian.BIG, wordorder=Endian.BIG)
     if datatype == "int16":
@@ -37,6 +49,29 @@ def encode_value(datatype: str, value) -> list[int]:
     else:  # float32(預設)
         builder.add_32bit_float(float(value))
     return builder.to_registers()
+
+
+def apply_device_to_slave(slave, device) -> None:
+    """把一台設備所有唯讀點位寫進其 slave context,兩個 Modbus adapter 共用:
+      - holding register(FC03):量測(float32 / int16 / int32)
+      - discrete input(FC02):狀態旗標 bit
+      - input register(FC04):唯讀 int(狀態碼 / 量測縮放鏡像)
+    setValues 的第一個參數是 function code:3=holding、2=discrete input、4=input register。"""
+    for tag in device.tags:
+        try:
+            slave.setValues(3, tag.modbus_register, encode_value(tag.datatype, tag.value))
+        except Exception as exc:  # 單一點位失敗不應中斷整批
+            print(f"[modbus] {device.id}.{tag.name} 編碼失敗:{exc}")
+    for p in device.discrete_inputs:
+        try:
+            slave.setValues(2, p.di_address, [1 if p.value else 0])
+        except Exception as exc:
+            print(f"[modbus] {device.id}.di.{p.name} 失敗:{exc}")
+    for p in device.input_registers:
+        try:
+            slave.setValues(4, p.ir_address, encode_value(p.datatype, p.value))
+        except Exception as exc:
+            print(f"[modbus] {device.id}.ir.{p.name} 失敗:{exc}")
 
 
 class ModbusAdapter:
@@ -51,14 +86,9 @@ class ModbusAdapter:
         for device in world.devices.values():
             unit_id = (device.protocols.get("modbus", {}) or {}).get("unit_id", 1)
             if unit_id not in self._slaves:
-                self._slaves[unit_id] = ModbusSlaveContext(
-                    hr=ModbusSequentialDataBlock(0, [0] * _DATABLOCK_SIZE),
-                    zero_mode=True,
-                )
+                self._slaves[unit_id] = _new_slave()
         if not self._slaves:                      # 沒有任何 Modbus 設備時也給一個預設 slave
-            self._slaves[1] = ModbusSlaveContext(
-                hr=ModbusSequentialDataBlock(0, [0] * _DATABLOCK_SIZE), zero_mode=True
-            )
+            self._slaves[1] = _new_slave()
 
         self.context = ModbusServerContext(slaves=self._slaves, single=False)
         self._server_task: asyncio.Task | None = None
@@ -70,12 +100,7 @@ class ModbusAdapter:
             slave = self._slaves.get(unit_id)
             if slave is None:
                 continue
-            for tag in device.tags:
-                try:
-                    regs = encode_value(tag.datatype, tag.value)
-                    slave.setValues(_HOLDING_FC, tag.modbus_register, regs)
-                except Exception as exc:  # 單一 tag 編碼失敗不應中斷整批
-                    print(f"[modbus] tag {device.id}.{tag.name} 編碼失敗:{exc}")
+            apply_device_to_slave(slave, device)   # holding + discrete input + input register
 
     # ── 啟動 ────────────────────────────────────────────────
     async def start(self) -> None:

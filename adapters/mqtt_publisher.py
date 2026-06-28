@@ -77,7 +77,10 @@ class MqttPublisher:
             topic = f"{self._topic_prefix(did)}/state"
             payload = json.dumps({
                 "sim_t": snapshot["sim_t"], "state": dev["state"],
-                "tags": dev["tags"], "synthetic": True,
+                "tags": dev["tags"],
+                "discretes": dev.get("discretes", {}),     # 離散輸入(FC02 對應)
+                "input_regs": dev.get("input_regs", {}),   # 輸入暫存器(FC04 對應)
+                "synthetic": True,
             }).encode("utf-8")
             try:
                 await self._client.publish(topic, payload, qos=0)

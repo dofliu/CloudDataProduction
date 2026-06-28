@@ -18,10 +18,20 @@ from pymodbus.datastore import (
 from pymodbus.server import StartAsyncTcpServer
 
 from engine.world import World
-from .modbus_server import encode_value
+from .modbus_server import apply_device_to_slave
 
-_HOLDING_FC = 3
 _DATABLOCK_SIZE = 256
+
+
+def _new_slave() -> ModbusSlaveContext:
+    """專屬埠的 single-unit slave,四種 object type 各備一個資料區(co 留給 Phase B)。"""
+    return ModbusSlaveContext(
+        di=ModbusSequentialDataBlock(0, [0] * _DATABLOCK_SIZE),
+        co=ModbusSequentialDataBlock(0, [0] * _DATABLOCK_SIZE),
+        ir=ModbusSequentialDataBlock(0, [0] * _DATABLOCK_SIZE),
+        hr=ModbusSequentialDataBlock(0, [0] * _DATABLOCK_SIZE),
+        zero_mode=True,
+    )
 
 
 class ModbusMultiPortAdapter:
@@ -37,8 +47,7 @@ class ModbusMultiPortAdapter:
         port = base_port
         for device in world.devices.values():
             self.port_map[device.id] = port
-            slave = ModbusSlaveContext(
-                hr=ModbusSequentialDataBlock(0, [0] * _DATABLOCK_SIZE), zero_mode=True)
+            slave = _new_slave()
             self._slaves[device.id] = slave
             self._contexts[device.id] = ModbusServerContext(slaves=slave, single=True)
             port += 1
@@ -50,12 +59,7 @@ class ModbusMultiPortAdapter:
             slave = self._slaves.get(device.id)
             if slave is None:                       # 熱載入設備無專屬埠(需重啟)
                 continue
-            for tag in device.tags:
-                try:
-                    slave.setValues(_HOLDING_FC, tag.modbus_register,
-                                    encode_value(tag.datatype, tag.value))
-                except Exception as exc:
-                    print(f"[modbus-mp] {device.id}.{tag.name} 編碼失敗:{exc}")
+            apply_device_to_slave(slave, device)    # holding + discrete input + input register
 
     # ── 啟動:每台一個 server task ─────────────────────────
     def start_background(self) -> None:

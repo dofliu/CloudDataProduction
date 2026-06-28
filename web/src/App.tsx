@@ -94,6 +94,7 @@ export default function App() {
                   ) : (
                     <div className="muted" style={{ fontSize: 12, margin: "6px 0" }}>（教師控制台輸入 token 後,這裡可直接重置 / 清除故障)</div>
                   )}
+                  <div className="muted" style={{ fontSize: 12, margin: "8px 0 2px" }}>保持暫存器 Holding（FC03）</div>
                   <table className="taglist">
                     <tbody>
                       {Object.entries(sel.tags).map(([k, v]) => (
@@ -104,6 +105,37 @@ export default function App() {
                       ))}
                     </tbody>
                   </table>
+
+                  {sel.discretes && Object.keys(sel.discretes).length > 0 && (
+                    <>
+                      <div className="muted" style={{ fontSize: 12, margin: "10px 0 2px" }}>離散輸入 Discrete Input（FC02）</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {Object.entries(sel.discretes).map(([k, v]) => (
+                          <span key={k} style={{ fontSize: 12, padding: "2px 8px", borderRadius: 10,
+                                                  background: v ? "#15402a" : "#262d3a", color: v ? "#37d67a" : "#8a93a6",
+                                                  border: `1px solid ${v ? "#2f7a4f" : "#333b4a"}` }}>
+                            {v ? "●" : "○"} {k}
+                          </span>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {sel.input_regs && Object.keys(sel.input_regs).length > 0 && (
+                    <>
+                      <div className="muted" style={{ fontSize: 12, margin: "10px 0 2px" }}>輸入暫存器 Input Register（FC04，唯讀）</div>
+                      <table className="taglist">
+                        <tbody>
+                          {Object.entries(sel.input_regs).map(([k, v]) => (
+                            <tr key={k}>
+                              <td className="name">{k}</td>
+                              <td className="val">{typeof v === "number" ? (Number.isInteger(v) ? v : v.toFixed(2)) : String(v)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </>
+                  )}
                 </>
               ) : (
                 <div className="muted">點公司進廠內 → 點設備看即時值。一公司一燈號:綠=正常、紅=有設備故障。</div>

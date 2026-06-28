@@ -15,6 +15,8 @@ export interface Park {
 export interface DeviceSnapshot {
   id: string; template: string; state: string;
   state_code: number; tags: Record<string, number>;
+  discretes?: Record<string, boolean>;     // 離散輸入(FC02)
+  input_regs?: Record<string, number>;     // 輸入暫存器(FC04)
 }
 export interface TelemetryMsg {
   wall_t: number; sim_t: number; multiplier: number;
@@ -30,12 +32,23 @@ export interface EventMsg {
 
 export interface CatalogTag {
   name: string; unit: string; datatype: string;
+  object?: string; fc?: number; access?: string;
   modbus_register: number; opcua_node: string; mqtt_field: string;
+}
+export interface CatalogDiscrete {
+  name: string; object: string; fc: number; datatype: string;
+  access: string; address: number; opcua_node: string; mqtt_field: string;
+}
+export interface CatalogInputReg {
+  name: string; unit: string; object: string; fc: number; datatype: string;
+  access: string; scale: number; address: number; opcua_node: string; mqtt_field: string;
 }
 export interface CatalogDevice {
   id: string; template: string; company_id: string;
   protocols: Record<string, any>;
   tags: CatalogTag[];
+  discrete_inputs?: CatalogDiscrete[];
+  input_registers?: CatalogInputReg[];
   connection: Record<string, any>;
 }
 export interface Catalog {

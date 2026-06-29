@@ -443,6 +443,22 @@ export default function WorldView({
         for (let i = 0; i < 3; i++) { const a = rot + i * 2 * Math.PI / 3;
           g.moveTo(hub.x, hub.y).lineTo(hub.x + Math.cos(a) * 22, hub.y + Math.sin(a) * 22).stroke({ width: 3, color: 0xeef3f9, cap: "round" }); }
         g.circle(hub.x, hub.y, 3).fill(col);
+      } else if (tmpl === "semi_process_chamber") {
+        // 製程腔體:腔身 + 觀景窗(運轉時電漿輝光脈動)+ 上方氣管 + 下方真空泵
+        g.roundRect(-18, -6, 34, 30, 6).fill(0x2f3a52).stroke({ width: 1, color: 0x4a5a78 });     // 腔身
+        const glow = running ? 0.55 + 0.35 * Math.abs(Math.sin(animT * 3)) : 0.12;
+        g.circle(-1, 8, 9).fill({ color: running ? 0x8f6bd6 : 0x3a4660, alpha: glow });           // 電漿輝光
+        g.circle(-1, 8, 9).stroke({ width: 2, color: 0x6b7da0 });                                 // 觀景窗框
+        g.rect(-12, -12, 4, 7).fill(0x9fb0c4); g.rect(6, -12, 4, 7).fill(0x9fb0c4);               // 兩支氣管
+        g.roundRect(-10, 22, 22, 8, 2).fill(darken(col, 0.7)).stroke({ width: 1, color: 0x4a5a78 }); // 真空泵
+      } else if (tmpl === "energy_meter") {
+        // 配電 / 電表箱:箱體 + 數字面板 + 三相指示燈 + 電力 LED(運轉時脈動)
+        g.roundRect(-15, -10, 30, 34, 3).fill(0x394a40).stroke({ width: 1, color: 0x4d6158 });    // 箱體
+        g.roundRect(-11, -6, 22, 9, 1.5).fill(0x12331f);                                          // 數字面板
+        g.rect(-9, -1, 18, 2).fill(running ? 0x6cf0a0 : 0x3a6b50);                                // 面板讀數
+        for (let i = 0; i < 3; i++) { const on = running && Math.sin(animT * 4 + i * 2) > -0.2;
+          g.circle(-7 + i * 7, 12, 2.4).fill(on ? [0xff6b6b, 0xffd479, 0x6cf0a0][i] : 0x46506a); } // L1/L2/L3 指示燈
+        g.circle(10, -6, 2).fill(running ? 0xffe08a : 0x6b7488);                                  // 電力 LED
       } else {
         g.roundRect(-16, -4, 32, 26, 3).fill(0x3a4356).stroke({ width: 1, color: col });
       }

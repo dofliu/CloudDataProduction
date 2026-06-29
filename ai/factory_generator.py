@@ -16,6 +16,10 @@ _TEMPLATE_KEYWORDS = {
     "agv": "agv_mobile_robot", "搬運車": "agv_mobile_robot", "自走車": "agv_mobile_robot",
     "機械手臂": "robot_arm_6axis", "手臂": "robot_arm_6axis", "robot_arm": "robot_arm_6axis",
     "robot": "robot_arm_6axis", "六軸": "robot_arm_6axis",
+    "半導體": "semi_process_chamber", "腔體": "semi_process_chamber", "製程機": "semi_process_chamber",
+    "chamber": "semi_process_chamber",
+    "電表": "energy_meter", "電錶": "energy_meter", "能源": "energy_meter", "能耗": "energy_meter",
+    "meter": "energy_meter",
 }
 
 # 各 template 的預設退化元件(讓新設備會自然退化,與場景一致)
@@ -36,9 +40,17 @@ _DEFAULT_DEGRADATION = {
         "reducer_wear": {"rate": 0.0000010, "trajectory": "exponential", "k": 3.0, "sigma": 0.1, "init_health": 0.94},
         "joint_bearing": {"rate": 0.0000009, "trajectory": "exponential", "k": 2.5, "sigma": 0.12, "init_health": 0.96, "causes_device_fault": False},
     },
+    "semi_process_chamber": {
+        "vacuum_pump_wear": {"rate": 0.0000009, "trajectory": "exponential", "k": 3.0, "sigma": 0.1, "init_health": 0.93},
+        "process_drift": {"rate": 0.0000016, "trajectory": "wiener", "sigma": 0.35, "init_health": 1.0, "causes_device_fault": False},
+    },
+    "energy_meter": {
+        "capacitor_aging": {"rate": 0.0000006, "trajectory": "linear", "sigma": 0.1, "init_health": 1.0, "causes_device_fault": False},
+    },
 }
 _PREFIX = {"cnc_machining_center": "cnc", "air_compressor": "comp",
-           "agv_mobile_robot": "agv", "robot_arm_6axis": "arm"}
+           "agv_mobile_robot": "agv", "robot_arm_6axis": "arm",
+           "semi_process_chamber": "chamber", "energy_meter": "em"}
 
 _CH_NUM = {"一": 1, "二": 2, "兩": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
 
@@ -71,8 +83,8 @@ def generate_factory(description: str, existing_company_ids: list[str] | None = 
     template = _parse_template(description)
     if template is None:
         raise ValueError(
-            "無法從描述判斷設備類型。目前支援:CNC(加工中心)、空壓機、AGV(搬運車)。"
-            "例:『建一間有 3 台 CNC 的公司』"
+            "無法從描述判斷設備類型。目前支援:CNC(加工中心)、空壓機、AGV(搬運車)、"
+            "機械手臂、半導體製程腔體、電表(能源節點)。例:『建一間有 3 台 CNC 的公司』"
         )
     count = _parse_count(description)
     name = _parse_name(description) or f"AI 新建廠（{template}）"

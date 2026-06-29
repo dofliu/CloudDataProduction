@@ -1,4 +1,4 @@
-# 勤益智慧工業區 —— 取材自台中工業區 / 精密機械聚落代表廠商(22 間公司、~45 台設備)。
+# 勤益智慧工業區 —— 取材自台中工業區 / 精密機械聚落代表廠商(23 間公司、~49 台設備)。
 #
 # ⚠ 公司名稱與「主要產品」為公開資訊;本園區的設備、數據、運轉狀態全為合成(synthetic),
 #   並非任何公司的真實產線或量測值,僅供教學。
@@ -41,6 +41,7 @@ park:
       devices:
         - {id: cnc-04, template: cnc_machining_center}
         - {id: cnc-05, template: cnc_machining_center}
+        - {id: chamber-01, template: semi_process_chamber}   # 跨足半導體設備:製程腔體
 
     - id: c04
       name: "永進機械"
@@ -68,6 +69,7 @@ park:
       devices:
         - {id: arm-03, template: robot_arm_6axis}
         - {id: arm-04, template: robot_arm_6axis, duty_cycle: {profile: two_shift}}
+        - {id: chamber-02, template: semi_process_chamber}   # 光學鍍膜製程腔體
 
     - id: c07
       name: "成霖企業"
@@ -213,3 +215,12 @@ park:
         - {id: wt-01, template: wind_turbine}
         - {id: wt-02, template: wind_turbine}
         - {id: wt-03, template: wind_turbine}
+
+    - id: c23
+      name: "台中工業區能源中心"
+      industry: utility
+      product: "園區變電 / 電能監測"
+      intro: "示範性園區動力節點:三相電表量測園區用電,呈現日 / 週負載曲線、功因與能耗,供能耗分析與異常耗電偵測題。"
+      devices:
+        - {id: em-01, template: energy_meter}
+        - {id: em-02, template: energy_meter, duty_cycle: {profile: continuous}}

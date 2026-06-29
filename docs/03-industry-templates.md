@@ -119,7 +119,9 @@
 | power_factor | — | |
 | energy_total | kWh | 累積 |
 
-通常無退化元件,提供能耗 / OEE 分析素材;也可注入「異常耗電」事件當作另類異常偵測題。
+主要提供能耗 / 負載曲線分析素材;「異常耗電」以對 `active_power` 注入 sensor_bias / drift 實現,
+當另類異常偵測題。實作另含一條極輕的 `capacitor_aging`(指標型,緩降 power_factor),給一條可訓練的退化線索;
+duty 預設 `two_shift`,呈現日 / 週負載結構。OEE 欄位借用為「負載率 × 功因品質」的用電效率代理(非生產 OEE)。
 
 ---
 

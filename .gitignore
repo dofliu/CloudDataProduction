@@ -19,6 +19,10 @@ env/
 data/
 dataset/
 historian_data/
+# 每學號作業資料 + 答案金鑰(產生物,絕不入庫)
+assignments/
+# 學生繳交
+submissions/
 
 # IDE / OS
 .vscode/

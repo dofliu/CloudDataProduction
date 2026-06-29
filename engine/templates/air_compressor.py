@@ -11,7 +11,7 @@ import numpy as np
 
 from ..device import STATE_CODES, Device, DutyProfile
 from ..signals import ThermalLag, gaussian_noise, health_of
-from ._common import build_components, build_tags
+from ._common import build_components, build_tags, default_seed
 
 AMBIENT_C = 25.0
 NOM_PRESSURE_BAR = 7.5
@@ -41,7 +41,7 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
     duty = DutyProfile(profile=duty_cfg.get("profile", "continuous"),
                        load_nom=duty_cfg.get("load_nom", 80.0))
 
-    seed = cfg.get("seed", abs(hash(device_id)) % (2**31))
+    seed = cfg.get("seed", default_seed(device_id))
     rng = np.random.default_rng(seed)
     components = build_components(cfg, _INDICATORS, rng, defaults=_DEFAULT_DEGRADATION)
 

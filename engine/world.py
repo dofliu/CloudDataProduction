@@ -18,6 +18,7 @@ import yaml
 from .clock import SimClock
 from .device import Device
 from .templates import get_builder
+from .templates._common import default_seed
 
 # 訂閱者:async callback,每 tick 收到一份 snapshot
 Subscriber = Callable[[dict], Awaitable[None]]
@@ -35,6 +36,8 @@ class World:
         # adapters / WS / historian → 畫面與資料以「平靜」的間隔更新(預設 0=每 tick)。
         # 事件(故障/狀態轉換)不受節流,永遠即時。
         self.broadcast_interval_s: float = float(sim.get("broadcast_interval_s", 0.0))
+        # 確定性主種子:整座園區的隨機實現由此決定,改它 → 不同但各自可重現的資料(per-學號)。
+        self.master_seed: int = int(sim.get("seed", 20260101))
         self.protocol_mode: str = park.get("protocol_mode", "channel_mux")
         self.ports: dict = park.get("ports", {"modbus": 502, "opcua": 4840, "mqtt": 1883})
 
@@ -50,10 +53,12 @@ class World:
 
     # ── 建構 ────────────────────────────────────────────────
     @classmethod
-    def from_yaml(cls, path: str | Path) -> "World":
+    def from_yaml(cls, path: str | Path, seed: int | None = None) -> "World":
         data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
         if "park" not in data:
             raise ValueError(f"場景檔缺少 'park' 根節點:{path}")
+        if seed is not None:                      # 覆寫主種子(資料集產生器 / 每學號不同資料用)
+            data["park"].setdefault("sim", {})["seed"] = int(seed)
         return cls(data["park"])
 
     def _build_devices(self) -> None:
@@ -68,6 +73,7 @@ class World:
                 next_unit = max(next_unit, mb["unit_id"]) + 1
                 proto.setdefault("opcua", {"node_folder": f"{cid}/{dev_cfg['id']}"})
                 proto.setdefault("mqtt", {"topic_prefix": f"park/{cid}/{dev_cfg['id']}"})
+                dev_cfg.setdefault("seed", default_seed(dev_cfg["id"], self.master_seed))  # 確定性種子
                 builder = get_builder(dev_cfg["template"])
                 device = builder(dev_cfg["id"], dev_cfg, cid)
                 if device.id in self.devices:
@@ -98,6 +104,7 @@ class World:
             proto.setdefault("modbus", {"unit_id": uid, "register_base": 0})
             proto.setdefault("opcua", {"node_folder": f"{cid}/{did}"})
             proto.setdefault("mqtt", {"topic_prefix": f"park/{cid}/{did}"})
+            dev_cfg.setdefault("seed", default_seed(did, self.master_seed))   # 確定性種子
             uid += 1
             device = get_builder(dev_cfg["template"])(did, dev_cfg, cid)
             device.hot_added = True

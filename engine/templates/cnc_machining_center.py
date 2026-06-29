@@ -14,7 +14,7 @@ import numpy as np
 
 from ..device import STATE_CODES, Device, DutyProfile, Tag
 from ..signals import ThermalLag, gaussian_noise, health_of
-from ._common import build_components
+from ._common import build_components, default_seed
 
 # ── 物理量級常數(讓學生畫出來像真的,docs/02 §7)────────────
 SPINDLE_NOM_RPM = 8000.0
@@ -74,7 +74,7 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
 
     # ── 退化元件(由 YAML degradation 區塊驅動)─────────────
     # 每台設備一個獨立亂數種子 → 同型設備壽命有分散,學生模型要泛化(docs/02 §7)
-    seed = cfg.get("seed", abs(hash(device_id)) % (2**31))
+    seed = cfg.get("seed", default_seed(device_id))
     rng = np.random.default_rng(seed)
 
     components = build_components(cfg, _INDICATORS, rng, defaults=_DEFAULT_DEGRADATION)

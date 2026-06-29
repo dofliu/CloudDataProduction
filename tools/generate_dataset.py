@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -50,12 +51,34 @@ def main():
     ap.add_argument("--step-min", type=float, default=5.0, help="取樣解析度(模擬分鐘)")
     ap.add_argument("--repair-hours", type=float, default=3.0, help="故障後維修停機(sim 小時)")
     ap.add_argument("--sensor-fault-prob", type=float, default=0.3, help="每循環注入感測器故障的機率")
-    ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--seed", type=int, default=42, help="主種子:同 seed 完全可重現;換 seed=不同但可重現(可用學號)")
+    ap.add_argument("--devices", default=None, help="只產這些設備(逗號分隔),如 comp-01,cnc-08;留空=全部")
+    ap.add_argument("--inject", nargs="*", default=[],
+                    help='排程注入故障(出乾淨的作業題),格式 device:component:onset_day[:fault_type],'
+                         '如 comp-01:motor_bearing:20 → 第 20 天讓 comp-01 馬達軸承開始劣化')
+    ap.add_argument("--degradation-scale", type=float, default=1.0,
+                    help="自然退化速率倍率(<1 放慢);配 --inject 可出「只有指定故障」的乾淨作業集,如 0.15")
     args = ap.parse_args()
 
     root = Path(__file__).resolve().parents[1]
-    world = World.from_yaml(root / args.scenario)
+    world = World.from_yaml(root / args.scenario, seed=args.seed)   # 主種子 → 設備實現可重現
     rng = np.random.default_rng(args.seed)
+
+    only = set(args.devices.split(",")) if args.devices else None
+    devs = [d for d in world.devices.values() if only is None or d.id in only]
+    if not devs:
+        raise SystemExit(f"--devices 沒對到任何設備:{args.devices}")
+    if args.degradation_scale != 1.0:          # 放慢自然退化 → 配 --inject 出乾淨單一故障作業集
+        for d in devs:
+            for c in d.components.values():
+                c.rate *= args.degradation_scale
+
+    # 排程注入故障:device:component:onset_day[:fault_type]
+    injections = []
+    for spec in (args.inject or []):
+        p = spec.split(":")
+        injections.append({"device": p[0], "component": p[1], "onset_s": float(p[2]) * 86400.0,
+                           "fault_type": p[3] if len(p) > 3 else "gradual", "done": False})
 
     out_dir = root / args.out
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -67,7 +90,7 @@ def main():
     # 每台設備:CSV writer、欄位、目前循環緩衝、狀態機
     files, writers, tag_names = {}, {}, {}
     buffers, cycle_id, fault_handled, pending_reset = {}, {}, {}, {}
-    for d in world.devices.values():
+    for d in devs:
         # 排除 "state" tag,避免與下面可讀的字串 state 欄撞名(state 已用字串呈現)
         tag_names[d.id] = [t.name for t in d.tags if t.name != "state"]
         f = open(out_dir / f"{d.id}.csv", "w", newline="", encoding="utf-8")
@@ -85,18 +108,25 @@ def main():
                 d.inject_fault(ft, tag, severity=float(rng.uniform(0.5, 1.0)))
 
     # 第一個循環也可能有感測器故障
-    for d in world.devices.values():
+    for d in devs:
         maybe_inject_sensor(d)
 
     sim_t = 0.0
-    stats = {d.id: {"rows": 0, "faults": 0} for d in world.devices.values()}
+    stats = {d.id: {"rows": 0, "faults": 0} for d in devs}
     n_steps = int(total / dt)
     for step in range(n_steps):
         world.clock._sim_t += dt
         sim_t = world.clock.now()
         snap = world.step(dt)
 
-        for d in world.devices.values():
+        for inj in injections:                          # 排程故障到點 → 注入(作業題的指定故障)
+            if not inj["done"] and sim_t >= inj["onset_s"]:
+                dev = world.devices.get(inj["device"])
+                if dev is not None:
+                    dev.inject_fault(inj["fault_type"], inj["component"], severity=1.0)
+                inj["done"] = True
+
+        for d in devs:
             # 維修時間到 → reset 開新循環(本 tick 的 snapshot 仍是舊狀態,跳過,下 tick 才記新循環)
             if pending_reset[d.id] is not None and sim_t >= pending_reset[d.id]:
                 d.reset()
@@ -139,7 +169,7 @@ def main():
                 pending_reset[d.id] = sim_t + repair
 
     # 末循環(未故障)以 censored 寫出
-    for d in world.devices.values():
+    for d in devs:
         for r in buffers[d.id]:
             r["ttf_sim_s"] = ""
             r["fail_within_24h"] = ""
@@ -150,7 +180,14 @@ def main():
     manifest = {
         "synthetic": True,
         "scenario": args.scenario,
+        "seed": args.seed,                       # 同 seed + 同 engine_commit → 完全可重現
+        "engine_commit": _git(root, "rev-parse", "HEAD"),
+        "engine_tag": _git(root, "describe", "--tags", "--always"),
         "sim_days": args.sim_days, "step_min": args.step_min,
+        "degradation_scale": args.degradation_scale,
+        "injections": [{"device": i["device"], "component": i["component"],
+                        "onset_day": round(i["onset_s"] / 86400.0, 2), "fault_type": i["fault_type"]}
+                       for i in injections],
         "devices": stats,
         "columns_note": "gt_* / ttf_* / fail_within_24h 為 ground-truth 標籤;state/tags 為學生可見觀測值",
     }
@@ -159,6 +196,15 @@ def main():
     print(f"資料集已輸出到 {out_dir}/(合成數據)")
     for did, s in stats.items():
         print(f"  {did:10} rows={s['rows']:>7}  faults={s['faults']}")
+
+
+def _git(root, *a):
+    """記錄產生此資料集的引擎版本(commit / tag),供凍結資料集追溯。取不到回 None。"""
+    try:
+        return subprocess.check_output(["git", *a], cwd=str(root), text=True,
+                                       stderr=subprocess.DEVNULL).strip()
+    except Exception:
+        return None
 
 
 def _flush(writer, tags, rows):

@@ -12,7 +12,7 @@ import numpy as np
 
 from ..device import STATE_CODES, Device, DutyProfile
 from ..signals import ThermalLag, gaussian_noise, health_of
-from ._common import build_components, build_tags
+from ._common import build_components, build_tags, default_seed
 
 AMBIENT_C = 25.0
 NOM_SPEED = 1.2          # m/s
@@ -64,7 +64,7 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
     cfg = cfg or {}
     duty = DutyProfile(profile="continuous", load_nom=cfg.get("duty_cycle", {}).get("load_nom", 60.0))
 
-    seed = cfg.get("seed", abs(hash(device_id)) % (2**31))
+    seed = cfg.get("seed", default_seed(device_id))
     rng = np.random.default_rng(seed)
     components = build_components(cfg, _INDICATORS, rng, defaults=_DEFAULT_DEGRADATION)
     comp_map = {c.name: c for c in components}   # pre_step / 部分 driver 用名稱查健康度

@@ -4,12 +4,20 @@
 """
 from __future__ import annotations
 
+import zlib
 from typing import Iterable
 
 import numpy as np
 
 from ..device import Tag
 from ..health import DegradationComponent
+
+
+def default_seed(device_id: str, master: int = 0) -> int:
+    """確定性種子:同一 device_id(+ master)每次都一樣,不受 Python hash 隨機化(PYTHONHASHSEED)影響。
+    讓資料集可重現;master 變動 → 整座園區換一組實現(可做每學號不同但各自可重現的資料)。"""
+    h = zlib.crc32(device_id.encode("utf-8")) & 0xFFFFFFFF
+    return (h ^ ((int(master) * 2654435761) & 0xFFFFFFFF)) % (2 ** 31)
 
 
 def build_tags(tag_spec: Iterable[tuple], modbus_base: int, opcua_folder: str) -> list[Tag]:

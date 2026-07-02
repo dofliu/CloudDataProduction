@@ -36,6 +36,7 @@ export default function OnboardingView({
   const [claimPick, setClaimPick] = useState("");
   const [connected, setConnected] = useState(localStorage.getItem(`quest_connected_${me}`) === "1");
   const [copied, setCopied] = useState("");
+  const [kitMode, setKitMode] = useState<"read" | "monitor">("read");
   const [msg, setMsg] = useState("");
 
   // 輪詢真實狀態:認領、工單、預測榜(和學生面同節奏)。
@@ -201,11 +202,16 @@ export default function OnboardingView({
             <Fact label={`${kit.tag} register`} value={`${kit.reg}(${kit.datatype})`} />
           </div>
 
+          <div style={{ display: "flex", gap: 6, margin: "4px 0 8px", flexWrap: "wrap" }}>
+            <button onClick={() => setKitMode("read")} style={toggleBtn(kitMode === "read")}>① 讀一個值(入門)</button>
+            <button onClick={() => setKitMode("monitor")} style={toggleBtn(kitMode === "monitor")}>② 監控多訊號 + 門檻告警</button>
+          </div>
           <div style={{ position: "relative" }}>
-            <button onClick={() => copy(kit.python, "python")} style={{ ...btn("#5b9bd5"), position: "absolute", right: 8, top: 8, zIndex: 1 }}>
+            <button onClick={() => copy(kitMode === "read" ? kit.python : kit.pythonMonitor, "python")}
+                    style={{ ...btn("#5b9bd5"), position: "absolute", right: 8, top: 8, zIndex: 1 }}>
               {copied === "python" ? "已複製 ✓" : "複製 Python"}
             </button>
-            <pre style={pre}>{kit.python}</pre>
+            <pre style={pre}>{kitMode === "read" ? kit.python : kit.pythonMonitor}</pre>
           </div>
 
           <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
@@ -218,7 +224,8 @@ export default function OnboardingView({
               {connected ? "✓ 已標記連上" : "我讀到數值了 → 完成任務 ③"}
             </button>
             <span className="hint" style={{ margin: 0 }}>
-              把上面片段存成 <code>read.py</code>,<code>python read.py</code> 就會每秒印一次。完整規格見「設備目錄」。
+              存成 <code>{kitMode === "read" ? "read.py" : "monitor.py"}</code> 直接 <code>python</code> 跑,每秒印一次。
+              {kitMode === "read" ? "讀通了就切到 ② 練監控 + 告警。" : "門檻先觀察正常區間再自己調,別照抄。"}完整規格見「設備目錄」。
             </span>
           </div>
         </div>
@@ -272,7 +279,19 @@ export default function OnboardingView({
 interface Kit {
   deviceId: string; host: string; port: number; unit: number;
   tag: string; reg: number; datatype: string; tagUnit: string;
-  python: string; opcua: string; mqtt: string;
+  python: string; pythonMonitor: string; opcua: string; mqtt: string;
+}
+
+// 招牌指標的「起始門檻建議」——只給有單一明顯退化指標的 tag;其餘留 None 讓學生自訂。
+const FAULT_HINT_THRESH: Record<string, number> = {
+  vibration_rms: 6.0, particle_count: 30.0, vacuum_pump_current: 12.0,
+  spindle_current: 12.0, motor_current: 30.0,
+  spindle_temp: 90.0, motor_temp: 85.0, oil_temp: 75.0, pump_temp: 80.0,
+};
+
+function dedupeBy<T>(arr: T[], key: (t: T) => string): T[] {
+  const seen = new Set<string>();
+  return arr.filter((x) => { const k = key(x); if (seen.has(k)) return false; seen.add(k); return true; });
 }
 
 function buildKit(company: Company | null, catalog: Catalog | null, host: string): Kit | null {
@@ -322,7 +341,56 @@ while True:
   const opcua = `${opcuaEp}  →  Objects/${folder}/${sig.name}（Security: None/None）`;
   const mqtt = `mosquitto_sub -h ${host} -p ${mqttPort} -t "park/${company.id}/${devId}/state" -v`;
 
-  return { deviceId: devId, host, port, unit, tag: sig.name, reg, datatype: dtype, tagUnit: sig.unit || "", python, opcua, mqtt };
+  // ── 進階片段:多訊號監控 + 門檻告警(步驟 ③→④ monitor→detect)──────
+  const monPref = [
+    sig.name, "vibration_rms", "particle_count", "vacuum_pump_current", "spindle_current",
+    "motor_current", "spindle_temp", "motor_temp", "oil_temp", "pump_temp",
+    "chamber_pressure", "power_factor", "active_power", "battery_soc", "tool_wear",
+  ];
+  const monTags = dedupeBy(
+    monPref.map((n) => dev.tags.find((t) => t.name === n)).filter(Boolean) as typeof dev.tags,
+    (t) => t.name,
+  ).slice(0, 4);
+  const monLines = monTags.map((t) => `    "${t.name}": (${t.modbus_register}, "${t.datatype}"),`).join("\n");
+  const hasThresh = sig.name in FAULT_HINT_THRESH;
+  const alarmLevel = hasThresh ? String(FAULT_HINT_THRESH[sig.name]) : "None";
+  const alarmComment = hasThresh
+    ? `超過視為異常(門檻是起始建議,依你觀察到的正常區間自己調)`
+    : `這台沒有單一明顯門檻;先把多訊號一起畫出來觀察趨勢,再自訂 ALARM_LEVEL`;
+
+  const pythonMonitor = `# ${company.name} · ${devId} · 多訊號監控 + 門檻告警
+# pip install pymodbus==3.6.9   |   python monitor.py
+from pymodbus.client import ModbusTcpClient
+from pymodbus.constants import Endian
+from pymodbus.payload import BinaryPayloadDecoder
+import time
+
+HOST, PORT, UNIT = "${host}", ${port}, ${unit}
+# tag -> (起始 register, 型別)   來源:設備目錄 /api/catalog
+TAGS = {
+${monLines}
+}
+ALARM_TAG, ALARM_LEVEL = "${sig.name}", ${alarmLevel}   # ${alarmComment}
+
+def read(cli, reg, dtype):
+    w = 1 if dtype == "int16" else 2
+    rr = cli.read_holding_registers(address=reg, count=w, slave=UNIT)
+    if rr.isError():
+        return None
+    d = BinaryPayloadDecoder.fromRegisters(rr.registers, byteorder=Endian.BIG, wordorder=Endian.BIG)
+    return d.decode_16bit_int() if dtype == "int16" else d.decode_32bit_int() if dtype == "int32" else d.decode_32bit_float()
+
+cli = ModbusTcpClient(HOST, port=PORT); cli.connect()
+while True:
+    vals = {n: read(cli, r, t) for n, (r, t) in TAGS.items()}
+    v = vals.get(ALARM_TAG)
+    hot = ALARM_LEVEL is not None and v is not None and v > ALARM_LEVEL
+    line = "  ".join(f"{n}={x:.2f}" if isinstance(x, float) else f"{n}={x}" for n, x in vals.items())
+    print(line + ("   ⚠ 異常！考慮開工單" if hot else ""))
+    time.sleep(1)
+`;
+
+  return { deviceId: devId, host, port, unit, tag: sig.name, reg, datatype: dtype, tagUnit: sig.unit || "", python, pythonMonitor, opcua, mqtt };
 }
 
 // ── 小組件 / 樣式 ──────────────────────────────────────────────
@@ -400,4 +468,12 @@ const pre: React.CSSProperties = {
 
 function btn(bg: string, color = "#08121e"): React.CSSProperties {
   return { background: bg, color, border: "none", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontWeight: 600, fontSize: 13 };
+}
+
+function toggleBtn(active: boolean): React.CSSProperties {
+  return {
+    background: active ? "#5b9bd5" : "var(--panel2)", color: active ? "#08121e" : "var(--text)",
+    border: `1px solid ${active ? "#5b9bd5" : "var(--line)"}`, borderRadius: 6, padding: "5px 12px",
+    cursor: "pointer", fontWeight: 600, fontSize: 12.5,
+  };
 }

@@ -70,6 +70,18 @@ export default function TeacherView({
     try { await resetDevice(dev); setMsg(`已 reset ${dev}`); }
     catch (e: any) { setMsg(`reset 失敗:${e.message}`); }
   };
+  // 課堂 demo:對此設備第一個(本體)退化元件注入快速劣化,高時間倍率下幾分鐘內故障 → 學生立刻有工單可練。
+  const doQuickFault = async () => {
+    const comp = health?.components?.[0]?.name;
+    if (!dev || !comp) { setMsg("請先選設備,並等 ground-truth 載入(需 teacher token)"); return; }
+    try {
+      await injectFault({ device: dev, fault_type: "gradual", target: comp, severity: 1.0 });
+      setMsg(`⚡ 已對 ${dev}.${comp} 注入快速劣化 — 把時鐘調 600×/3600× 加速,幾分鐘內會故障並自動開單`);
+    } catch (e: any) {
+      const hint = String(e.message).includes("401") ? "先填 dev-teacher-token 並儲存" : "";
+      setMsg(`快速故障失敗:${e.message} ${hint}`);
+    }
+  };
   const doFactory = async () => {
     try {
       const r = await createFactory(factoryDesc);
@@ -111,7 +123,7 @@ export default function TeacherView({
                placeholder="例:建一間有 3 台機械手臂的公司" style={{ ...inp, width: 360 }} />
         <button style={{ ...btn, background: "#37d67a", color: "#08121e" }} onClick={doFactory}>＋ 建立公司</button>
       </div>
-      <div className="hint" style={{ marginTop: 4 }}>支援:CNC / 空壓機 / AGV / 機械手臂 + 數量(如「5 台 CNC」)。建立後即時長出新公司。</div>
+      <div className="hint" style={{ marginTop: 4 }}>支援:CNC / 空壓機 / AGV / 機械手臂 / 半導體腔體 / 電表 + 數量(如「5 台 CNC」)。建立後即時長出新公司。</div>
 
       {/* 故障注入 */}
       <h3 style={{ marginTop: 22 }}>注入故障</h3>
@@ -137,7 +149,12 @@ export default function TeacherView({
                  onChange={(e) => setSeverity(parseFloat(e.target.value))} style={{ ...inp, width: 70 }} />
         </Field>
         <button style={{ ...btn, background: "#e24c4c", color: "#fff" }} disabled={!dev || !target} onClick={doInject}>注入</button>
+        <button style={{ ...btn, background: "#f08c2e", color: "#08121e" }} disabled={!dev || !health?.components?.length}
+                onClick={doQuickFault} title="對此設備主元件注入快速劣化,課堂 demo 用">⚡ 快速故障(demo)</button>
         <button style={btn} onClick={doReset}>reset 設備</button>
+      </div>
+      <div className="hint" style={{ marginTop: 6 }}>
+        課堂快速上手:選一台運轉中的機台 → 按「⚡ 快速故障」→ 時鐘調 600×↑ → 幾分鐘內故障自動開單,學生即可練偵測 / 處置。
       </div>
       {msg && <div className="hint" style={{ marginTop: 8, color: "#5b9bd5" }}>{msg}</div>}
 

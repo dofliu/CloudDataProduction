@@ -77,6 +77,7 @@ export default function OnboardingView({
 
   // ── 連線包:依認領公司的第一台設備,從目錄產出可執行片段 ──────────
   const kit = useMemo(() => buildKit(myCompany, catalog, window.location.hostname), [myCompany, catalog]);
+  const stage2 = useMemo(() => buildStage2(myCompany, catalog, window.location.hostname, me), [myCompany, catalog, me]);
   const liveVal = kit && telemetry ? telemetry.devices[kit.deviceId]?.tags?.[kit.tag] : undefined;
 
   const copy = async (text: string, label: string) => {
@@ -254,6 +255,39 @@ export default function OnboardingView({
         </>
       )}
 
+      {/* 階段二:訓練模型 → 在故障前送預測 */}
+      {myCompany && (
+        <>
+          <h3 style={{ marginTop: 22 }}>🔮 階段二 · 在故障前送出預測</h3>
+          {stage2 ? (
+            <div style={card}>
+              <div style={cardTitle}>
+                預測目標 <code>{stage2.deviceId}</code> · 盯招牌指標 <b>{stage2.sig}</b>(門檻起始 {stage2.threshold})
+              </div>
+              <p className="hint" style={{ margin: "0 0 8px" }}>
+                訂閱(輪詢)遙測 → 在設備真正故障<b>之前</b> <code>POST /api/predictions</code> → 命中就上預測榜、按 lead time(提前量)給分。
+                下面是可跑的啟發式骨架;把門檻換成你用 Historian 歷史訓練的 <b>RUL / 故障機率模型</b>,提前量更長、分數更高。
+              </p>
+              <div style={{ position: "relative" }}>
+                <button onClick={() => copy(stage2.python, "stage2")}
+                        style={{ ...btn("#f08c2e"), position: "absolute", right: 8, top: 8, zIndex: 1 }}>
+                  {copied === "stage2" ? "已複製 ✓" : "複製 Python"}
+                </button>
+                <pre style={pre}>{stage2.python}</pre>
+              </div>
+              <span className="hint" style={{ margin: 0 }}>
+                存成 <code>predict.py</code> 直接跑;命中會在 2D 世界看到設備翻橘、事件列出現 🔮 預測命中。歷史資料:<code>/api/history</code> 或直接連 DB。
+              </span>
+            </div>
+          ) : (
+            <p className="hint">
+              你認領的公司以分析 / 動力節點為主(不會故障),不適合當階段二預測目標。
+              到「學生面」認領一間有明顯退化的機台公司(CNC / 空壓機 / 機械手臂 / 半導體腔體),這裡就會長出你的預測器範例。
+            </p>
+          )}
+        </>
+      )}
+
       {/* 導覽 */}
       <h3 style={{ marginTop: 22 }}>接下來去哪</h3>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(230px,1fr))", gap: 10 }}>
@@ -292,6 +326,73 @@ const FAULT_HINT_THRESH: Record<string, number> = {
 function dedupeBy<T>(arr: T[], key: (t: T) => string): T[] {
   const seen = new Set<string>();
   return arr.filter((x) => { const k = key(x); if (seen.has(k)) return false; seen.add(k); return true; });
+}
+
+// 招牌指標 → 預測時填的故障標籤(僅顯示 / 記錄用,命中與否只看設備真的有沒有壞)。
+const FAULT_LABEL: Record<string, string> = {
+  vibration_rms: "bearing_fault", particle_count: "process_drift",
+  vacuum_pump_current: "vacuum_pump_wear", spindle_current: "spindle_fault",
+  motor_current: "motor_fault", spindle_temp: "overheat", motor_temp: "overheat",
+  oil_temp: "overheat", pump_temp: "overheat",
+};
+
+interface Stage2 {
+  deviceId: string; sig: string; reg: number; threshold: number;
+  port: number; unit: number; python: string;
+}
+
+// 階段二預測器:挑認領公司裡「會故障、可預測」的設備(招牌指標在 FAULT_HINT_THRESH),
+// 產出可跑的 Modbus 輪詢 → 在故障前 POST /api/predictions 範例。電表等純分析節點不會被選中。
+function buildStage2(company: Company | null, catalog: Catalog | null, host: string, student: string): Stage2 | null {
+  if (!company || !catalog) return null;
+  for (const did of company.device_ids || []) {
+    const dev = catalog.devices.find((d) => d.id === did);
+    if (!dev) continue;
+    const sig = SIGNATURE_PREF.map((n) => dev.tags.find((t) => t.name === n)).find(Boolean);
+    if (!sig || !(sig.name in FAULT_HINT_THRESH)) continue;   // 沒有明顯退化指標 → 不適合當階段二目標
+    const conn = dev.connection?.modbus || {};
+    const port = conn.port ?? 6020;
+    const unit = conn.unit_id ?? 1;
+    const reg = sig.modbus_register;
+    const threshold = FAULT_HINT_THRESH[sig.name];
+    const who = student || "你的學號";
+    const fault = FAULT_LABEL[sig.name] || "degradation_fault";
+    const python = `# ${company.name} · ${did} · 階段二:在故障前送出預測
+# pip install pymodbus==3.6.9   |   python predict.py
+from pymodbus.client import ModbusTcpClient
+from pymodbus.constants import Endian
+from pymodbus.payload import BinaryPayloadDecoder
+import urllib.request, json, time
+
+API = "http://${host}:8077"
+STUDENT = "${who}"
+DEVICE, HOST, PORT, UNIT = "${did}", "${host}", ${port}, ${unit}
+SIGNAL, REG, THRESHOLD = "${sig.name}", ${reg}, ${threshold}   # 招牌指標超門檻就預測(先用啟發式,再換成你訓練的模型)
+
+def post_prediction(eta_h, conf):
+    body = {"device": DEVICE, "student": STUDENT, "predicted_fault": "${fault}",
+            "eta_sim_s": eta_h * 3600, "confidence": conf}
+    req = urllib.request.Request(API + "/api/predictions", data=json.dumps(body).encode(),
+                                 headers={"Content-Type": "application/json"}, method="POST")
+    with urllib.request.urlopen(req) as r:
+        return json.load(r)
+
+cli = ModbusTcpClient(HOST, port=PORT); cli.connect()
+sent = False
+print(f"[{STUDENT}] 盯 {DEVICE}.{SIGNAL},超過 {THRESHOLD} 就在故障前送預測 …")
+while not sent:
+    rr = cli.read_holding_registers(address=REG, count=2, slave=UNIT)
+    if not rr.isError():
+        v = BinaryPayloadDecoder.fromRegisters(rr.registers, byteorder=Endian.BIG, wordorder=Endian.BIG).decode_32bit_float()
+        print(f"{SIGNAL} = {v:.2f}")
+        if v > THRESHOLD:                       # ← 換成你的模型輸出(RUL / 故障機率)會更準、lead time 更長
+            print("→ 送出預測:", post_prediction(eta_h=2, conf=0.8)); sent = True
+    time.sleep(2)
+cli.close()
+`;
+    return { deviceId: did, sig: sig.name, reg, threshold, port, unit, python };
+  }
+  return null;
 }
 
 function buildKit(company: Company | null, catalog: Catalog | null, host: string): Kit | null {

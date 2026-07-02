@@ -9,13 +9,14 @@ import TeacherView from "./teacher/TeacherView";
 import DiagnosticsView from "./diagnostics/DiagnosticsView";
 import OeeView from "./oee/OeeView";
 import StudentView from "./student/StudentView";
+import OnboardingView from "./onboarding/OnboardingView";
 
 export default function App() {
   const [park, setPark] = useState<Park | null>(null);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [telemetry, setTelemetry] = useState<TelemetryMsg | null>(null);
   const [events, setEvents] = useState<EventMsg[]>([]);
-  const [view, setView] = useState<"world" | "student" | "catalog" | "teacher" | "diag" | "oee">("world");
+  const [view, setView] = useState<"start" | "world" | "student" | "catalog" | "teacher" | "diag" | "oee">("start");
   const [selected, setSelected] = useState<string | null>(null);
   const [predicted, setPredicted] = useState<Set<string>>(new Set());
   const [resetMsg, setResetMsg] = useState("");
@@ -53,6 +54,7 @@ export default function App() {
         <span className="clock">sim {simHours} h · {mult ?? "—"}×</span>
         <div className="spacer" />
         <nav className="nav">
+          <button className={view === "start" ? "active" : ""} onClick={() => setView("start")}>🚀 開始</button>
           <button className={view === "world" ? "active" : ""} onClick={() => setView("world")}>2D 世界</button>
           <button className={view === "student" ? "active" : ""} onClick={() => setView("student")}>學生面</button>
           <button className={view === "catalog" ? "active" : ""} onClick={() => setView("catalog")}>設備目錄</button>
@@ -63,7 +65,9 @@ export default function App() {
       </header>
 
       <div className="main">
-        {view === "world" ? (
+        {view === "start" ? (
+          park && <OnboardingView park={park} telemetry={telemetry} catalog={catalog} onNav={setView} />
+        ) : view === "world" ? (
           <>
             <div className="stage">
               {park && (

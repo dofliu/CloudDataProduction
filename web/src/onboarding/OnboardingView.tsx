@@ -1,0 +1,351 @@
+import { useEffect, useMemo, useState } from "react";
+import {
+  Park, Company, Catalog, CatalogDevice, TelemetryMsg, Ticket, PredScoreRow,
+  getPark, getCatalog, getTickets, getPredictionScores, claimCompany,
+} from "../api";
+
+/**
+ * 🚀 任務中心 / 開始這裡 —— 學生的落地頁。
+ *
+ * 設計目標:學生第一次打開就知道「我是誰、要幹嘛、怎麼連上設備」。
+ * 不再只是丟一座漂亮的 2D 世界讓人發呆。三個支柱:
+ *   1. 故事 + 任務弧線(認領 → 連線 → 監控 → 偵測 → 開單 → 預測)。
+ *   2. 即時任務進度:用系統真實狀態自動打勾(認領了沒、開過單沒、送過預測沒),進度是「掙來的」。
+ *   3. 個人化連線包:依你認領的公司,直接產出填好 host/port/unit_id/register 的可執行 Python。
+ *      移除整個平台最嚇人的門檻 —— 「我到底怎麼寫 client 連上去?」
+ */
+
+type View = "start" | "world" | "student" | "catalog" | "diag" | "oee" | "teacher";
+
+// 挑一個最有戲的「招牌 tag」當連線包示範(退化主指標優先)。
+const SIGNATURE_PREF = [
+  "vibration_rms", "particle_count", "active_power", "vacuum_pump_current",
+  "spindle_current", "motor_current", "oil_temp", "battery_soc",
+];
+
+export default function OnboardingView({
+  park, telemetry, catalog, onNav,
+}: {
+  park: Park; telemetry: TelemetryMsg | null; catalog: Catalog | null; onNav: (v: View) => void;
+}) {
+  const [me, setMe] = useState(localStorage.getItem("student_id") || "");
+  const [meInput, setMeInput] = useState(me);
+  const [companies, setCompanies] = useState<Company[]>(park.companies);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [predScores, setPredScores] = useState<PredScoreRow[]>([]);
+  const [claimPick, setClaimPick] = useState("");
+  const [connected, setConnected] = useState(localStorage.getItem(`quest_connected_${me}`) === "1");
+  const [copied, setCopied] = useState("");
+  const [msg, setMsg] = useState("");
+
+  // 輪詢真實狀態:認領、工單、預測榜(和學生面同節奏)。
+  useEffect(() => {
+    const refresh = () => {
+      getPark().then((p) => setCompanies(p.companies)).catch(() => {});
+      getTickets().then((r) => setTickets(r.tickets)).catch(() => {});
+      getPredictionScores().then((r) => setPredScores(r.ranking)).catch(() => {});
+    };
+    refresh();
+    const id = setInterval(refresh, 4000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => { setConnected(localStorage.getItem(`quest_connected_${me}`) === "1"); }, [me]);
+
+  const saveMe = () => {
+    const v = meInput.trim();
+    setMe(v);
+    localStorage.setItem("student_id", v);
+    setMsg(v ? `身分設定為 ${v}` : "");
+  };
+
+  const myCompany = useMemo(
+    () => (me ? companies.find((c) => c.owner === me) || null : null),
+    [companies, me],
+  );
+
+  const claim = async (cid: string) => {
+    if (!me) { setMsg("請先設定你的學生 id"); return; }
+    if (!cid) { setMsg("先選一間要認領的公司"); return; }
+    try { await claimCompany(cid, me); setMsg(`已認領 ${cid} 🎉`); getPark().then((p) => setCompanies(p.companies)); }
+    catch { setMsg("認領失敗(可能已被別人認領)"); }
+  };
+
+  // ── 連線包:依認領公司的第一台設備,從目錄產出可執行片段 ──────────
+  const kit = useMemo(() => buildKit(myCompany, catalog, window.location.hostname), [myCompany, catalog]);
+  const liveVal = kit && telemetry ? telemetry.devices[kit.deviceId]?.tags?.[kit.tag] : undefined;
+
+  const copy = async (text: string, label: string) => {
+    try { await navigator.clipboard.writeText(text); setCopied(label); setTimeout(() => setCopied(""), 1600); }
+    catch { setMsg("複製失敗,請手動選取"); }
+  };
+
+  const markConnected = () => {
+    localStorage.setItem(`quest_connected_${me}`, "1");
+    setConnected(true);
+    setMsg("太好了!你已成功讀到設備數值 ✅");
+  };
+
+  // ── 任務進度:盡量用真實狀態自動判定 ───────────────────────────
+  const myCompanyIds = new Set(companies.filter((c) => c.owner === me && !!me).map((c) => c.id));
+  const myResolved = tickets.some((t) => myCompanyIds.has(t.company || "") && t.status === "resolved");
+  const myPred = predScores.find((r) => r.student === me);
+  const steps: Step[] = [
+    { done: !!me, title: "設定你的學生 id", desc: "課堂用它記分、認領公司、上競賽榜。" },
+    { done: !!myCompany, title: "認領一間公司", desc: "你負責這間廠的設備維運;它的工單、OEE 都算你的。" },
+    { done: connected, title: "連上你的第一台設備", desc: "用下方連線包,在自己的 Python/工具讀到一個即時數值。" },
+    { done: myResolved, title: "偵測故障 → 開單處置", desc: "設備退化或被注入故障會自動開單;ack 確認、resolve 修復。" },
+    { done: !!myPred && myPred.predictions > 0, title: "訓練模型 → 送出預測(階段二)", desc: "撈歷史訓練,在故障前 POST 預測,拚 lead time 上榜。" },
+  ];
+  const doneN = steps.filter((s) => s.done).length;
+  const allDone = doneN === steps.length;
+
+  const unclaimed = companies.filter((c) => !c.owner);
+
+  return (
+    <div className="catalog" style={{ maxWidth: 1080 }}>
+      {/* Hero */}
+      <div style={{ background: "linear-gradient(135deg,#16233a,#1a2230)", border: "1px solid var(--line)",
+                    borderRadius: 12, padding: "18px 22px", marginBottom: 18 }}>
+        <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: 0.3 }}>
+          🏭 歡迎來到{park.name}
+        </div>
+        <p style={{ margin: "8px 0 0", color: "#c7d2e0", lineHeight: 1.7, maxWidth: 760 }}>
+          你是這座虛擬工業區的<b style={{ color: "#5b9bd5" }}>維運工程師</b>。園區裡 {companies.length} 間公司、
+          數十台真實運轉的設備(以標準 <b>Modbus / OPC-UA / MQTT</b> 協定對外),
+          會健康地跑、也會慢慢退化甚至故障。你的任務:<b style={{ color: "#e6ecf5" }}>連上它們、監控它們、在壞掉前抓到徵兆</b>。
+        </p>
+        <div style={{ marginTop: 10, fontSize: 12, color: "#f08c2e" }}>
+          ⚠ 全部為合成數據(synthetic),帶 ground-truth 標籤,專為教學設計 —— 放心動手、放心試錯。
+        </div>
+      </div>
+
+      {/* 身分 */}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
+        <span className="hint" style={{ margin: 0 }}>我的學生 id:</span>
+        <input value={meInput} onChange={(e) => setMeInput(e.target.value)} placeholder="例:S001 / kiwi"
+               onKeyDown={(e) => e.key === "Enter" && saveMe()}
+               style={inp} />
+        <button onClick={saveMe} style={btn("#5b9bd5")}>設定</button>
+        {me && <span style={{ color: "#37d67a", fontWeight: 600 }}>目前:{me}</span>}
+        {msg && <span className="hint" style={{ margin: 0, color: "#5b9bd5" }}>· {msg}</span>}
+      </div>
+
+      {/* 任務進度 */}
+      <h3 style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 10 }}>
+        你的任務進度
+        <span style={{ fontSize: 13, color: allDone ? "#37d67a" : "var(--muted)", fontWeight: 600 }}>
+          {doneN} / {steps.length} {allDone ? "· 全部完成,你已是合格的園區維運工程師 🏅" : ""}
+        </span>
+      </h3>
+      <div style={{ height: 8, background: "#0f1620", border: "1px solid var(--line)", borderRadius: 6, overflow: "hidden", marginBottom: 12 }}>
+        <div style={{ width: `${(doneN / steps.length) * 100}%`, height: "100%",
+                      background: allDone ? "#37d67a" : "linear-gradient(90deg,#5b9bd5,#37d67a)", transition: "width .4s" }} />
+      </div>
+      <ol style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 8 }}>
+        {steps.map((s, i) => (
+          <li key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start",
+                               border: `1px solid ${s.done ? "#2f7a4f" : "var(--line)"}`, borderRadius: 8,
+                               padding: "10px 12px", background: s.done ? "#13241b" : "var(--panel)" }}>
+            <div style={{ width: 26, height: 26, flex: "0 0 26px", borderRadius: 26, fontWeight: 700,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          background: s.done ? "#37d67a" : "#2a3648", color: s.done ? "#08121e" : "#8a93a6" }}>
+              {s.done ? "✓" : i + 1}
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, color: s.done ? "#9be7bd" : "#e6ecf5" }}>{s.title}</div>
+              <div className="hint" style={{ margin: "2px 0 0" }}>{s.desc}</div>
+            </div>
+          </li>
+        ))}
+      </ol>
+
+      {/* 認領(未認領時內嵌,不必跳頁) */}
+      {me && !myCompany && (
+        <div style={card}>
+          <div style={cardTitle}>① 先認領一間公司</div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <select value={claimPick} onChange={(e) => setClaimPick(e.target.value)} style={inp}>
+              <option value="">選一間未認領的公司…</option>
+              {unclaimed.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}（{c.device_ids?.length ?? 0} 台）</option>
+              ))}
+            </select>
+            <button onClick={() => claim(claimPick)} style={btn("#37d67a")}>認領</button>
+            <span className="hint" style={{ margin: 0 }}>或到「學生面」分頁看每間公司狀態再挑。</span>
+          </div>
+        </div>
+      )}
+
+      {/* 連線包 */}
+      {myCompany && kit && (
+        <div style={card}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+            <div style={cardTitle}>🔌 你的連線包 —— {myCompany.name} / <code>{kit.deviceId}</code></div>
+            {liveVal !== undefined && (
+              <div style={{ fontSize: 13 }}>
+                <span className="hint" style={{ margin: 0 }}>此刻園區實值 </span>
+                <b style={{ color: "#37d67a" }}>{kit.tag} = {liveVal.toFixed(2)} {kit.tagUnit}</b>
+                <span className="hint" style={{ margin: 0 }}> ← 你的程式讀到的應該接近這個</span>
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", margin: "10px 0" }}>
+            <Fact label="主機 host" value={kit.host} />
+            <Fact label="Modbus 埠" value={String(kit.port)} />
+            <Fact label="unit_id" value={String(kit.unit)} />
+            <Fact label={`${kit.tag} register`} value={`${kit.reg}(${kit.datatype})`} />
+          </div>
+
+          <div style={{ position: "relative" }}>
+            <button onClick={() => copy(kit.python, "python")} style={{ ...btn("#5b9bd5"), position: "absolute", right: 8, top: 8, zIndex: 1 }}>
+              {copied === "python" ? "已複製 ✓" : "複製 Python"}
+            </button>
+            <pre style={pre}>{kit.python}</pre>
+          </div>
+
+          <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+            <CopyLine label="OPC-UA" text={kit.opcua} onCopy={() => copy(kit.opcua, "opcua")} copied={copied === "opcua"} />
+            <CopyLine label="MQTT" text={kit.mqtt} onCopy={() => copy(kit.mqtt, "mqtt")} copied={copied === "mqtt"} />
+          </div>
+
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
+            <button onClick={markConnected} disabled={connected} style={btn(connected ? "#2f7a4f" : "#37d67a")}>
+              {connected ? "✓ 已標記連上" : "我讀到數值了 → 完成任務 ③"}
+            </button>
+            <span className="hint" style={{ margin: 0 }}>
+              把上面片段存成 <code>read.py</code>,<code>python read.py</code> 就會每秒印一次。完整規格見「設備目錄」。
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* 導覽 */}
+      <h3 style={{ marginTop: 22 }}>接下來去哪</h3>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(230px,1fr))", gap: 10 }}>
+        <NavCard emoji="🗺️" title="2D 世界" desc="俯瞰園區、點公司進廠內、看設備即時燈號與數值。" onClick={() => onNav("world")} />
+        <NavCard emoji="📖" title="設備目錄" desc="每台設備每個點位的協定規格書 —— 你的接線圖。" onClick={() => onNav("catalog")} />
+        <NavCard emoji="🎫" title="學生面(工單 / 榜)" desc="認領、處置工單、看故障管理 / 預測 / OEE 競賽榜。" onClick={() => onNav("student")} />
+        <NavCard emoji="📡" title="戰情版" desc="三協定連線自測,對照你自己工具讀到的值。" onClick={() => onNav("diag")} />
+        <NavCard emoji="📊" title="OEE 榜" desc="設備總效率排名:可用率 × 表現 × 良率。" onClick={() => onNav("oee")} />
+      </div>
+
+      {allDone && (
+        <div style={{ marginTop: 18, padding: "14px 18px", borderRadius: 10, background: "#13241b",
+                      border: "1px solid #2f7a4f", color: "#9be7bd", fontWeight: 600 }}>
+          🏅 五項任務全數完成!你已跑通「連線 → 監控 → 偵測 → 處置 → 預測」完整維運迴圈。
+          接下來就是把偵測做得更早、預測 lead time 拉更長 —— 上競賽榜卡位吧。
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 連線包產生器 ───────────────────────────────────────────────
+interface Kit {
+  deviceId: string; host: string; port: number; unit: number;
+  tag: string; reg: number; datatype: string; tagUnit: string;
+  python: string; opcua: string; mqtt: string;
+}
+
+function buildKit(company: Company | null, catalog: Catalog | null, host: string): Kit | null {
+  if (!company || !catalog) return null;
+  const devId = company.device_ids?.[0];
+  const dev: CatalogDevice | undefined = catalog.devices.find((d) => d.id === devId);
+  if (!dev) return null;
+
+  const conn = dev.connection?.modbus || {};
+  const port = conn.port ?? catalog.devices[0]?.connection?.modbus?.port ?? 6020;
+  const unit = conn.unit_id ?? 1;
+
+  // 招牌 tag:偏好退化主指標,否則第一個 float32,否則第一個 tag。
+  const floatTags = dev.tags.filter((t) => t.datatype === "float32");
+  const sig = SIGNATURE_PREF.map((n) => dev.tags.find((t) => t.name === n)).find(Boolean)
+    || floatTags[0] || dev.tags[0];
+  const reg = sig.modbus_register;
+  const dtype = sig.datatype;
+  const width = dtype === "int16" ? 1 : 2;
+  const decode = dtype === "int16" ? "decode_16bit_int()" : dtype === "int32" ? "decode_32bit_int()" : "decode_32bit_float()";
+
+  const folder = dev.connection?.opcua?.node_folder ?? `${company.id}/${devId}`;
+  const opcuaEp = dev.connection?.opcua?.endpoint ?? `opc.tcp://${host}:6041/clouddata/`;
+  const mqttPort = dev.connection?.mqtt?.port ?? 6083;
+
+  const python = `# ${company.name} · ${devId} · 讀 ${sig.name}(${sig.unit || "—"})
+# 需求:pip install pymodbus==3.6.9   |   直接執行:python read.py
+from pymodbus.client import ModbusTcpClient
+from pymodbus.constants import Endian
+from pymodbus.payload import BinaryPayloadDecoder
+import time
+
+HOST, PORT, UNIT = "${host}", ${port}, ${unit}
+client = ModbusTcpClient(HOST, port=PORT)
+client.connect()
+
+while True:
+    rr = client.read_holding_registers(address=${reg}, count=${width}, slave=UNIT)
+    if rr.isError():
+        print("讀取失敗,檢查 host/port/unit 與防火牆"); break
+    dec = BinaryPayloadDecoder.fromRegisters(rr.registers, byteorder=Endian.BIG, wordorder=Endian.BIG)
+    ${sig.name} = dec.${decode}
+    print(f"${sig.name} = {${sig.name}:.3f} ${sig.unit || ""}")
+    time.sleep(1)
+`;
+
+  const opcua = `${opcuaEp}  →  Objects/${folder}/${sig.name}（Security: None/None）`;
+  const mqtt = `mosquitto_sub -h ${host} -p ${mqttPort} -t "park/${company.id}/${devId}/state" -v`;
+
+  return { deviceId: devId, host, port, unit, tag: sig.name, reg, datatype: dtype, tagUnit: sig.unit || "", python, opcua, mqtt };
+}
+
+// ── 小組件 / 樣式 ──────────────────────────────────────────────
+interface Step { done: boolean; title: string; desc: string; }
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ background: "#0f1620", border: "1px solid var(--line)", borderRadius: 8, padding: "6px 12px" }}>
+      <div className="hint" style={{ margin: 0, fontSize: 11 }}>{label}</div>
+      <div style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{value}</div>
+    </div>
+  );
+}
+
+function CopyLine({ label, text, onCopy, copied }: { label: string; text: string; onCopy: () => void; copied: boolean }) {
+  return (
+    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      <span style={{ width: 60, flex: "0 0 60px", color: "var(--muted)", fontSize: 12 }}>{label}</span>
+      <code style={{ flex: 1, background: "var(--panel2)", padding: "5px 8px", borderRadius: 6, overflowX: "auto", whiteSpace: "nowrap" }}>{text}</code>
+      <button onClick={onCopy} style={btn("#2a3648", "#c7d2e0")}>{copied ? "✓" : "複製"}</button>
+    </div>
+  );
+}
+
+function NavCard({ emoji, title, desc, onClick }: { emoji: string; title: string; desc: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} style={{ textAlign: "left", cursor: "pointer", background: "var(--panel)",
+             border: "1px solid var(--line)", borderRadius: 10, padding: "12px 14px", color: "var(--text)" }}
+            onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#5b9bd5")}
+            onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--line)")}>
+      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{emoji} {title}</div>
+      <div className="hint" style={{ margin: 0 }}>{desc}</div>
+    </button>
+  );
+}
+
+const inp: React.CSSProperties = {
+  background: "#0f1620", color: "#e6ecf5", border: "1px solid #2e3a4d", borderRadius: 6, padding: "6px 10px", minWidth: 180,
+};
+const card: React.CSSProperties = {
+  marginTop: 14, border: "1px solid var(--line)", borderRadius: 10, padding: "14px 16px", background: "var(--panel)",
+};
+const cardTitle: React.CSSProperties = { fontWeight: 700, color: "#c7d2e0", marginBottom: 8 };
+const pre: React.CSSProperties = {
+  background: "#0b1017", border: "1px solid var(--line)", borderRadius: 8, padding: "12px 14px",
+  overflowX: "auto", fontSize: 12.5, lineHeight: 1.55, margin: 0,
+  fontFamily: "'Cascadia Code','Consolas',monospace", color: "#d7e0ec",
+};
+
+function btn(bg: string, color = "#08121e"): React.CSSProperties {
+  return { background: bg, color, border: "none", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontWeight: 600, fontSize: 13 };
+}

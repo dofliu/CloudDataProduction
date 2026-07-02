@@ -3,7 +3,7 @@ name_zh: 雲端生產數據導論 — 虛擬智慧工業區教學平台
 category: edtech
 progress: 99
 status: active
-last_updated: "2026-06-29"
+last_updated: "2026-07-02"
 next_milestone: "對外接入(Cloudflare Tunnel + Tailscale)——待能存取校內 5090 主機"
 technologies:
   - Python 3.11
@@ -27,4 +27,4 @@ outputs:
   - tool
 description: "2D virtual industrial park teaching platform: simulation engine emits realistic (synthetic, ground-truth-labelled) equipment data over Modbus/OPC-UA/MQTT for students to monitor, diagnose, and build predictive maintenance models."
 description_zh: "虛擬 2D 工業園區教學平台:模擬引擎產生擬真(合成且帶 ground-truth 標籤)設備數據,經 Modbus/OPC-UA/MQTT 暴露,供學生監控、處置故障與訓練預測性維護模型。"
-key_metrics: "23 間台中主題公司 / 49 設備;8 產業 template(新增半導體製程腔體 particle_count/良率、電表能源節點 三相/功因/能耗);3 協定 + multi_port(6xxx 埠);四種 object type(holding FC03 / discrete input FC02 / input register FC04 含 ×100 定點鏡像 / coil FC01 讀+FC05 寫,學生唯讀、教師可寫);SQLite 雙庫持久化(telemetry + 工單/預測/OEE/認領,重啟不歸零);確定性種子(每學號可重現資料)+ 作業範本(私有測試集 + 自動評分 + 線上活廠驗收,防 AI 代寫);資料可訓練性實證(held-out F1 0.95 / RUL R² 0.94);學生面(認領→工單→競賽榜);上線硬化(venv + 看門狗 + /api/health + smoke test);產線編排 + 廠內人員;OEE/災難日/UI建廠;壓測 200 WS 零錯誤"
+key_metrics: "23 間台中主題公司 / 49 設備;8 產業 template(新增半導體製程腔體 particle_count/良率、電表能源節點 三相/功因/能耗);3 協定 + multi_port(6xxx 埠);四種 object type(holding FC03 / discrete input FC02 / input register FC04 含 ×100 定點鏡像 / coil FC01 讀+FC05 寫,學生唯讀、教師可寫);SQLite 雙庫持久化(telemetry + 工單/預測/OEE/認領,重啟不歸零);確定性種子(每學號可重現資料)+ 作業範本(私有測試集 + 自動評分 + 線上活廠驗收,防 AI 代寫);資料可訓練性實證(held-out F1 0.95 / RUL R² 0.94);學生面(認領→工單→競賽榜);學生任務中心「開始」分頁(故事引導 + 真實狀態自動打勾的任務進度 + 依認領設備自動產生可執行的 Modbus/OPC-UA/MQTT 個人化連線包);上線硬化(venv + 看門狗 + /api/health + smoke test);產線編排 + 廠內人員;OEE/災難日/UI建廠;壓測 200 WS 零錯誤"

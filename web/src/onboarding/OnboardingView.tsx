@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Park, Company, Catalog, CatalogDevice, TelemetryMsg, Ticket, PredScoreRow,
-  getPark, getCatalog, getTickets, getPredictionScores, claimCompany,
+  Park, Company, Catalog, CatalogDevice, DeviceSnapshot, TelemetryMsg, Ticket, PredScoreRow,
+  getPark, getCatalog, getTickets, getPredictionScores, claimCompany, STATUS_COLOR_CSS,
 } from "../api";
 
 /**
@@ -63,6 +63,9 @@ export default function OnboardingView({
     () => (me ? companies.find((c) => c.owner === me) || null : null),
     [companies, me],
   );
+  const myFaulted = myCompany
+    ? (myCompany.device_ids || []).filter((d) => telemetry?.devices[d]?.state === "fault")
+    : [];
 
   const claim = async (cid: string) => {
     if (!me) { setMsg("請先設定你的學生 id"); return; }
@@ -221,6 +224,29 @@ export default function OnboardingView({
         </div>
       )}
 
+      {/* 我的設備現況:認領後立刻看到自己的設備在即時呼吸 */}
+      {myCompany && (
+        <>
+          <h3 style={{ marginTop: 22, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            我的設備現況 · {myCompany.name}
+            <span className="hint" style={{ margin: 0, fontWeight: 400 }}>綠=運轉 · 灰=待機 · 黃=警告 · 紅=故障</span>
+          </h3>
+          {myFaulted.length > 0 && (
+            <div style={{ margin: "0 0 10px", padding: "10px 14px", borderRadius: 8, background: "#2a1518",
+                          border: "1px solid #6b2f34", color: "#ffb4b4", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              ⚠ 你有 {myFaulted.length} 台設備故障（{myFaulted.join("、")}）——
+              到「學生面」ack 確認並 resolve 處置,完成任務 ④。
+              <button onClick={() => onNav("student")} style={btn("#e24c4c", "#fff")}>去處置工單</button>
+            </div>
+          )}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 10 }}>
+            {(myCompany.device_ids || []).map((did) => (
+              <DeviceCard key={did} id={did} snap={telemetry?.devices[did]} />
+            ))}
+          </div>
+        </>
+      )}
+
       {/* 導覽 */}
       <h3 style={{ marginTop: 22 }}>接下來去哪</h3>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(230px,1fr))", gap: 10 }}>
@@ -301,6 +327,32 @@ while True:
 
 // ── 小組件 / 樣式 ──────────────────────────────────────────────
 interface Step { done: boolean; title: string; desc: string; }
+
+// 我的設備小卡:狀態燈 + 招牌訊號值(最多 3 個),認領後立刻有生命力。
+function DeviceCard({ id, snap }: { id: string; snap?: DeviceSnapshot }) {
+  const state = snap?.state ?? "—";
+  const col = STATUS_COLOR_CSS[state] ?? "#8a93a6";
+  const tags = snap?.tags ?? {};
+  const headline = SIGNATURE_PREF.filter((n) => n in tags).slice(0, 3);
+  const shown = headline.length ? headline : Object.keys(tags).slice(0, 3);
+  return (
+    <div style={{ border: `1px solid ${state === "fault" ? "#6b2f34" : "var(--line)"}`, borderRadius: 8,
+                  padding: "10px 12px", background: state === "fault" ? "#1e1416" : "var(--panel)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
+        <b style={{ fontFamily: "monospace" }}>{id}</b>
+        <span className="badge" style={{ background: col }}>{state}</span>
+      </div>
+      <div style={{ marginTop: 6, display: "grid", gap: 2 }}>
+        {snap ? shown.map((k) => (
+          <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+            <span style={{ color: "var(--muted)" }}>{k}</span>
+            <span style={{ fontVariantNumeric: "tabular-nums" }}>{typeof tags[k] === "number" ? tags[k].toFixed(2) : String(tags[k])}</span>
+          </div>
+        )) : <span className="hint" style={{ margin: 0 }}>等待遙測…</span>}
+      </div>
+    </div>
+  );
+}
 
 function Fact({ label, value }: { label: string; value: string }) {
   return (

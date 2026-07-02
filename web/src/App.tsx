@@ -20,11 +20,16 @@ export default function App() {
   const [selected, setSelected] = useState<string | null>(null);
   const [predicted, setPredicted] = useState<Set<string>>(new Set());
   const [resetMsg, setResetMsg] = useState("");
+  const [apiError, setApiError] = useState(false);
   const telemetryRef = useRef<TelemetryMsg | null>(null);
 
   useEffect(() => {
-    getPark().then(setPark).catch(console.error);
-    getCatalog().then(setCatalog).catch(console.error);
+    const loadPark = () => getPark().then((p) => { setPark(p); setApiError(false); })
+                             .catch(() => setApiError(true));
+    loadPark();
+    getCatalog().then(setCatalog).catch(() => {});
+    // 後端還沒起 / 暫時斷線時每 3 秒重試,起來後畫面自動恢復(不必手動整理)
+    const retry = setInterval(() => { if (!telemetryRef.current) loadPark(); }, 3000);
     const unTel = subscribe<TelemetryMsg>("/ws/telemetry", (m) => {
       telemetryRef.current = m;
       setTelemetry(m);
@@ -39,7 +44,7 @@ export default function App() {
         return next;
       });
     });
-    return () => { unTel(); unEv(); };
+    return () => { clearInterval(retry); unTel(); unEv(); };
   }, []);
 
   const simHours = telemetry ? (telemetry.sim_t / 3600).toFixed(1) : "—";
@@ -65,8 +70,20 @@ export default function App() {
       </header>
 
       <div className="main">
-        {view === "start" ? (
-          park && <OnboardingView park={park} telemetry={telemetry} catalog={catalog} onNav={setView} />
+        {!park ? (
+          <div className="catalog" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ textAlign: "center", maxWidth: 460, padding: 24 }}>
+              <div style={{ fontSize: 40, marginBottom: 10 }}>{apiError ? "🔌" : "⏳"}</div>
+              <h2 style={{ margin: "0 0 8px" }}>{apiError ? "連不到園區伺服器" : "連線中…"}</h2>
+              <p className="hint" style={{ margin: 0 }}>
+                {apiError
+                  ? "後端引擎(API 8077)可能還沒啟動。請確認老師已在主機執行 run-engine.ps1;起來後本頁會自動恢復,不必手動整理。"
+                  : "正在向園區世界要資料,請稍候。"}
+              </p>
+            </div>
+          </div>
+        ) : view === "start" ? (
+          <OnboardingView park={park} telemetry={telemetry} catalog={catalog} onNav={setView} />
         ) : view === "world" ? (
           <>
             <div className="stage">

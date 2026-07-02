@@ -10,6 +10,7 @@ import DiagnosticsView from "./diagnostics/DiagnosticsView";
 import OeeView from "./oee/OeeView";
 import StudentView from "./student/StudentView";
 import OnboardingView from "./onboarding/OnboardingView";
+import GlossaryOverlay from "./help/GlossaryOverlay";
 
 export default function App() {
   const [park, setPark] = useState<Park | null>(null);
@@ -21,6 +22,7 @@ export default function App() {
   const [predicted, setPredicted] = useState<Set<string>>(new Set());
   const [resetMsg, setResetMsg] = useState("");
   const [apiError, setApiError] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const telemetryRef = useRef<TelemetryMsg | null>(null);
 
   useEffect(() => {
@@ -66,8 +68,11 @@ export default function App() {
           <button className={view === "diag" ? "active" : ""} onClick={() => setView("diag")}>戰情版</button>
           <button className={view === "oee" ? "active" : ""} onClick={() => setView("oee")}>OEE 榜</button>
           <button className={view === "teacher" ? "active" : ""} onClick={() => setView("teacher")}>教師控制台</button>
+          <button onClick={() => setHelpOpen(true)} title="名詞速查(Modbus / OEE / RUL …)">❓名詞</button>
         </nav>
       </header>
+
+      {helpOpen && <GlossaryOverlay onClose={() => setHelpOpen(false)} />}
 
       <div className="main">
         {!park ? (

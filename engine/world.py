@@ -87,7 +87,8 @@ class World:
 
     def add_company(self, company_cfg: dict) -> dict:
         """把一間新公司(含設備)即時加入世界:引擎推進、WS 廣播、目錄/工單/評分立即生效。
-        原生協定 server 在啟動時建好,新設備需重啟 server 才會被 Modbus/OPC-UA/MQTT 暴露。"""
+        原生協定(Modbus channel-mux / OPC-UA / MQTT + multi_port)在下一拍 snapshot 由各 adapter
+        動態掛上(見 adapters 的 _hot_add / _add_device),新設備即時可連,不必重啟 server。"""
         cid = company_cfg.get("id") or f"c{len(self.park.get('companies', [])) + 1:02d}"
         company_cfg["id"] = cid
         company_cfg.setdefault("map_pos", {"x": 6 + 5 * len(self.park.get("companies", [])) % 20, "y": 20})

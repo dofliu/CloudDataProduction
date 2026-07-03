@@ -97,7 +97,7 @@ export default function TeacherView({
     try {
       const r = await createFactory(factoryDesc);
       const via = r?.via === "llm" ? "🤖 AI 解析" : "規則式";
-      setMsg(`已建廠(${via}):${r?.summary ?? r?.name ?? "新公司"}（2D 世界已更新;原生協定埠需重啟 server)`);
+      setMsg(`已建廠(${via}):${r?.summary ?? r?.name ?? "新公司"}（2D 世界 + Modbus/OPC-UA/MQTT 皆即時上線,免重啟)`);
       onParkChanged();   // 重抓 park → 2D 世界 / 目錄 / OEE 顯示新公司
     } catch (e: any) {
       const hint = String(e.message).includes("401") ? "先填 dev-teacher-token 並儲存"

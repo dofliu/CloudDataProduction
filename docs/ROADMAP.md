@@ -22,6 +22,7 @@
 | **產業庫擴充** | **半導體製程腔體 `semi_process_chamber`**(真空泵退化→fault、process_drift→particle_count→良率掉的 subtle fault、MFC 讀值漂移)+ **電表 `energy_meter`**(三相 V/I、功因、kWh 累積、日/週負載曲線、capacitor_aging、異常耗電以 sensor_fault 注入);掛入園區(東台 c03 / 大立光 c06 各一腔體、新增 c23 能源中心 2 電表),前端 2D sprite + NL 建廠關鍵字齊備 |
 | **學生體驗(2026 秋)** | 「🚀 開始」任務中心落地頁(故事引導 + 真實狀態自動打勾任務 + **個人化可跑連線包**:讀值 / 監控告警 / 階段二預測)、我的設備即時現況、後端斷線友善提示 + 自動恢復、名詞速查浮層、學生快速上手 .docx |
 | **教學工具鏈** | 教師「⚡ 快速故障(demo)」+ **一鍵「🧹 重置課堂資料」**(`/api/session/reset`,換班歸零不刪 DB)+ **真 LLM 建廠**(Gemini REST,一句話建多型別工廠,失敗回退規則式)+ **腔體製程漂移 subtle-fault 迴歸作業**(`grade_chamber_assignment.py` + [docs/作業範本_製程漂移.md](作業範本_製程漂移.md)) |
+| **熱載入補完** | NL/LLM 建的新設備三原生協定即時上線免重啟:Modbus channel-mux(`_hot_add` 動態建 slave,與 `ModbusServerContext` 同 dict 即刻生效)、OPC-UA(`_add_device` 執行時加 node)、multi_port(動態配專屬埠起 server);MQTT 本即時 |
 
 兩個教學階段皆可開課。Both teaching stages are classroom-ready.
 
@@ -33,8 +34,8 @@
    *暫緩,待能存取校內 5090 主機。Deferred until the on-campus 5090 host is accessible.*
 2. **真 LLM 建廠 Real-LLM factory** —— ✅ 已完成:接 Gemini(REST,免 SDK)做自由描述、**一句話建多型別工廠**,
    失敗自動回退規則式;輸出嚴格驗證(見 Done 表)。Done — Gemini via REST, multi-template, graceful fallback.
-4. **熱載入補完 Hot-add completeness** —— NL 建廠的新設備目前需重啟才上 Modbus / OPC-UA 共用埠與專屬埠
-   (MQTT 即時)。讓 adapters 支援動態加 register / node / port。Make adapters add registers/nodes/ports at runtime.
+4. **熱載入補完 Hot-add completeness** —— ✅ 已完成:三個原生協定 adapter(Modbus channel-mux / OPC-UA /
+   multi_port)於下一拍動態掛 slave / node / 專屬埠,NL/LLM 建的新設備即時可連、免重啟(見 Done 表)。
 5. **OPC-UA multi_port** —— 目前 multi_port 只做 Modbus;OPC-UA per-device endpoint 為進階選項(較重)。
 6. **更多產業 More templates** —— ✅ 半導體製程腔體 + 電表能源節點已完成(見 Done 表)。
    後續可再補:沖壓 / 鈑金、爐窯熱處理、廢水 / 環控節點等。Press, furnace, environmental nodes next.
@@ -43,8 +44,9 @@
 
 ## ⚠ 已知限制 · Known Issues / Limitations
 
-- **熱載入設備 Hot-added devices**:NL 建廠的新設備即時出現在 2D 世界 / 目錄 / OEE / MQTT,但 Modbus /
-  OPC-UA 共用埠與專屬埠需重啟 server 才暴露。New devices need a server restart for Modbus/OPC-UA.
+- **熱載入設備 Hot-added devices**:NL/LLM 建的新設備即時出現在 2D 世界 / 目錄 / OEE、且三協定
+  (Modbus channel-mux / OPC-UA / MQTT + multi_port)於下一拍 snapshot 動態掛上,**免重啟**。
+  Hot-added devices go live on all native protocols without restart.
 - **持久化範圍 Persistence scope**:`DB_BACKEND=sqlite` 後 telemetry(`historian.db`)與工單/預測/OEE(`state.db`)重啟不丟。
   production 可改 `timescale`。Local SQLite persists telemetry + ops state across restarts.
 - **待機 RUL Idle RUL**:two_shift 設備在下班時段不退化,RUL 顯示「—」(未定義),屬正確行為。Correct behaviour.

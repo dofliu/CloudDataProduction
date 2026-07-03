@@ -78,7 +78,7 @@ async def check_modbus_multiport(world: World, host: str, port_map: dict) -> lis
         port = port_map.get(d.id)
         tag = _sample_tag(d)
         if port is None:
-            results.append({"device": d.id, "ok": False, "error": "無專屬埠(熱載入需重啟)"})
+            results.append({"device": d.id, "ok": False, "error": "尚無專屬埠(熱載入下一拍配上)"})
             continue
         t0 = time.perf_counter()
         client = AsyncModbusTcpClient(host, port=port)
@@ -126,7 +126,7 @@ async def check_opcua(world: World, endpoint: str) -> list[dict]:
                                 "latency_ms": round((time.perf_counter() - t0) * 1000, 1)})
             except Exception as e:
                 results.append({"device": d.id, "addr": folder, "tag": tag.name,
-                                "ok": False, "error": "節點不存在(熱載入設備需重啟)" if "BadNo" in str(e) or "child" in str(e).lower() else str(e)})
+                                "ok": False, "error": "節點尚未建立(熱載入下一拍掛上)" if "BadNo" in str(e) or "child" in str(e).lower() else str(e)})
     finally:
         await client.disconnect()
     return results

@@ -26,6 +26,14 @@ class TicketStore:
         if self.persist is not None:
             self.persist.save("tickets", {"tickets": self.tickets, "seq": self._seq})
 
+    def clear(self) -> int:
+        """清空所有工單(教師「重置課堂資料」用)。回傳清掉的張數。"""
+        n = len(self.tickets)
+        self.tickets = {}
+        self._seq = 0
+        self._save()
+        return n
+
     # ── 事件訂閱:故障自動開單 ──────────────────────────────
     async def on_event(self, ev: dict) -> None:
         if ev.get("type") == "fault":

@@ -63,6 +63,15 @@ class PredictionRequest(BaseModel):
     confidence: float = 1.0
 
 
+class SessionResetRequest(BaseModel):
+    """教師「重置課堂資料」的可選範圍(預設全清)。"""
+    claims: bool = True         # 公司認領
+    tickets: bool = True        # 工單
+    predictions: bool = True    # 階段二預測
+    oee: bool = True            # OEE 累積器
+    devices: bool = True        # 把所有設備修回健康(清故障 / 注入)
+
+
 def create_app(
     world: World,
     historian: Historian,
@@ -362,6 +371,32 @@ def create_app(
         if device is None:
             raise HTTPException(404, f"無此設備:{device_id}")
         return device.reset()
+
+    @app.post("/api/session/reset", dependencies=[Depends(require_teacher)])
+    def reset_session(body: SessionResetRequest = SessionResetRequest()):
+        """教師「重置課堂資料」:清認領 / 工單 / 預測 / OEE,並把設備修回健康 —— 換班 / 下堂課
+        一鍵歸零,不必刪 state.db。各項可個別關閉。狀態真值仍只在引擎(不違反鐵則 #1)。"""
+        cleared: dict = {}
+        if body.claims:
+            n = sum(1 for c in world.park.get("companies", []) if c.get("owner"))
+            for c in world.park.get("companies", []):
+                c["owner"] = None
+            _save_owners()
+            cleared["claims"] = n
+        if body.tickets:
+            cleared["tickets"] = tickets.clear()
+        if body.predictions:
+            cleared["predictions"] = predictions.clear()
+        if body.oee:
+            world.reset_oee()
+            if state is not None:
+                state.save("oee", world.oee_snapshot())
+            cleared["oee_reset"] = len(world.devices)
+        if body.devices:
+            for d in world.devices.values():
+                d.reset()                       # 清故障 / 感測器故障 / 注入 → 全綠開場
+            cleared["devices_reset"] = len(world.devices)
+        return {"reset": True, "cleared": cleared, "synthetic": True}
 
     @app.post("/api/devices/{device_id}/coil", dependencies=[Depends(require_teacher)])
     async def write_coil(device_id: str, req: CoilRequest):

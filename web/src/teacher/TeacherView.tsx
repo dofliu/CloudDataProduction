@@ -3,7 +3,7 @@ import {
   Park, TelemetryMsg, HealthGT, Ticket, ScoreRow, PredScoreRow, ScenarioScript, ScenarioStatus,
   setTeacherToken, getTeacherToken, setClock,
   injectFault, resetDevice, getHealth, getTickets, ackTicket, resolveTicket, getScores, getPredictionScores,
-  getScenarios, runScenario, stopScenario, createFactory,
+  getScenarios, runScenario, stopScenario, createFactory, resetSession,
 } from "../api";
 
 const FAULT_TYPES = [
@@ -82,6 +82,17 @@ export default function TeacherView({
       setMsg(`快速故障失敗:${e.message} ${hint}`);
     }
   };
+  const doResetSession = async () => {
+    if (!window.confirm("重置課堂資料?\n將清空所有公司認領、工單、階段二預測、OEE 累積,並把所有設備修回健康。\n(不刪 DB 檔;適合換班 / 下堂課歸零)")) return;
+    try {
+      const r = await resetSession();
+      const c = r.cleared || {};
+      setMsg(`🧹 已重置課堂資料:認領 ${c.claims ?? 0} · 工單 ${c.tickets ?? 0} · 預測 ${c.predictions ?? 0} · OEE ${c.oee_reset ?? 0} 台 · 設備修復 ${c.devices_reset ?? 0} 台`);
+    } catch (e: any) {
+      const hint = String(e.message).includes("401") ? "先填 dev-teacher-token / .env 的 TEACHER_TOKEN 並儲存" : "";
+      setMsg(`重置失敗:${e.message} ${hint}`);
+    }
+  };
   const doFactory = async () => {
     try {
       const r = await createFactory(factoryDesc);
@@ -113,6 +124,11 @@ export default function TeacherView({
           <button style={btn} onClick={() => setClock({ multiplier: 3600 })}>3600×</button>
           <button style={btn} onClick={() => setClock({ paused: true })}>⏸</button>
           <button style={btn} onClick={() => setClock({ paused: false })}>▶</button>
+        </div>
+        <div>
+          <div className="hint">課堂管理</div>
+          <button style={{ ...btn, background: "#5b3a3a", color: "#ffd7d7", border: "1px solid #6b2f34" }}
+                  onClick={doResetSession} title="清認領/工單/預測/OEE、設備修回健康(換班/下堂課歸零,不刪 DB)">🧹 重置課堂資料</button>
         </div>
       </div>
 

@@ -38,6 +38,15 @@ class PredictionStore:
             self.persist.save("predictions", {
                 "predictions": self.predictions, "fault_count": self.fault_count, "seq": self._seq})
 
+    def clear(self) -> int:
+        """清空所有預測與命中計數(教師「重置課堂資料」用)。回傳清掉的筆數。"""
+        n = len(self.predictions)
+        self.predictions = []
+        self.fault_count = {}
+        self._seq = 0
+        self._save()
+        return n
+
     def set_emitter(self, emit: Callable[[dict], Awaitable[None]]) -> None:
         self._emit = emit
 

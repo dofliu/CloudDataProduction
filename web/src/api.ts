@@ -108,6 +108,10 @@ export const injectFault = (body: FaultBody) => post("/api/faults", body, true);
 // 自然語言建廠(教師面):一句話 → 即時長出新公司
 export const createFactory = (description: string) => post("/api/factory", { description }, true);
 export const resetDevice = (id: string) => post(`/api/devices/${id}/reset`, undefined, true);
+// 教師「重置課堂資料」:清認領 / 工單 / 預測 / OEE、設備修回健康(換班 / 下堂課歸零)
+export interface SessionResetScope { claims?: boolean; tickets?: boolean; predictions?: boolean; oee?: boolean; devices?: boolean; }
+export const resetSession = (scope: SessionResetScope = {}) =>
+  post("/api/session/reset", scope, true) as Promise<{ reset: boolean; cleared: Record<string, number> }>;
 // 教師命令線圈(FC05 認證版):run_enable 停機/復機、reset_fault 清故障
 export const setCoil = (id: string, name: string, value: boolean) =>
   post(`/api/devices/${id}/coil`, { name, value }, true);

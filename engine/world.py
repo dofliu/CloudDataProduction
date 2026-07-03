@@ -217,6 +217,11 @@ class World:
             if dev is not None:
                 dev.load_oee_state(st)
 
+    def reset_oee(self) -> None:
+        """把所有設備的 OEE 累積器歸零(教師「重置課堂資料」用)。"""
+        for dev in self.devices.values():
+            dev.load_oee_state({})
+
     # ── 視圖 ────────────────────────────────────────────────
     @property
     def last_snapshot(self) -> dict:

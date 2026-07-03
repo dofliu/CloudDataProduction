@@ -30,6 +30,10 @@ function isoBox(g: Graphics, gx: number, gy: number, w: number, h: number, heigh
   const N = iso(gx, gy), E = iso(gx + w, gy), S = iso(gx + w, gy + h), W = iso(gx, gy + h);
   const up = (p: Pt, f = 1) => ({ x: p.x, y: p.y - height * f });
   const lerp2 = (a: Pt, b: Pt, f: number) => ({ x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f });
+  // 接地陰影:footprint 往右下位移(光源固定左上),長度隨高度 → 建築坐在地上、有量體感
+  const sdx = Math.min(height * 0.14, 9), sdy = Math.min(height * 0.08, 5);
+  g.poly([N.x + sdx, N.y + sdy, E.x + sdx, E.y + sdy, S.x + sdx, S.y + sdy, W.x + sdx, W.y + sdy])
+    .fill({ color: 0x000000, alpha: 0.16 });
   const cL = darken(roof, 0.62), cR = darken(roof, 0.8);
   g.poly([W.x, W.y, S.x, S.y, up(S).x, up(S).y, up(W).x, up(W).y]).fill(cL);                  // 左牆(暗)
   g.poly([S.x, S.y, E.x, E.y, up(E).x, up(E).y, up(S).x, up(S).y]).fill(cR);                  // 右牆
@@ -52,6 +56,28 @@ function isoBox(g: Graphics, gx: number, gy: number, w: number, h: number, heigh
   }
   g.poly([up(N).x, up(N).y, up(E).x, up(E).y, up(S).x, up(S).y, up(W).x, up(W).y])
     .fill(roof).stroke({ width: 1, color: darken(roof, 1.15) });                              // 屋頂
+  // 屋頂受光邊 rim 高光(左上兩邊)+ 較大建築放空調機/天窗,屋頂不再是死平面
+  const hi = darken(roof, 1.4);
+  g.moveTo(up(N).x, up(N).y).lineTo(up(W).x, up(W).y).stroke({ width: 1.5, color: hi, alpha: 0.6 });
+  g.moveTo(up(N).x, up(N).y).lineTo(up(E).x, up(E).y).stroke({ width: 1.2, color: hi, alpha: 0.4 });
+  if (height > 26) {
+    const cx = (up(N).x + up(S).x) / 2, cy = (up(N).y + up(S).y) / 2;
+    g.rect(cx - 5, cy - 6, 10, 6).fill(darken(roof, 0.72)).stroke({ width: 0.6, color: hi, alpha: 0.5 });  // 空調機
+    g.rect(cx - 3, cy - 5, 6, 1.5).fill({ color: hi, alpha: 0.45 });                                       // 天窗反光
+  }
+}
+
+// 等距樹木:影 + 樹幹 + 三層樹冠(受光/背光雙色)+ 高光。替園區加色彩與生命。
+function drawTree(g: Graphics, cx: number, cy: number, s: number) {
+  g.ellipse(cx + 2.5 * s, cy + 2 * s, 8 * s, 3.2 * s).fill({ color: 0x000000, alpha: 0.18 });   // 影
+  g.rect(cx - 1.3 * s, cy - 5 * s, 2.6 * s, 6 * s).fill(0x5a4632);                                // 樹幹
+  const greens = [0x3e6b3a, 0x4f8a48, 0x5fa356];
+  for (let k = 0; k < 3; k++) {
+    const yy = cy - 5 * s - k * 3.6 * s, rr = (8.5 - k * 1.7) * s;
+    g.circle(cx - 1.6 * s, yy, rr).fill(darken(greens[k], 0.78));    // 背光側(暗)
+    g.circle(cx + 1.6 * s, yy, rr).fill(greens[k]);                  // 受光側
+  }
+  g.circle(cx + 2.4 * s, cy - 13 * s, 2.4 * s).fill({ color: 0x9fd08a, alpha: 0.55 });            // 高光
 }
 
 interface DeviceVisual { container: Container; ring: Graphics; pulse: Graphics; kind: string; }
@@ -130,11 +156,24 @@ export default function WorldView({
 
     // ── 俯瞰 ─────────────────────────────────────────────
     function buildOverview(world: Container) {
+      // 園區外緣柔和光暈(最底層):把園區從深色虛空中托出來,加大氣氛圍
+      const glow = new Graphics();
+      for (let r = 6; r >= 1; r--) glow.ellipse(0, 30, 130 + r * 55, 80 + r * 32).fill({ color: 0x1a2740, alpha: 0.05 });
+      world.addChild(glow);
+
       const ground = new Graphics();
+      const gnd = mulberry32(99173);
       for (let gx = 0; gx < GRID; gx++) for (let gy = 0; gy < GRID; gy++) {
         const N = iso(gx, gy), E = iso(gx + 1, gy), S = iso(gx + 1, gy + 1), W = iso(gx, gy + 1);
-        ground.poly([N.x, N.y, E.x, E.y, S.x, S.y, W.x, W.y])
-          .fill(isRoad(gx, gy) ? 0x20242c : ((gx + gy) % 2 === 0 ? 0x1b2230 : 0x18202c));
+        const road = isRoad(gx, gy);
+        let base = road ? 0x20242c : ((gx + gy) % 2 === 0 ? 0x1b2230 : 0x18202c);
+        if (!road) base = darken(base, 0.9 + gnd() * 0.2);        // 輕微亮度雜訊 → 地面不再死板棋盤
+        ground.poly([N.x, N.y, E.x, E.y, S.x, S.y, W.x, W.y]).fill(base);
+        if (road) {                                               // 道路中線虛線(每格一小段拼成)
+          const c = iso(gx + 0.5, gy + 0.5), horiz = (gy - 1) % STEP === 0;
+          const dx = (horiz ? HW : -HW) * 0.4, dy = HH * 0.4;
+          ground.moveTo(c.x - dx, c.y - dy).lineTo(c.x + dx, c.y + dy).stroke({ width: 1, color: 0x3a4152, alpha: 0.5 });
+        }
       }
       world.addChild(ground);
 
@@ -144,13 +183,18 @@ export default function WorldView({
       const rnd = mulberry32(20260628);
       const props: any[] = [];
       for (let gx = 1; gx < GRID - 1; gx++) for (let gy = 1; gy < GRID - 1; gy++) {
-        if (isRoad(gx, gy) || reserved.has(`${gx},${gy}`) || rnd() > 0.12) continue;
+        if (isRoad(gx, gy) || reserved.has(`${gx},${gy}`) || rnd() > 0.15) continue;
+        if (rnd() < 0.45) { props.push({ gx, gy, tree: true, s: 0.8 + rnd() * 0.7 }); continue; }   // 空地多為植栽
         const roof = rnd() > 0.6 ? COMPANY_COLORS[Math.floor(rnd() * COMPANY_COLORS.length)] : ROOFS[Math.floor(rnd() * ROOFS.length)];
         props.push({ gx, gy, ht: 10 + Math.floor(rnd() * 48), roof, chimney: rnd() > 0.82 });
       }
-      props.sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy));
-      for (const b of props) { const g = new Graphics(); isoBox(g, b.gx, b.gy, 1, 1, b.ht, b.roof); world.addChild(g);
-        if (b.chimney) { const t = iso(b.gx + 0.5, b.gy + 0.5); chimneysRef.current.push({ x: t.x, y: t.y - b.ht - 3 }); } }
+      props.sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy));   // 由後往前畫,遮擋正確
+      for (const b of props) {
+        const g = new Graphics();
+        if (b.tree) { const t = iso(b.gx + 0.5, b.gy + 0.5); drawTree(g, t.x, t.y, b.s); world.addChild(g); continue; }
+        isoBox(g, b.gx, b.gy, 1, 1, b.ht, b.roof); world.addChild(g);
+        if (b.chimney) { const t = iso(b.gx + 0.5, b.gy + 0.5); chimneysRef.current.push({ x: t.x, y: t.y - b.ht - 3 }); }
+      }
 
       park.companies.forEach((c, i) => {
         const { gx, gy } = companyTile(i); const p = iso(gx, gy);

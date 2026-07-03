@@ -37,8 +37,8 @@
 4. **熱載入補完 Hot-add completeness** —— ✅ 已完成:三個原生協定 adapter(Modbus channel-mux / OPC-UA /
    multi_port)於下一拍動態掛 slave / node / 專屬埠,NL/LLM 建的新設備即時可連、免重啟(見 Done 表)。
 5. **OPC-UA multi_port** —— 目前 multi_port 只做 Modbus;OPC-UA per-device endpoint 為進階選項(較重)。
-6. **更多產業 More templates** —— ✅ 半導體製程腔體 + 電表能源節點已完成(見 Done 表)。
-   後續可再補:沖壓 / 鈑金、爐窯熱處理、廢水 / 環控節點等。Press, furnace, environmental nodes next.
+6. **更多產業 More templates** —— ✅ 已完成:半導體製程腔體、電表能源節點、**沖壓機**、**熱處理爐**(共 10 種)。
+   後續可再補:廢水 / 環控節點、鑄造、噴塗等。Wastewater/environmental, casting, coating next.
 
 ---
 

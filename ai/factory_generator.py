@@ -29,6 +29,8 @@ _TEMPLATE_KEYWORDS = {
     "chamber": "semi_process_chamber",
     "電表": "energy_meter", "電錶": "energy_meter", "能源": "energy_meter", "能耗": "energy_meter",
     "meter": "energy_meter",
+    "沖壓": "stamping_press", "沖床": "stamping_press", "press": "stamping_press", "鈑金": "stamping_press",
+    "熱處理": "heat_treat_furnace", "爐": "heat_treat_furnace", "furnace": "heat_treat_furnace", "退火": "heat_treat_furnace",
 }
 
 # 各 template 的預設退化元件(讓新設備會自然退化,與場景一致)
@@ -56,17 +58,27 @@ _DEFAULT_DEGRADATION = {
     "energy_meter": {
         "capacitor_aging": {"rate": 0.0000006, "trajectory": "linear", "sigma": 0.1, "init_health": 1.0, "causes_device_fault": False},
     },
+    "stamping_press": {
+        "clutch_brake_wear": {"rate": 0.0000011, "trajectory": "exponential", "k": 3.0, "sigma": 0.1, "init_health": 0.93},
+        "die_wear": {"rate": 0.0000016, "trajectory": "linear", "sigma": 0.15, "init_health": 1.0, "causes_device_fault": False},
+    },
+    "heat_treat_furnace": {
+        "heating_element_aging": {"rate": 0.0000009, "trajectory": "exponential", "k": 2.6, "sigma": 0.1, "init_health": 0.94},
+        "insulation_degradation": {"rate": 0.0000013, "trajectory": "linear", "sigma": 0.12, "init_health": 1.0, "causes_device_fault": False},
+    },
 }
 _PREFIX = {"cnc_machining_center": "cnc", "air_compressor": "comp",
            "agv_mobile_robot": "agv", "robot_arm_6axis": "arm",
-           "semi_process_chamber": "chamber", "energy_meter": "em"}
+           "semi_process_chamber": "chamber", "energy_meter": "em",
+           "stamping_press": "press", "heat_treat_furnace": "furnace"}
 
 # LLM 路徑用:全 8 template 的 id 前綴 + 給模型的白話說明(讓它把自由描述映到最接近的型別)。
 # 不放 degradation —— 省略時各 template 會用自己的預設 + 個體差異抖動(見 templates/_common.build_components)。
 _ALL_PREFIX = {
     "cnc_machining_center": "cnc", "air_compressor": "comp", "agv_mobile_robot": "agv",
     "robot_arm_6axis": "arm", "injection_molding": "im", "semi_process_chamber": "chamber",
-    "energy_meter": "em", "wind_turbine": "wt",
+    "energy_meter": "em", "stamping_press": "press", "heat_treat_furnace": "furnace",
+    "wind_turbine": "wt",
 }
 _TEMPLATE_DESC = {
     "cnc_machining_center": "CNC 加工中心 / 工具機(主軸、刀具磨耗、軸承振動)",
@@ -76,6 +88,8 @@ _TEMPLATE_DESC = {
     "injection_molding": "塑膠射出成型機(鎖模力、料管溫、液壓泵)",
     "semi_process_chamber": "半導體製程腔體 / 鍍膜機(真空泵、製程漂移→良率)",
     "energy_meter": "電表 / 能源節點 / 變電(三相電壓電流、功因、能耗)",
+    "stamping_press": "沖壓機 / 沖床 / 鈑金(噸位、離合器/煞車、模具磨耗→毛邊)",
+    "heat_treat_furnace": "熱處理爐 / 退火爐(爐溫、加熱元件老化、保溫/密封→均勻性)",
     "wind_turbine": "風力發電機(風速-功率曲線、齒輪箱)",
 }
 _DUTY = ("continuous", "single_shift", "two_shift")

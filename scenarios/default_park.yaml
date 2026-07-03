@@ -1,4 +1,4 @@
-# 勤益智慧工業區 —— 取材自台中工業區 / 精密機械聚落代表廠商(23 間公司、~49 台設備)。
+# 勤益智慧工業區 —— 取材自台中工業區 / 精密機械聚落代表廠商(23 間公司、~51 台設備)。
 #
 # ⚠ 公司名稱與「主要產品」為公開資訊;本園區的設備、數據、運轉狀態全為合成(synthetic),
 #   並非任何公司的真實產線或量測值,僅供教學。
@@ -79,6 +79,7 @@ park:
       devices:
         - {id: cnc-08, template: cnc_machining_center}
         - {id: arm-05, template: robot_arm_6axis}
+        - {id: press-01, template: stamping_press}   # 水五金鈑金沖壓
 
     - id: c08
       name: "全立發機械"
@@ -97,6 +98,7 @@ park:
       devices:
         - {id: cnc-09, template: cnc_machining_center}
         - {id: cnc-10, template: cnc_machining_center}
+        - {id: furnace-01, template: heat_treat_furnace}   # 精密件熱處理爐
 
     - id: c10
       name: "麗偉電腦機械"

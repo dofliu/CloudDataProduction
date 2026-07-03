@@ -503,6 +503,21 @@ export default function WorldView({
         for (let i = 0; i < 3; i++) { const on = running && Math.sin(animT * 4 + i * 2) > -0.2;
           g.circle(-7 + i * 7, 12, 2.4).fill(on ? [0xff6b6b, 0xffd479, 0x6cf0a0][i] : 0x46506a); } // L1/L2/L3 指示燈
         g.circle(10, -6, 2).fill(running ? 0xffe08a : 0x6b7488);                                  // 電力 LED
+      } else if (tmpl === "stamping_press") {
+        // 沖壓機:C 型機架 + 上下往復滑塊(運轉時衝壓)
+        g.roundRect(-16, -18, 10, 44, 2).fill(0x3a4658).stroke({ width: 1, color: 0x4d5e7e });    // 立柱
+        g.roundRect(-16, -18, 34, 8, 2).fill(0x46587a);                                           // 上樑
+        g.roundRect(-16, 20, 34, 8, 2).fill(darken(col, 0.7));                                     // 工作台
+        const press = running ? Math.abs(Math.sin(animT * 6)) : 0.2;
+        g.roundRect(0, -8 + press * 16, 16, 8, 1.5).fill(0x8a93a6).stroke({ width: 1, color: 0x5b6b8e }); // 滑塊
+        g.rect(2, 24, 12, 3).fill(running ? 0xffd479 : 0x6b7488);                                  // 工件
+      } else if (tmpl === "heat_treat_furnace") {
+        // 熱處理爐:爐體 + 爐門(運轉時橘紅輝光脈動)+ 排氣管
+        g.roundRect(-18, -8, 36, 34, 4).fill(0x40382f).stroke({ width: 1, color: 0x5a4d3e });      // 爐體(耐火磚色)
+        const heat = running ? 0.55 + 0.35 * Math.abs(Math.sin(animT * 2)) : 0.1;
+        g.roundRect(-11, 0, 22, 18, 2).fill({ color: running ? 0xff7a3a : 0x3a2a22, alpha: heat }); // 爐門輝光
+        g.roundRect(-11, 0, 22, 18, 2).stroke({ width: 1.5, color: 0x6b5036 });
+        g.rect(10, -16, 5, 10).fill(0x9fb0c4);                                                      // 排氣管
       } else {
         g.roundRect(-16, -4, 32, 26, 3).fill(0x3a4356).stroke({ width: 1, color: col });
       }

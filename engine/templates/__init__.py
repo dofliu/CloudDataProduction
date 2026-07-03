@@ -12,9 +12,11 @@ from .agv_mobile_robot import build as _build_agv
 from .air_compressor import build as _build_compressor
 from .cnc_machining_center import build as _build_cnc
 from .energy_meter import build as _build_energy
+from .heat_treat_furnace import build as _build_furnace
 from .injection_molding import build as _build_injection
 from .robot_arm_6axis import build as _build_arm
 from .semi_process_chamber import build as _build_semi
+from .stamping_press import build as _build_press
 from .wind_turbine import build as _build_wind
 
 # template 名稱 → builder
@@ -26,6 +28,8 @@ _REGISTRY: Dict[str, Callable] = {
     "injection_molding": _build_injection,
     "semi_process_chamber": _build_semi,
     "energy_meter": _build_energy,
+    "stamping_press": _build_press,
+    "heat_treat_furnace": _build_furnace,
     "wind_turbine": _build_wind,
 }
 

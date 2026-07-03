@@ -344,7 +344,10 @@ def create_app(
                 raise HTTPException(422, str(e))
         else:
             raise HTTPException(422, "需提供 description 或 yaml")
-        return world.add_company(company_cfg)
+        result = world.add_company(company_cfg)
+        result["via"] = company_cfg.get("_via")          # llm / rule(給前端顯示走哪條)
+        result["summary"] = company_cfg.get("_summary")
+        return result
 
     # 情境腳本(災難日):列出公開,執行需 teacher token
     @app.get("/api/scenarios")

@@ -96,7 +96,8 @@ export default function TeacherView({
   const doFactory = async () => {
     try {
       const r = await createFactory(factoryDesc);
-      setMsg(`已建廠:${r?._summary ?? r?.name ?? "新公司"}（2D 世界已更新;原生協定埠需重啟 server)`);
+      const via = r?.via === "llm" ? "🤖 AI 解析" : "規則式";
+      setMsg(`已建廠(${via}):${r?.summary ?? r?.name ?? "新公司"}（2D 世界已更新;原生協定埠需重啟 server)`);
       onParkChanged();   // 重抓 park → 2D 世界 / 目錄 / OEE 顯示新公司
     } catch (e: any) {
       const hint = String(e.message).includes("401") ? "先填 dev-teacher-token 並儲存"
@@ -136,10 +137,13 @@ export default function TeacherView({
       <h3>建廠（自然語言)</h3>
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         <input value={factoryDesc} onChange={(e) => setFactoryDesc(e.target.value)}
-               placeholder="例:建一間有 3 台機械手臂的公司" style={{ ...inp, width: 360 }} />
+               placeholder="例:半導體封裝廠,3 台手臂 + 2 台製程腔體 + 1 台電表" style={{ ...inp, width: 420 }} />
         <button style={{ ...btn, background: "#37d67a", color: "#08121e" }} onClick={doFactory}>＋ 建立公司</button>
       </div>
-      <div className="hint" style={{ marginTop: 4 }}>支援:CNC / 空壓機 / AGV / 機械手臂 / 半導體腔體 / 電表 + 數量(如「5 台 CNC」)。建立後即時長出新公司。</div>
+      <div className="hint" style={{ marginTop: 4 }}>
+        設了 Gemini key → 🤖 AI 解析自由描述、可<b>多型別混搭</b>;否則規則式(單一型別 + 數量)。
+        設備:CNC / 空壓機 / AGV / 機械手臂 / 射出機 / 半導體腔體 / 電表 / 風機。建立後即時長出新公司。
+      </div>
 
       {/* 故障注入 */}
       <h3 style={{ marginTop: 22 }}>注入故障</h3>

@@ -3,7 +3,7 @@ name_zh: 雲端生產數據導論 — 虛擬智慧工業區教學平台
 category: edtech
 progress: 99
 status: active
-last_updated: "2026-07-02"
+last_updated: "2026-07-04"
 next_milestone: "對外接入(Cloudflare Tunnel + Tailscale)——待能存取校內 5090 主機"
 technologies:
   - Python 3.11
@@ -21,6 +21,7 @@ technologies:
   - TypeScript
   - PixiJS
   - FastMCP
+  - Gemini API
 category_note: "公司取材自台中精密機械聚落代表廠商(上銀/友嘉/東台/台中精機/大立光/成霖等);數據全為合成"
 outputs:
   - course

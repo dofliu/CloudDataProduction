@@ -57,9 +57,23 @@ class ModbusMultiPortAdapter:
     async def on_snapshot(self, snapshot: dict) -> None:
         for device in self.world.devices.values():
             slave = self._slaves.get(device.id)
-            if slave is None:                       # 熱載入設備無專屬埠(需重啟)
-                continue
+            if slave is None:                       # 熱載入設備 → 起一個新的專屬埠 server
+                slave = self._hot_add(device)
             apply_device_to_slave(slave, device)    # holding + discrete input + input register
+
+    def _hot_add(self, device) -> ModbusSlaveContext:
+        """執行時為熱載入設備配新專屬埠、起 server task,立即上線不必重啟。
+        埠取現有最大 + 1(避開既有專屬埠);port_map 與目錄同一參考,目錄自動反映。"""
+        port = max(self.port_map.values(), default=self.base_port - 1) + 1
+        slave = _new_slave()
+        self.port_map[device.id] = port
+        self._slaves[device.id] = slave
+        ctx = ModbusServerContext(slaves=slave, single=True)
+        self._contexts[device.id] = ctx
+        self._tasks.append(asyncio.create_task(
+            StartAsyncTcpServer(context=ctx, address=(self.host, port))))
+        print(f"[modbus-mp] 熱加設備 {device.id} 專屬埠 {port} 即時上線,免重啟")
+        return slave
 
     # ── 啟動:每台一個 server task ─────────────────────────
     def start_background(self) -> None:

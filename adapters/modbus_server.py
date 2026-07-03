@@ -149,8 +149,17 @@ class ModbusAdapter:
             unit_id = (device.protocols.get("modbus", {}) or {}).get("unit_id", 1)
             slave = self._slaves.get(unit_id)
             if slave is None:
-                continue
+                slave = self._hot_add(device, unit_id)   # 熱載入設備(NL/LLM 建廠)→ 動態建 slave
             apply_device_to_slave(slave, device)   # holding + discrete input + input register
+
+    def _hot_add(self, device, unit_id: int) -> "ModbusSlaveContext":
+        """執行時新增一台設備的 slave context。self._slaves 與 ModbusServerContext._slaves
+        在 single=False 下是同一個 dict(見 pymodbus),塞進去即刻對連線中的 client 生效,不必重啟。"""
+        on_write = _coil_writer(device) if self.writable_coils else None
+        slave = _new_slave(on_coil_write=on_write)
+        self._slaves[unit_id] = slave
+        print(f"[modbus] 熱加設備 {device.id}(unit_id={unit_id})即時上線,免重啟")
+        return slave
 
     # ── 啟動 ────────────────────────────────────────────────
     async def start(self) -> None:

@@ -35,37 +35,44 @@ class OpcUaAdapter:
         self.server.set_server_name("CloudDataProduction OPC-UA (synthetic)")
         self._idx = await self.server.register_namespace("http://clouddata.dof")
 
-        objects = self.server.nodes.objects
         for device in self.world.devices.values():
-            folder_path = (device.protocols.get("opcua", {}) or {}).get(
-                "node_folder", f"{device.company_id}/{device.id}"
-            )
-            folder = await self._ensure_folder(objects, folder_path)
-            self._nodes[device.id] = {}
-            for tag in device.tags:
-                is_float = tag.datatype == "float32"
-                initial = 0.0 if is_float else 0
-                node = await folder.add_variable(self._idx, tag.name, initial)
-                self._nodes[device.id][tag.name] = (node, tag.datatype)
-            # 離散輸入(唯讀布林)+ 輸入暫存器(唯讀整數):與 Modbus FC02/FC04 對應
-            self._di_nodes[device.id] = []
-            for p in device.discrete_inputs:
-                node = await folder.add_variable(self._idx, f"di_{p.name}", False)
-                self._di_nodes[device.id].append((p, node))
-            self._ir_nodes[device.id] = []
-            for p in device.input_registers:
-                leaf = p.opcua_node.rsplit("/", 1)[-1]
-                node = await folder.add_variable(self._idx, leaf, 0)
-                self._ir_nodes[device.id].append((p, node))
-            # 命令線圈(唯讀布林反射;寫入走 REST/控制埠)
-            self._co_nodes[device.id] = []
-            for c in device.command_coils:
-                node = await folder.add_variable(self._idx, f"co_{c.name}", False)
-                self._co_nodes[device.id].append((c, node))
+            await self._add_device(device)
 
         await self.server.start()
         self._started = True
         print(f"[opcua] server 啟動於 {self.endpoint}")
+
+    async def _add_device(self, device) -> None:
+        """為一台設備建位址空間節點。start() 初建 + 熱載入(NL/LLM 建廠)時動態加 ——
+        asyncua 支援 server 執行後再加 node,新設備立即可瀏覽,不必重啟。"""
+        if device.id in self._nodes:
+            return
+        objects = self.server.nodes.objects
+        folder_path = (device.protocols.get("opcua", {}) or {}).get(
+            "node_folder", f"{device.company_id}/{device.id}"
+        )
+        folder = await self._ensure_folder(objects, folder_path)
+        self._nodes[device.id] = {}
+        for tag in device.tags:
+            is_float = tag.datatype == "float32"
+            initial = 0.0 if is_float else 0
+            node = await folder.add_variable(self._idx, tag.name, initial)
+            self._nodes[device.id][tag.name] = (node, tag.datatype)
+        # 離散輸入(唯讀布林)+ 輸入暫存器(唯讀整數):與 Modbus FC02/FC04 對應
+        self._di_nodes[device.id] = []
+        for p in device.discrete_inputs:
+            node = await folder.add_variable(self._idx, f"di_{p.name}", False)
+            self._di_nodes[device.id].append((p, node))
+        self._ir_nodes[device.id] = []
+        for p in device.input_registers:
+            leaf = p.opcua_node.rsplit("/", 1)[-1]
+            node = await folder.add_variable(self._idx, leaf, 0)
+            self._ir_nodes[device.id].append((p, node))
+        # 命令線圈(唯讀布林反射;寫入走 REST/控制埠)
+        self._co_nodes[device.id] = []
+        for c in device.command_coils:
+            node = await folder.add_variable(self._idx, f"co_{c.name}", False)
+            self._co_nodes[device.id].append((c, node))
 
     async def _ensure_folder(self, objects, path: str):
         """依 'c01/cnc-01' 建巢狀資料夾,公司層共用。"""
@@ -83,7 +90,10 @@ class OpcUaAdapter:
         for device in self.world.devices.values():
             nodes = self._nodes.get(device.id)
             if not nodes:
-                continue
+                await self._add_device(device)          # 熱載入設備 → 動態建 node,立即可瀏覽
+                nodes = self._nodes.get(device.id)
+                if not nodes:
+                    continue
             for tag in device.tags:
                 node_dt = nodes.get(tag.name)
                 if not node_dt:

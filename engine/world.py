@@ -114,8 +114,8 @@ class World:
         self.park.setdefault("companies", []).append(company_cfg)
         return {
             "company": cid, "name": company_cfg.get("name"), "devices": built,
-            "note": "已即時加入:引擎/2D世界/WS/目錄/工單皆生效;"
-                    "原生協定(Modbus/OPC-UA/MQTT)需重啟 server 才會暴露新設備。",
+            "note": "已即時加入:引擎/2D世界/WS/目錄/工單,以及原生協定"
+                    "(Modbus channel-mux / OPC-UA / MQTT,含 multi_port 專屬埠)皆即時生效,不必重啟 server。",
         }
 
     # ── 訂閱 ────────────────────────────────────────────────

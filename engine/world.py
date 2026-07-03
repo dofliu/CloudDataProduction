@@ -275,6 +275,7 @@ class World:
                         "discrete_input": "FC02,狀態旗標 bit(唯讀)",
                         "input_register": "FC04,唯讀 int(狀態碼 / 量測縮放鏡像,工程單位 = 值 / scale)",
                         "coil": "FC01 讀(學生唯讀看命令狀態)/ FC05 寫(教師:REST token 或教師控制埠)",
+                        "setpoint": "FC03 讀 / FC06 寫(★學生可寫,受控範圍;raw = 工程值 × scale,見各設備 setpoints)",
                     },
                     "note": "各點位 object / fc / address 見本設備 tags、discrete_inputs、input_registers;"
                             "holding 第 1 格是 state(int16),float 量測由第 2 格起",

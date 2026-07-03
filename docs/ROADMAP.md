@@ -59,8 +59,8 @@
 
 ## 🔭 未來想法 · Future Ideas
 
-- 讀寫控制進階(已起步):命令線圈 `run_enable` / `reset_fault` 已可寫(教師)。下一步可開放學生在受控範圍寫
-  setpoint(寫 holding 改節拍 / 溫度目標)。Coils done for teacher; next: student-writable setpoints.
+- ✅ 讀寫控制:命令線圈 `run_enable` / `reset_fault`(教師)+ **學生可寫設定點**(受控範圍,holding FC06:
+  空壓機 pressure、CNC spindle rpm;後端夾限、越界 snap、量測仍唯讀)。Coils (teacher) + student-writable setpoints done.
 - 階段二評分擴充:F1、RUL RMSE、誤報率細化。Richer Stage-2 metrics (F1, RUL RMSE).
 - 美術升級:導入 Kenney.nl CC0 等距素材取代 Graphics 幾何。Swap Graphics primitives for Kenney CC0 art.
 - 本機 LLM + RAG 故障診斷助手(接 wind-turbine MCP / TAG-Wind 知識庫)。Local LLM + RAG diagnosis assistant.

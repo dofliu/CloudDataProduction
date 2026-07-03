@@ -9,7 +9,7 @@ from typing import Optional
 
 import numpy as np
 
-from ..device import STATE_CODES, Device, DutyProfile
+from ..device import STATE_CODES, Device, DutyProfile, SetPoint
 from ..signals import ThermalLag, gaussian_noise, health_of
 from ._common import build_components, build_tags, default_seed
 
@@ -56,11 +56,12 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
     nrng = np.random.default_rng(int(rng.integers(0, 2**31)))
 
     def drv_pressure(op, comps, dt):
+        target = device.setpoint("pressure_setpoint", NOM_PRESSURE_BAR)   # 學生可寫出口壓目標
         h_valve = health_of(comps, "valve_wear")
         if not op["running"]:                    # unloaded:壓力略降
-            return NOM_PRESSURE_BAR - 0.6 + gaussian_noise(nrng, 0.03)
+            return target - 0.6 + gaussian_noise(nrng, 0.03)
         droop = 0.4 * (1.0 - h_valve)            # 閥件磨耗 → 供壓略降
-        return NOM_PRESSURE_BAR - droop + gaussian_noise(nrng, 0.05)
+        return target - droop + gaussian_noise(nrng, 0.05)
 
     def drv_flow(op, comps, dt):
         if not op["running"]:
@@ -74,7 +75,8 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
             return 2.0 + gaussian_noise(nrng, 0.05)
         h_bearing = health_of(comps, "motor_bearing")
         h_filter = health_of(comps, "filter_clog")
-        base = 18.0 + 0.08 * op["load"]
+        target = device.setpoint("pressure_setpoint", NOM_PRESSURE_BAR)
+        base = 18.0 + 0.08 * op["load"] + 2.2 * (target - NOM_PRESSURE_BAR)  # 目標壓越高 → 越費力 → 電流升
         clog = 6.0 * (1.0 - h_filter)            # 濾網阻塞 → 更費力 → 電流升
         friction = 3.0 * (1.0 - h_bearing)       # 軸承摩擦 → 電流升
         return base + clog + friction + gaussian_noise(nrng, 0.12)
@@ -108,10 +110,12 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
         qual = max(0.7, 1.0 - (1.0 - health_of(comps, "valve_wear")) * 0.3)
         return perf, qual
 
+    setpoints = [SetPoint(name="pressure_setpoint", register=100, unit="bar",
+                          min=5.0, max=9.0, default=NOM_PRESSURE_BAR, scale=10.0)]  # 學生可寫(5~9 bar)
     device = Device(
         device_id=device_id, template="air_compressor", tags=tags,
         components=components, duty=duty, protocols=protocols, company_id=company_id,
-        oee_fn=oee_fn,
+        oee_fn=oee_fn, setpoints=setpoints,
     )
     tag_by_name["state"].driver = lambda op, comps, dt: float(STATE_CODES.get(device.state, 0))
     return device

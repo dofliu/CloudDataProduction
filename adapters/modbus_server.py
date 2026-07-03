@@ -142,6 +142,7 @@ class ModbusAdapter:
 
         self.context = ModbusServerContext(slaves=self._slaves, single=False)
         self._server_task: asyncio.Task | None = None
+        self._sp_reflected: dict = {}          # (device_id, setpoint) → 上次反射的 raw(偵測 client 寫入用)
 
     # ── 訂閱者:每 tick 把 snapshot 寫進 registers ──────────
     async def on_snapshot(self, snapshot: dict) -> None:
@@ -151,6 +152,28 @@ class ModbusAdapter:
             if slave is None:
                 slave = self._hot_add(device, unit_id)   # 熱載入設備(NL/LLM 建廠)→ 動態建 slave
             apply_device_to_slave(slave, device)   # holding + discrete input + input register
+            if device.setpoints:
+                self._sync_setpoints(slave, device)
+
+    def _sync_setpoints(self, slave, device) -> None:
+        """學生可寫設定點(唯一開放學生寫的 holding)。diff-sync:讀回暫存器 → 若被 client(FC06)改過
+        → 夾限套用到引擎;再把夾限後的值反射回暫存器(讀回一致、越界自動 snap 回範圍)。
+        與 REST 寫入並存:REST 改 device.value → 這裡把新值反射回暫存器,不會被舊 raw 蓋掉。"""
+        for sp in device.setpoints:
+            key = (device.id, sp.name)
+            try:
+                raw = slave.getValues(3, sp.register, 1)[0]
+            except Exception:
+                continue
+            last = self._sp_reflected.get(key)
+            if last is not None and raw != last:            # client 透過 FC06 寫了新值
+                device.set_setpoint(sp.name, raw / sp.scale)
+            clamped_raw = int(round(sp.value * sp.scale))    # 引擎目前值(含 REST 寫入)→ 反射
+            try:
+                slave.setValues(3, sp.register, [clamped_raw])
+            except Exception:
+                pass
+            self._sp_reflected[key] = clamped_raw
 
     def _hot_add(self, device, unit_id: int) -> "ModbusSlaveContext":
         """執行時新增一台設備的 slave context。self._slaves 與 ModbusServerContext._slaves

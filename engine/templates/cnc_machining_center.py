@@ -12,7 +12,7 @@ from typing import Optional
 
 import numpy as np
 
-from ..device import STATE_CODES, Device, DutyProfile, Tag
+from ..device import STATE_CODES, Device, DutyProfile, SetPoint, Tag
 from ..signals import ThermalLag, gaussian_noise, health_of
 from ._common import build_components, default_seed
 
@@ -101,7 +101,8 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
     def drv_spindle_speed(op, comps, dt):
         if not op["running"]:
             return 0.0
-        return SPINDLE_NOM_RPM * op["speed_factor"] + gaussian_noise(nrng, 5.0)
+        target_rpm = device.setpoint("spindle_rpm_setpoint", SPINDLE_NOM_RPM)   # 學生可寫主軸轉速目標
+        return target_rpm * op["speed_factor"] + gaussian_noise(nrng, 5.0)
 
     def drv_spindle_load(op, comps, dt):
         return (op["load"] + gaussian_noise(nrng, 0.5)) if op["running"] else 0.0
@@ -161,6 +162,8 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
         qual = max(0.5, 1.0 - (1.0 - h_tool) * 0.45)      # 刀鈍 → 不良率升
         return perf, qual
 
+    setpoints = [SetPoint(name="spindle_rpm_setpoint", register=100, unit="rpm",
+                          min=2000.0, max=12000.0, default=SPINDLE_NOM_RPM, scale=1.0)]  # 學生可寫轉速目標
     device = Device(
         device_id=device_id,
         template="cnc_machining_center",
@@ -170,6 +173,7 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
         protocols=protocols,
         company_id=company_id,
         oee_fn=oee_fn,
+        setpoints=setpoints,
     )
 
     # state tag 反映設備狀態碼。driver 在 _update_state 之前執行,故落後 1 tick(0.1s),

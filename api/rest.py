@@ -37,6 +37,11 @@ class CoilRequest(BaseModel):
     value: bool = True
 
 
+class SetpointRequest(BaseModel):
+    name: str                       # 如 pressure_setpoint / spindle_rpm_setpoint
+    value: float                    # 工程值;後端一律夾限到該設定點範圍
+
+
 class FaultRequest(BaseModel):
     device: str
     fault_type: str                 # sudden/gradual/intermittent/cascading/sensor_*
@@ -298,6 +303,17 @@ def create_app(
     @app.get("/api/predictions/scores")
     def prediction_scores():
         return predictions.scores()
+
+    # 學生可寫設定點(公開,受控範圍):唯一開放學生寫的控制面;後端夾限保護。
+    @app.post("/api/devices/{device_id}/setpoint")
+    def write_setpoint(device_id: str, req: SetpointRequest):
+        device = world.devices.get(device_id)
+        if device is None:
+            raise HTTPException(404, f"無此設備:{device_id}")
+        result = device.set_setpoint(req.name, req.value)
+        if not result.get("ok"):
+            raise HTTPException(400, result.get("error", "設定點寫入失敗"))
+        return result
 
     # 學生認領公司(公開)
     def _save_owners():

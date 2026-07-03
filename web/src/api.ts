@@ -18,6 +18,7 @@ export interface DeviceSnapshot {
   discretes?: Record<string, boolean>;     // 離散輸入(FC02)
   input_regs?: Record<string, number>;     // 輸入暫存器(FC04)
   coils?: Record<string, boolean>;         // 命令線圈(FC01/05)
+  setpoints?: Record<string, number>;      // 學生可寫設定點(holding,受控範圍)
 }
 export interface TelemetryMsg {
   wall_t: number; sim_t: number; multiplier: number;
@@ -49,6 +50,11 @@ export interface CatalogCoil {
   name: string; object: string; fc_read: number; fc_write: number; datatype: string;
   access: string; momentary: boolean; address: number; opcua_node: string; mqtt_field: string;
 }
+export interface CatalogSetpoint {
+  name: string; object: string; fc_read: number; fc_write: number; datatype: string;
+  access: string; unit: string; scale: number; min: number; max: number; default: number;
+  register: number; opcua_node: string; mqtt_field: string;
+}
 export interface CatalogDevice {
   id: string; template: string; company_id: string;
   protocols: Record<string, any>;
@@ -56,6 +62,7 @@ export interface CatalogDevice {
   discrete_inputs?: CatalogDiscrete[];
   input_registers?: CatalogInputReg[];
   coils?: CatalogCoil[];
+  setpoints?: CatalogSetpoint[];
   connection: Record<string, any>;
 }
 export interface Catalog {
@@ -150,6 +157,11 @@ export const getScores = () => getJSON<{ ranking: ScoreRow[] }>("/api/scores");
 // 學生認領公司(公開,免 auth)
 export const claimCompany = (companyId: string, studentId: string) =>
   post(`/api/companies/${companyId}/claim`, { student_id: studentId });
+
+// 學生寫設定點(公開,受控範圍;後端夾限)
+export const setSetpoint = (id: string, name: string, value: number) =>
+  post(`/api/devices/${id}/setpoint`, { name, value }) as
+    Promise<{ ok: boolean; value: number; clamped: boolean; range: [number, number]; unit: string }>;
 
 // ── 階段二:預測(學生面公開)───────────────────────────
 export interface PredictionBody {

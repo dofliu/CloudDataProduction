@@ -90,6 +90,22 @@ class CoilPoint:
     value: bool = False
 
 
+@dataclass
+class SetPoint:
+    """學生可寫設定點(受控範圍)。holding register(FC03 讀 / FC06 寫),放在量測 tag 之上的位址,
+    引擎每 tick 不覆寫這格。raw(int16) = 工程值 × scale,學生用單一 FC06 就能寫;寫入一律夾限到 [min,max]。
+    這是**唯一**開放學生寫的東西(coil 仍教師才可寫);影響運轉點但不動隱藏 health,不違反鐵則 #1。"""
+
+    name: str
+    register: int                 # holding register 位址(建議 100+,避開量測 tag)
+    unit: str
+    min: float
+    max: float
+    default: float
+    scale: float = 1.0            # raw = EU × scale(int16 單格可寫)
+    value: float = 0.0            # 目前工程值(EU)
+
+
 class DutyProfile:
     """班表 / 負載輪廓,驅動運轉點(docs/02 §7)。
 
@@ -153,10 +169,15 @@ class Device:
         state_fn: Optional[Callable] = None,
         pre_step_fn: Optional[Callable] = None,
         oee_fn: Optional[Callable] = None,
+        setpoints: Optional[List["SetPoint"]] = None,
     ):
         self.id = device_id
         self.template = template
         self.tags = tags
+        # 學生可寫設定點(受控範圍);各自初始化為 default
+        self.setpoints: List[SetPoint] = setpoints or []
+        for _sp in self.setpoints:
+            _sp.value = _sp.default
         self.components: Dict[str, DegradationComponent] = {c.name: c for c in components}
         self.duty = duty
         self.protocols = protocols or {}
@@ -260,6 +281,28 @@ class Device:
             return {"ok": True, "device": self.id, "coil": name, "action": "reset" if value else "noop"}
         target.value = value
         return {"ok": True, "device": self.id, "coil": name, "value": value}
+
+    # ── 設定點(學生可寫,受控範圍)──────────────────────────
+    def setpoint(self, name: str, default: float = 0.0) -> float:
+        for s in self.setpoints:
+            if s.name == name:
+                return s.value
+        return default
+
+    def set_setpoint(self, name: str, value) -> dict:
+        """寫設定點:夾限到 [min,max] 後生效。Modbus FC06 與 REST 共用。"""
+        for s in self.setpoints:
+            if s.name == name:
+                try:
+                    raw = float(value)
+                except (TypeError, ValueError):
+                    return {"ok": False, "error": f"值非數字:{value}"}
+                v = max(s.min, min(s.max, raw))
+                out = {"ok": True, "device": self.id, "setpoint": name, "value": v,
+                       "clamped": v != raw, "range": [s.min, s.max], "unit": s.unit}
+                s.value = v
+                return out
+        return {"ok": False, "error": f"無此設定點:{name}(可寫的:{[x.name for x in self.setpoints]})"}
 
     def _update_derived_points(self) -> None:
         for p in self.discrete_inputs:
@@ -440,6 +483,7 @@ class Device:
             "discretes": {p.name: bool(p.value) for p in self.discrete_inputs},
             "input_regs": {p.name: p.value for p in self.input_registers},
             "coils": {c.name: bool(c.value) for c in self.command_coils},
+            "setpoints": {s.name: s.value for s in self.setpoints},
         }
 
     def ground_truth(self) -> dict:
@@ -526,5 +570,22 @@ class Device:
                     "mqtt_field": c.mqtt_field,
                 }
                 for c in self.command_coils
+            ],
+            "setpoints": [
+                {
+                    "name": s.name,
+                    "object": "holding_register",
+                    "fc_read": 3,
+                    "fc_write": 6,           # 學生用 FC06 寫單一暫存器
+                    "datatype": "int16",
+                    "access": "rw-student",  # ★ 唯一開放學生寫的:受控範圍設定點
+                    "unit": s.unit,
+                    "scale": s.scale,        # 工程值 = raw / scale
+                    "min": s.min, "max": s.max, "default": s.default,
+                    "register": s.register,
+                    "opcua_node": f"{self.company_id}/{self.id}/sp_{s.name}",
+                    "mqtt_field": f"sp_{s.name}",
+                }
+                for s in self.setpoints
             ],
         }

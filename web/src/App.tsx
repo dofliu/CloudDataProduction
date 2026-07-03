@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Catalog, EventMsg, Park, TelemetryMsg,
-  getCatalog, getPark, subscribe, STATUS_COLOR_CSS, getTeacherToken, resetDevice, setCoil,
+  Catalog, CatalogSetpoint, EventMsg, Park, TelemetryMsg,
+  getCatalog, getPark, subscribe, STATUS_COLOR_CSS, getTeacherToken, resetDevice, setCoil, setSetpoint,
 } from "./api";
 import WorldView from "./world/WorldView";
 import CatalogView from "./catalog/CatalogView";
@@ -52,6 +52,7 @@ export default function App() {
   const simHours = telemetry ? (telemetry.sim_t / 3600).toFixed(1) : "—";
   const mult = telemetry?.multiplier;
   const sel = selected && telemetry ? telemetry.devices[selected] : null;
+  const selSetpoints: CatalogSetpoint[] = catalog?.devices.find((d) => d.id === selected)?.setpoints ?? [];
 
   return (
     <div className="app">
@@ -197,6 +198,16 @@ export default function App() {
                       </div>
                     </>
                   )}
+
+                  {selSetpoints.length > 0 && (
+                    <>
+                      <div className="muted" style={{ fontSize: 12, margin: "10px 0 2px" }}>設定點 Setpoint（holding FC06,★ 學生可寫,受控範圍）</div>
+                      {selSetpoints.map((sp) => (
+                        <SetpointControl key={sp.name} deviceId={sel.id} sp={sp}
+                                         value={sel.setpoints?.[sp.name] ?? sp.default} onMsg={setResetMsg} />
+                      ))}
+                    </>
+                  )}
                 </>
               ) : (
                 <div className="muted">點公司進廠內 → 點設備看即時值。一公司一燈號:綠=正常、紅=有設備故障。</div>
@@ -239,6 +250,31 @@ export default function App() {
                                onParkChanged={() => getPark().then(setPark).catch(console.error)} />
         )}
       </div>
+    </div>
+  );
+}
+
+// 設定點寫入控制(學生面,公開免 token):輸入新值 → 寫入,後端夾限;顯示目前即時值。
+function SetpointControl({ deviceId, sp, value, onMsg }: {
+  deviceId: string; sp: CatalogSetpoint; value: number; onMsg: (m: string) => void;
+}) {
+  const [v, setV] = useState(String(value));
+  const write = async () => {
+    const num = parseFloat(v);
+    if (Number.isNaN(num)) { onMsg("請輸入數字"); return; }
+    try {
+      const r = await setSetpoint(deviceId, sp.name, num);
+      onMsg(`已寫 ${sp.name}=${r.value}${sp.unit}${r.clamped ? `(超範圍,夾限到 ${sp.min}~${sp.max})` : ""}`);
+    } catch (e: any) { onMsg(`寫入失敗:${e.message}`); }
+  };
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, margin: "3px 0", flexWrap: "wrap" }}>
+      <span style={{ fontSize: 12, color: "#c7d2e0", minWidth: 110 }}>{sp.name}</span>
+      <span className="muted" style={{ fontSize: 12, fontVariantNumeric: "tabular-nums" }}>目前 {value.toFixed(1)}{sp.unit}</span>
+      <input value={v} onChange={(e) => setV(e.target.value)} onKeyDown={(e) => e.key === "Enter" && write()}
+             style={{ width: 60, background: "#0f1620", color: "#e6ecf5", border: "1px solid #2e3a4d", borderRadius: 5, padding: "3px 6px", fontSize: 12 }} />
+      <button onClick={write} style={{ background: "#5b9bd5", color: "#08121e", border: "none", borderRadius: 5, padding: "3px 10px", cursor: "pointer", fontWeight: 600, fontSize: 12 }}>寫入</button>
+      <span className="muted" style={{ fontSize: 11, width: "100%" }}>範圍 {sp.min}~{sp.max} {sp.unit}(Modbus FC06 寫 register {sp.register},raw = 值 × {sp.scale})</span>
     </div>
   );
 }

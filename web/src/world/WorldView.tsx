@@ -21,6 +21,12 @@ function darken(c: number, f: number) {
   const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
   return ((Math.min(255, r * f) | 0) << 16) | ((Math.min(255, g * f) | 0) << 8) | (Math.min(255, b * f) | 0);
 }
+// 徑向發光(核心 + 兩層柔光暈):用於主軸 / 電漿 / 爐火 / LED 等「亮起來」的細節
+function emissive(g: Graphics, cx: number, cy: number, r: number, color: number, a = 1) {
+  g.circle(cx, cy, r * 2.7).fill({ color, alpha: 0.06 * a });
+  g.circle(cx, cy, r * 1.7).fill({ color, alpha: 0.12 * a });
+  g.circle(cx, cy, r).fill({ color, alpha: Math.min(1, 0.92 * a) });
+}
 const ROOFS = [0x3a4a63, 0x4a4036, 0x394f4a, 0x44485a, 0x53473a, 0x35506b, 0x4d3f4a];
 // 公司建築多彩色盤(較飽和,讓園區有大有小、多彩)
 const COMPANY_COLORS = [0x3f6ea5, 0x4a8a7b, 0xb5743a, 0x7a5ca8, 0x4f9d5b, 0xa85a6a,
@@ -461,6 +467,9 @@ export default function WorldView({
 
     function drawStation(g: Graphics, tmpl: string, t: Record<string, number>, running: boolean, animT: number, col: number,
                          armCtx?: { tx: number; ty: number; carrying: boolean } | null) {
+      // 接地徑向陰影(讓每台機台坐在地上、有量體感)
+      g.ellipse(1, 27, 27, 11).fill({ color: 0x000000, alpha: 0.13 });
+      g.ellipse(0, 26, 22, 9).fill({ color: 0x000000, alpha: 0.14 });
       if (tmpl === "robot_arm_6axis") {
         // 六軸手臂:底座 + 轉盤 + 兩節臂 IK 伸向目標 + 夾爪(編排驅動,平滑不跳動)
         g.ellipse(0, 22, 20, 9).fill(0x2c3650);                       // 地座陰影
@@ -482,22 +491,31 @@ export default function WorldView({
         if (armCtx?.carrying) g.roundRect(end.x - 5, end.y - 4, 10, 9, 1.5).fill(0xd9a441).stroke({ width: 1, color: 0x8a6b2e }); // 夾持工件
       } else if (tmpl === "cnc_machining_center") {
         g.roundRect(-20, -4, 40, 30, 3).fill(0x37445c).stroke({ width: 1, color: 0x4a5a78 });
-        g.roundRect(-14, -22, 28, 18, 3).fill(0x2c3850);              // 主軸箱
+        g.rect(-20, -4, 40, 7).fill({ color: 0x4c6088, alpha: 0.45 });           // 頂部受光高光
+        g.roundRect(-14, -22, 28, 18, 3).fill(0x2c3850).stroke({ width: 1, color: 0x3d4c66 }); // 主軸箱
+        g.roundRect(8, -1, 10, 8, 1.5).fill(running ? 0x0f2e1e : 0x1c1414);      // HMI 螢幕
+        g.rect(9.5, 1.5, 7, 1.4).fill(running ? 0x6cf0a0 : 0x5a2a2a);
         const spin = running ? animT * 9 : 0; const sx = Math.cos(spin) * 7;
-        g.moveTo(-sx, -13).lineTo(sx, -13).stroke({ width: 3, color: running ? 0xffd479 : 0x6b7488 });
+        if (running) emissive(g, 0, -13, 3.2, 0xffd479, 0.55 + 0.45 * Math.abs(Math.sin(animT * 4))); // 主軸暖黃發光
+        g.moveTo(-sx, -13).lineTo(sx, -13).stroke({ width: 3, color: running ? 0xffe6a0 : 0x6b7488 });
         g.circle(0, -13, 2).fill(0x8a93a6);
         g.rect(-16, 20, 32, 4).fill(darken(col, 0.7));               // 護門底飾
       } else if (tmpl === "injection_molding") {
         g.roundRect(-26, 0, 22, 24, 3).fill(0x3a4a44).stroke({ width: 1, color: 0x4d6158 });   // 鎖模單元
+        g.rect(-26, 0, 22, 6).fill({ color: 0x51695f, alpha: 0.45 });                            // 頂高光
         const clamp = running ? 3 + 3 * Math.abs(Math.sin(animT * 2)) : 6;
         g.rect(-6 - clamp, 4, 6, 16).fill(0x5b7a6e); g.rect(0, 4, 6, 16).fill(0x5b7a6e);        // 動/定模板
         g.roundRect(6, 6, 26, 12, 3).fill(0x46506a).stroke({ width: 1, color: 0x5b6b8e });      // 射出單元
+        if (running) emissive(g, 14, 12, 3, 0xff8c3c, 0.6);                                      // 加熱段橘光
         g.circle(32, 12, 3).fill(running ? 0xffd479 : 0x6b7488);                                 // 料斗
       } else if (tmpl === "air_compressor") {
         g.roundRect(-18, -4, 36, 28, 6).fill(0x3a4a44).stroke({ width: 1, color: 0x4d6158 });    // 桶
+        g.rect(-18, -4, 36, 7).fill({ color: 0x51695f, alpha: 0.4 });                            // 頂高光
         const rot = running ? animT * 6 : 0;
         for (let i = 0; i < 4; i++) { const a = rot + i * Math.PI / 2; g.moveTo(0, 8).lineTo(Math.cos(a) * 10, 8 + Math.sin(a) * 10).stroke({ width: 3, color: running ? 0x9fe0c0 : 0x6b7488 }); }
         g.circle(0, 8, 2.5).fill(0x8a93a6);
+        const pl = running && Math.sin(animT * 3) > 0;
+        g.circle(13, -0, 2).fill(pl ? 0x35d07a : 0x2a4a38);                                       // 壓力綠燈脈動
       } else if (tmpl === "wind_turbine") {
         g.poly([-3, 26, 3, 26, 1.5, -14, -1.5, -14]).fill(0xc9d4e4);                              // 塔
         g.roundRect(-5, -18, 14, 7, 2).fill(0x9fb0c4);                                            // 機艙
@@ -509,33 +527,38 @@ export default function WorldView({
       } else if (tmpl === "semi_process_chamber") {
         // 製程腔體:腔身 + 觀景窗(運轉時電漿輝光脈動)+ 上方氣管 + 下方真空泵
         g.roundRect(-18, -6, 34, 30, 6).fill(0x2f3a52).stroke({ width: 1, color: 0x4a5a78 });     // 腔身
-        const glow = running ? 0.55 + 0.35 * Math.abs(Math.sin(animT * 3)) : 0.12;
-        g.circle(-1, 8, 9).fill({ color: running ? 0x8f6bd6 : 0x3a4660, alpha: glow });           // 電漿輝光
+        g.rect(-18, -6, 34, 7).fill({ color: 0x445273, alpha: 0.45 });                             // 頂高光
+        if (running) emissive(g, -1, 8, 8, 0x8f6bd6, 0.5 + 0.4 * Math.abs(Math.sin(animT * 3)));   // 電漿輝光
+        else g.circle(-1, 8, 8).fill({ color: 0x3a4660, alpha: 0.25 });
         g.circle(-1, 8, 9).stroke({ width: 2, color: 0x6b7da0 });                                 // 觀景窗框
         g.rect(-12, -12, 4, 7).fill(0x9fb0c4); g.rect(6, -12, 4, 7).fill(0x9fb0c4);               // 兩支氣管
         g.roundRect(-10, 22, 22, 8, 2).fill(darken(col, 0.7)).stroke({ width: 1, color: 0x4a5a78 }); // 真空泵
       } else if (tmpl === "energy_meter") {
         // 配電 / 電表箱:箱體 + 數字面板 + 三相指示燈 + 電力 LED(運轉時脈動)
         g.roundRect(-15, -10, 30, 34, 3).fill(0x394a40).stroke({ width: 1, color: 0x4d6158 });    // 箱體
-        g.roundRect(-11, -6, 22, 9, 1.5).fill(0x12331f);                                          // 數字面板
+        g.rect(-15, -10, 30, 7).fill({ color: 0x51695f, alpha: 0.4 });                             // 頂高光
+        g.roundRect(-11, -6, 22, 9, 1.5).fill(0x0c2417);                                          // 數字面板
         g.rect(-9, -1, 18, 2).fill(running ? 0x6cf0a0 : 0x3a6b50);                                // 面板讀數
         for (let i = 0; i < 3; i++) { const on = running && Math.sin(animT * 4 + i * 2) > -0.2;
-          g.circle(-7 + i * 7, 12, 2.4).fill(on ? [0xff6b6b, 0xffd479, 0x6cf0a0][i] : 0x46506a); } // L1/L2/L3 指示燈
+          const cc = [0xff6b6b, 0xffd479, 0x6cf0a0][i];
+          if (on) emissive(g, -7 + i * 7, 12, 2.4, cc, 0.9); else g.circle(-7 + i * 7, 12, 2.4).fill(0x46506a); } // L1/L2/L3
         g.circle(10, -6, 2).fill(running ? 0xffe08a : 0x6b7488);                                  // 電力 LED
       } else if (tmpl === "stamping_press") {
         // 沖壓機:C 型機架 + 上下往復滑塊(運轉時衝壓)
         g.roundRect(-16, -18, 10, 44, 2).fill(0x3a4658).stroke({ width: 1, color: 0x4d5e7e });    // 立柱
         g.roundRect(-16, -18, 34, 8, 2).fill(0x46587a);                                           // 上樑
         g.roundRect(-16, 20, 34, 8, 2).fill(darken(col, 0.7));                                     // 工作台
-        const press = running ? Math.abs(Math.sin(animT * 6)) : 0.2;
-        g.roundRect(0, -8 + press * 16, 16, 8, 1.5).fill(0x8a93a6).stroke({ width: 1, color: 0x5b6b8e }); // 滑塊
+        const pr = running ? Math.abs(Math.sin(animT * 6)) : 0.2;
+        if (running && pr > 0.9) emissive(g, 8, 23, 4, 0xffe6a0, 1.2 * (pr - 0.9) * 10);           // 衝壓瞬間亮點
+        g.roundRect(0, -8 + pr * 16, 16, 8, 1.5).fill(0x9aa6ba).stroke({ width: 1, color: 0x5b6b8e }); // 滑塊
         g.rect(2, 24, 12, 3).fill(running ? 0xffd479 : 0x6b7488);                                  // 工件
       } else if (tmpl === "heat_treat_furnace") {
         // 熱處理爐:爐體 + 爐門(運轉時橘紅輝光脈動)+ 排氣管
         g.roundRect(-18, -8, 36, 34, 4).fill(0x40382f).stroke({ width: 1, color: 0x5a4d3e });      // 爐體(耐火磚色)
-        const heat = running ? 0.55 + 0.35 * Math.abs(Math.sin(animT * 2)) : 0.1;
-        g.roundRect(-11, 0, 22, 18, 2).fill({ color: running ? 0xff7a3a : 0x3a2a22, alpha: heat }); // 爐門輝光
-        g.roundRect(-11, 0, 22, 18, 2).stroke({ width: 1.5, color: 0x6b5036 });
+        g.rect(-18, -8, 36, 7).fill({ color: 0x55483a, alpha: 0.5 });                              // 頂高光
+        if (running) { emissive(g, 0, 9, 10, 0xff7a3a, 0.5 + 0.35 * Math.abs(Math.sin(animT * 2))); // 爐門橘紅火光
+          g.roundRect(-11, 0, 22, 18, 2).stroke({ width: 1.5, color: 0xffb072 }); }
+        else { g.roundRect(-11, 0, 22, 18, 2).fill(0x2a1e18).stroke({ width: 1.5, color: 0x6b5036 }); }
         g.rect(10, -16, 5, 10).fill(0x9fb0c4);                                                      // 排氣管
       } else {
         g.roundRect(-16, -4, 32, 26, 3).fill(0x3a4356).stroke({ width: 1, color: col });

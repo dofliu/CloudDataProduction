@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Application, Container, Graphics, Text } from "pixi.js";
+import { Application, Container, Graphics, Text, FillGradient } from "pixi.js";
 import { Park, Company, TelemetryMsg, colorOf, worstState } from "../api";
 
 // ── 俯瞰格狀佈局 ───────────────────────────────────────
@@ -27,6 +27,155 @@ function emissive(g: Graphics, cx: number, cy: number, r: number, color: number,
   g.circle(cx, cy, r * 1.7).fill({ color, alpha: 0.12 * a });
   g.circle(cx, cy, r).fill({ color, alpha: Math.min(1, 0.92 * a) });
 }
+
+// ── 等距金屬量體(移植設計稿 box():三面線性漸層 + 頂面亮邊)────────────
+const MTW = 30, MTH = 15;   // 機台等距 tile(設計稿數值)
+type P2 = [number, number];
+function lgrad(x0: number, y0: number, x1: number, y1: number, c0: number, c1: number): FillGradient {
+  return new FillGradient({ type: "linear", start: { x: x0, y: y0 }, end: { x: x1, y: y1 }, textureSpace: "global",
+    colorStops: [{ offset: 0, color: c0 }, { offset: 1, color: c1 }] });
+}
+function rgrad(cx: number, cy: number, r: number, core: string): FillGradient {
+  return new FillGradient({ type: "radial", center: { x: cx, y: cy }, innerRadius: 0,
+    outerCenter: { x: cx, y: cy }, outerRadius: r, textureSpace: "global",
+    colorStops: [{ offset: 0, color: core }, { offset: 1, color: "rgba(0,0,0,0)" }] });
+}
+// 等距立方體:anchor=(ox,oy) 為地面原點角;w/d/h 為寬/深/高。三面各一漸層。
+function isoBox3(g: Graphics, ox: number, oy: number, w: number, d: number, h: number, pal: { top: number; left: number; right: number }) {
+  const A: P2 = [ox, oy], B: P2 = [ox + w * MTW, oy + w * MTH], C: P2 = [ox + w * MTW - d * MTW, oy + w * MTH + d * MTH], D: P2 = [ox - d * MTW, oy + d * MTH];
+  const up = (p: P2): P2 => [p[0], p[1] - h];
+  const Au = up(A), Bu = up(B), Cu = up(C), Du = up(D);
+  g.poly([D[0], D[1], C[0], C[1], Cu[0], Cu[1], Du[0], Du[1]]).fill(lgrad(Du[0], Du[1], C[0], C[1], darken(pal.left, 1.18), darken(pal.left, 0.82)));   // 左面
+  g.poly([C[0], C[1], B[0], B[1], Bu[0], Bu[1], Cu[0], Cu[1]]).fill(lgrad(Cu[0], Cu[1], B[0], B[1], darken(pal.right, 1.12), darken(pal.right, 0.88))); // 右面
+  g.poly([Au[0], Au[1], Bu[0], Bu[1], Cu[0], Cu[1], Du[0], Du[1]]).fill(lgrad(Au[0], Au[1], Cu[0], Cu[1], darken(pal.top, 1.1), darken(pal.top, 0.95)))
+    .stroke({ width: 1, color: darken(pal.top, 1.4) });                                                                                                // 頂面 + 亮邊
+  return { A, B, C, D, Au, Bu, Cu, Du };
+}
+function ishadow(g: Graphics, cx: number, cy: number, rx: number, ry: number, a: number) {
+  g.ellipse(cx, cy, rx, ry).fill(rgrad(cx, cy, rx, `rgba(0,0,0,${a})`));
+}
+function iglow(g: Graphics, cx: number, cy: number, r: number, core: string) {
+  g.ellipse(cx, cy, r, r).fill(rgrad(cx, cy, r, core));
+}
+
+// ── 各機台繪法(移植設計稿 mCNC/mArm/… anchor=(ox,oy) 地面原點)──────────
+function mCNC(g: Graphics, ox: number, oy: number, t: number, running: boolean, fault: boolean) {
+  ishadow(g, ox + 0.3 * MTW, oy + 1.6 * MTH, 64, 30, 0.4);
+  const pal = fault ? { top: 0x5a4750, left: 0x33232a, right: 0x3f2c34 } : { top: 0x3d4d66, left: 0x232d3d, right: 0x2f3b50 };
+  isoBox3(g, ox, oy, 2.4, 2.2, 42, pal);
+  isoBox3(g, ox + 0.2 * MTW, oy + 0.2 * MTH - 42, 1.7, 1.5, 24, { top: 0x324058, left: 0x1c2432, right: 0x28324a });
+  isoBox3(g, ox + 2.55 * MTW, oy + 2.4 * MTH, 0.55, 0.55, 36, { top: 0x4a5c7e, left: 0x2b3648, right: 0x39465e });
+  const pcx = ox + 2.8 * MTW, pcy = oy + 2.8 * MTH - 24;
+  g.rect(pcx - 6, pcy - 8, 13, 10).fill(running ? 0x123a28 : 0x241a1a);
+  g.rect(pcx - 4, pcy - 5, 9, 2).fill(running ? 0x4fd08a : 0xe0503f);
+  g.poly([ox + 1.9 * MTW, oy + 1.9 * MTH - 8, ox + 1.0 * MTW, oy + 2.9 * MTH - 8, ox + 1.0 * MTW, oy + 2.9 * MTH - 30, ox + 1.9 * MTW, oy + 1.9 * MTH - 30])
+    .fill({ color: 0x14283a, alpha: 0.85 }).stroke({ width: 1.2, color: 0x4a6078 });   // 觀景窗
+  const cx = ox + 1.45 * MTW, cy = oy + 1.55 * MTH - 16;
+  if (running) iglow(g, cx, cy + 6, 20, "rgba(255,212,120,0.5)");
+  const spin = running ? t * 10 : 0, off = Math.cos(spin) * 5;
+  g.moveTo(cx - off, cy).lineTo(cx + off, cy + 10).stroke({ width: 3, color: running ? 0xffd479 : 0x7a8598, cap: "round" });
+  if (running) for (let i = 0; i < 5; i++) { const a = (t * 8 + i * 0.2) % 1; g.rect(cx + (i - 2) * 2, cy + 10 + a * 10, 1.5, 1.5).fill({ color: 0xbfe6ff, alpha: 1 - a }); }
+}
+function mInjection(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
+  ishadow(g, ox + 0.2 * MTW, oy + 1.4 * MTH, 60, 28, 0.4);
+  isoBox3(g, ox, oy, 1.4, 1.8, 34, { top: 0x3f5147, left: 0x212c26, right: 0x2c3a33 });
+  const clamp = running ? (0.5 + 0.5 * Math.sin(t * 2.2)) : 1;
+  isoBox3(g, ox + 1.5 * MTW, oy + 1.5 * MTH, 1.8, 0.9, 20, { top: 0x46506a, left: 0x262d3d, right: 0x333c52 });
+  isoBox3(g, ox + 2.3 * MTW, oy + 2.3 * MTH - 20, 0.5, 0.5, 14, { top: 0x5b6b8e, left: 0x333c52, right: 0x414d68 });
+  if (running) iglow(g, ox + 2.0 * MTW, oy + 2.0 * MTH - 6, 22, "rgba(255,140,60,0.55)");
+  g.rect(ox + 0.6 * MTW - clamp * 10, oy + 0.5 * MTH - 24, 7, 20).fill(0x6a8073);
+  g.rect(ox + 0.9 * MTW, oy + 0.7 * MTH - 24, 7, 20).fill(0x54685c);
+  if (running && clamp > 0.8) iglow(g, ox + 0.6 * MTW, oy + 0.9 * MTH - 6, 10, "rgba(255,200,120,0.6)");
+}
+function mArm(g: Graphics, ox: number, oy: number, t: number, pickup: P2, drop: P2) {
+  ishadow(g, ox, oy + 0.2 * MTH, 42, 20, 0.42);
+  isoBox3(g, ox - 0.7 * MTW, oy + 0.7 * MTH, 1.4, 1.4, 16, { top: 0x46587a, left: 0x28324a, right: 0x35435e });
+  const base: P2 = [ox, oy - 14];
+  g.ellipse(base[0], base[1] + 4, 14, 7).fill(0x3a4660);
+  const p = (t % 4.5) / 4.5; let tx: number, ty: number, carry = false;
+  const es = (f: number) => f * f * (3 - 2 * f);
+  if (p < 0.4) { const f = es(p / 0.4); tx = drop[0] + (pickup[0] - drop[0]) * f; ty = drop[1] + (pickup[1] - drop[1]) * f; }
+  else if (p < 0.5) { tx = pickup[0]; ty = pickup[1]; carry = p >= 0.45; }
+  else if (p < 0.92) { const f = es((p - 0.5) / 0.42); tx = pickup[0] + (drop[0] - pickup[0]) * f; ty = pickup[1] + (drop[1] - pickup[1]) * f; carry = true; }
+  else { tx = drop[0]; ty = drop[1]; }
+  const { joint, end } = solveArm(base[0], base[1], tx, ty, 42, 34);
+  g.moveTo(base[0], base[1]).lineTo(joint.x, joint.y).stroke({ width: 11, color: 0xf0883c, cap: "round" });      // 大臂橘
+  g.moveTo(base[0], base[1]).lineTo(joint.x, joint.y).stroke({ width: 4, color: darken(0xf0883c, 1.25), cap: "round" });
+  g.moveTo(joint.x, joint.y).lineTo(end.x, end.y).stroke({ width: 7, color: 0xcdd9ec, cap: "round" });           // 小臂銀
+  g.circle(base[0], base[1], 6).fill(0x5b9bd5).stroke({ width: 1.5, color: 0x1c2432 });
+  g.circle(joint.x, joint.y, 5).fill(0x5b9bd5).stroke({ width: 1.5, color: 0x1c2432 });
+  const d = Math.atan2(end.y - joint.y, end.x - joint.x), gap = carry ? 3 : 6;
+  const nx = Math.cos(d + Math.PI / 2) * gap, ny = Math.sin(d + Math.PI / 2) * gap;
+  g.moveTo(end.x, end.y).lineTo(end.x + nx + Math.cos(d) * 7, end.y + ny + Math.sin(d) * 7).stroke({ width: 3, color: 0x8a93a6 });
+  g.moveTo(end.x, end.y).lineTo(end.x - nx + Math.cos(d) * 7, end.y - ny + Math.sin(d) * 7).stroke({ width: 3, color: 0x8a93a6 });
+  if (carry) { g.rect(end.x - 5, end.y - 3, 11, 9).fill(0xd9a441); g.rect(end.x - 5, end.y - 3, 11, 3).fill(0xf0c674); }
+}
+function mCompressor(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
+  ishadow(g, ox + 0.3 * MTW, oy + 1.2 * MTH, 52, 24, 0.4);
+  isoBox3(g, ox, oy, 2.2, 1.3, 26, { top: 0x3f5147, left: 0x212c26, right: 0x2c3a33 });
+  isoBox3(g, ox + 1.6 * MTW, oy + 1.6 * MTH - 26, 0.7, 0.7, 20, { top: 0x46506a, left: 0x262d3d, right: 0x333c52 });
+  const fx = ox + 0.2 * MTW, fy = oy + 0.7 * MTH - 13, rot = running ? t * 6 : 0;
+  for (let i = 0; i < 4; i++) { const a = rot + i * Math.PI / 2; g.moveTo(fx, fy).lineTo(fx + Math.cos(a) * 9, fy + Math.sin(a) * 9).stroke({ width: 2.5, color: running ? 0x9fe0c0 : 0x6b7488, cap: "round" }); }
+  g.circle(fx, fy, 2.5).fill(0x8a93a6);
+  const gz = running ? 0.5 + 0.4 * Math.abs(Math.sin(t * 3)) : 0.2;
+  g.circle(ox + 1.9 * MTW, oy + 1.9 * MTH - 26, 3).fill({ color: running ? 0x6cf0a0 : 0x3a6b50, alpha: gz });
+}
+function mTurbine(g: Graphics, ox: number, oy: number, t: number, rpm: number) {
+  ishadow(g, ox, oy + 0.1 * MTH, 20, 10, 0.35);
+  g.poly([ox - 3, oy, ox + 3, oy, ox + 1.5, oy - 64, ox - 1.5, oy - 64]).fill(lgrad(ox - 3, oy, ox + 3, oy, 0xaeb9c8, 0x7f8b9c));  // 塔
+  g.rect(ox - 5, oy - 70, 15, 7).fill(0x9fb0c4);
+  const hx = ox - 5, hy = oy - 66, rot = t * (0.5 + (rpm || 8) * 0.08);
+  for (let i = 0; i < 3; i++) { const a = rot + i * 2 * Math.PI / 3; g.moveTo(hx, hy).lineTo(hx + Math.cos(a) * 26, hy + Math.sin(a) * 26).stroke({ width: 3.5, color: 0xeef3f9, cap: "round" }); }
+  g.circle(hx, hy, 3.5).fill(0x5b9bd5);
+}
+function mChamber(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
+  ishadow(g, ox + 0.2 * MTW, oy + 1.3 * MTH, 52, 24, 0.4);
+  isoBox3(g, ox, oy, 2.0, 1.8, 34, { top: 0x37425c, left: 0x1f2838, right: 0x2b344a });
+  const vx = ox + 0.5 * MTW, vy = oy + 1.3 * MTH - 14;
+  const gz = running ? 0.5 + 0.4 * Math.abs(Math.sin(t * 3)) : 0.12;
+  if (running) iglow(g, vx, vy, 22, `rgba(150,110,220,${gz})`);
+  g.circle(vx, vy, 10).fill({ color: running ? 0x8f6bd6 : 0x2f3a52, alpha: running ? 0.85 : 1 });
+  g.circle(vx, vy, 10).stroke({ width: 2.5, color: 0x6b7da0 });
+  g.moveTo(ox + 0.5 * MTW, oy + 0.5 * MTH - 34).lineTo(ox + 0.5 * MTW, oy + 0.5 * MTH - 48).stroke({ width: 3, color: 0x9fb0c4 });   // 氣管
+  isoBox3(g, ox + 1.8 * MTW, oy + 1.8 * MTH, 0.6, 0.6, 12, { top: 0x2b3648, left: 0x1a2230, right: 0x232d3d });   // 真空泵
+}
+function mMeter(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
+  ishadow(g, ox + 0.1 * MTW, oy + 0.9 * MTH, 40, 20, 0.38);
+  isoBox3(g, ox, oy, 1.5, 1.2, 40, { top: 0x394a40, left: 0x1e2a24, right: 0x28362f });
+  const px = ox + 0.75 * MTW, py = oy + 0.4 * MTH - 26;
+  g.rect(px - 13, py - 2, 26, 12).fill(0x0c2a18).stroke({ width: 1, color: 0x1e4230 });
+  g.rect(px - 10, py + 2, running ? 18 : 6, 2).fill(running ? 0x6cf0a0 : 0x3a6b50);   // 讀數(以亮條代文字)
+  for (let i = 0; i < 3; i++) { const on = running && Math.sin(t * 4 + i * 2) > -0.2; const cc = [0xff6b6b, 0xffd479, 0x6cf0a0][i];
+    if (on) emissive(g, px - 8 + i * 8, py + 16, 2.6, cc, 0.9); else g.circle(px - 8 + i * 8, py + 16, 2.6).fill(0x46506a); }
+}
+function mPress(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
+  ishadow(g, ox + 0.1 * MTW, oy + 1.0 * MTH, 44, 22, 0.4);
+  isoBox3(g, ox, oy, 0.6, 1.6, 52, { top: 0x3a4658, left: 0x212a38, right: 0x2c3648 });       // 立柱
+  isoBox3(g, ox, oy - 52, 2.2, 1.6, 10, { top: 0x46587a, left: 0x28324a, right: 0x35435e });   // 上樑
+  isoBox3(g, ox + 1.4 * MTW, oy + 1.4 * MTH, 1.0, 0.6, 12, { top: 0x324058, left: 0x1c2432, right: 0x28324a });  // 工作台
+  const press = running ? Math.abs(Math.sin(t * 5)) : 0.15;
+  const slx = ox + 1.55 * MTW, sly = oy + 0.4 * MTH - 40 + press * 26;
+  g.rect(slx, sly, 20, 12).fill(lgrad(slx, sly, slx, sly + 12, 0x9aa4b6, 0x5b6b8e)).stroke({ width: 1, color: 0x3a4658 });   // 滑塊
+  g.rect(slx + 3, oy + 1.0 * MTH - 6, 14, 4).fill(running ? 0xffd479 : 0x6b7488);
+  if (running && press > 0.85) iglow(g, slx + 10, oy + 1.0 * MTH - 4, 12, "rgba(255,220,140,0.7)");
+}
+function mFurnace(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
+  ishadow(g, ox + 0.2 * MTW, oy + 1.3 * MTH, 52, 24, 0.4);
+  isoBox3(g, ox, oy, 2.0, 1.7, 34, { top: 0x4a4034, left: 0x2a231b, right: 0x372e24 });
+  const dx = ox + 0.55 * MTW, dy = oy + 1.2 * MTH - 14;
+  const heat = running ? 0.5 + 0.4 * Math.abs(Math.sin(t * 2)) : 0.1;
+  if (running) iglow(g, dx, dy, 24, `rgba(255,120,50,${heat})`);
+  g.rect(dx - 11, dy - 10, 22, 20).fill({ color: running ? 0xff7a3a : 0x3a2a22, alpha: running ? 0.9 : 1 }).stroke({ width: 2, color: 0x6b5036 });  // 爐門
+  g.moveTo(ox + 1.7 * MTW, oy + 1.7 * MTH - 34).lineTo(ox + 1.7 * MTW, oy + 1.7 * MTH - 52).stroke({ width: 3.5, color: 0x9fb0c4 });   // 排氣管
+  if (running) { const sy = (t * 20) % 30; g.circle(ox + 1.7 * MTW, oy + 1.7 * MTH - 52 - sy, 3 + sy * 0.1).fill({ color: 0xc9b8a0, alpha: 0.3 * (1 - sy / 30) }); }
+}
+function mAGV(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
+  const bob = running ? Math.sin(t * 3) * 1 : 0;
+  ishadow(g, ox, oy + 0.1 * MTH, 30, 15, 0.4);
+  isoBox3(g, ox - 0.7 * MTW, oy + 0.7 * MTH - bob, 1.4, 1.0, 12, { top: 0x4a8a7b, left: 0x274a42, right: 0x356156 });
+  g.rect(ox - 6, oy - 20 - bob, 12, 8).fill(0xd9a441); g.rect(ox - 6, oy - 20 - bob, 12, 2.5).fill(0xf0c674);   // 貨件
+  const on = Math.sin(t * 6) > 0; g.circle(ox + 0.7 * MTW - 4, oy + 0.7 * MTH - 8 - bob, 2).fill(on ? 0x6cf0a0 : 0x2a4a3a);   // 狀態燈
+}
 const ROOFS = [0x3a4a63, 0x4a4036, 0x394f4a, 0x44485a, 0x53473a, 0x35506b, 0x4d3f4a];
 // 公司建築多彩色盤(較飽和,讓園區有大有小、多彩)
 const COMPANY_COLORS = [0x3f6ea5, 0x4a8a7b, 0xb5743a, 0x7a5ca8, 0x4f9d5b, 0xa85a6a,
@@ -40,45 +189,36 @@ function isoBox(g: Graphics, gx: number, gy: number, w: number, h: number, heigh
   const sdx = Math.min(height * 0.14, 9), sdy = Math.min(height * 0.08, 5);
   g.poly([N.x + sdx, N.y + sdy, E.x + sdx, E.y + sdy, S.x + sdx, S.y + sdy, W.x + sdx, W.y + sdy])
     .fill({ color: 0x000000, alpha: 0.16 });
-  const cL = darken(roof, 0.62), cR = darken(roof, 0.8);
-  g.poly([W.x, W.y, S.x, S.y, up(S).x, up(S).y, up(W).x, up(W).y]).fill(cL);                  // 左牆(暗)
-  g.poly([S.x, S.y, E.x, E.y, up(E).x, up(E).y, up(S).x, up(S).y]).fill(cR);                  // 右牆
-  // 牆面紋路:樓層橫線 + 窗格直線(低 alpha,做出建築立面質感)
-  const floors = Math.max(2, Math.floor(height / 13));
-  for (let k = 1; k < floors; k++) {
-    const f = k / floors;
-    g.moveTo(up(W, f).x, up(W, f).y).lineTo(up(S, f).x, up(S, f).y).stroke({ width: 1, color: darken(roof, 0.45), alpha: 0.45 });
-    g.moveTo(up(S, f).x, up(S, f).y).lineTo(up(E, f).x, up(E, f).y).stroke({ width: 1, color: darken(roof, 0.6), alpha: 0.4 });
-  }
-  const colsL = Math.max(2, Math.round(h * 1.4));
-  for (let c = 1; c < colsL; c++) {
-    const b = lerp2(W, S, c / colsL);
-    g.moveTo(b.x, b.y).lineTo(b.x, b.y - height).stroke({ width: 1, color: darken(roof, 0.5), alpha: 0.3 });
-  }
-  const colsR = Math.max(2, Math.round(w * 1.4));
-  for (let c = 1; c < colsR; c++) {
-    const b = lerp2(S, E, c / colsR);
-    g.moveTo(b.x, b.y).lineTo(b.x, b.y - height).stroke({ width: 1, color: darken(roof, 0.66), alpha: 0.28 });
-  }
-  // 窗光:右牆(受光面)部分窗格點亮 → 夜間廠房感(冷藍 / 暖黃,確定性)
-  const wseed = (gx * 73 + gy * 131) | 0;
-  for (let c = 1; c < colsR; c++) for (let k = 1; k < floors; k++) {
-    if (((wseed + c * 17 + k * 7) % 5) !== 0) continue;
-    const b = lerp2(S, E, (c - 0.5) / colsR);
-    const y = b.y - height * ((k - 0.35) / floors);
-    const warm = ((wseed + c + k) % 2) === 0;
-    g.rect(b.x - 1.4, y - 2.2, 2.8, 3.2).fill({ color: warm ? 0xe2b24e : 0x7fd0e6, alpha: 0.5 });
+  // 平面牆(左前暗、右前受光),乾淨立面靠窗格網做細節
+  g.poly([W.x, W.y, S.x, S.y, up(S).x, up(S).y, up(W).x, up(W).y]).fill(darken(roof, 0.5));   // 左前牆
+  g.poly([S.x, S.y, E.x, E.y, up(E).x, up(E).y, up(S).x, up(S).y]).fill(darken(roof, 0.72));  // 右前牆
+  // 窗格:兩面各 3 欄 × N 列,部分點亮(冷藍),其餘暗窗 → 整齊夜間廠房立面
+  const rows = Math.max(2, Math.floor(height / 26));
+  const rng = mulberry32((gx * 73 + gy * 131 + w * 17 + h * 29) | 0);
+  const LIT = 0x7fd0e6, UNLIT = 0x20303f;
+  for (let r = 0; r < rows; r++) {
+    const fy0 = (r + 0.28) / rows, fy1 = (r + 0.72) / rows;
+    for (let cN = 0; cN < 3; cN++) {
+      const cx0 = (cN + 0.22) / 3, cx1 = (cN + 0.78) / 3;
+      const a0 = lerp2(W, S, cx0), a1 = lerp2(W, S, cx1);         // 左牆(W→S)
+      const litL = rng() > 0.45;
+      g.poly([a0.x, a0.y - height * fy0, a1.x, a1.y - height * fy0, a1.x, a1.y - height * fy1, a0.x, a0.y - height * fy1])
+        .fill({ color: litL ? LIT : UNLIT, alpha: litL ? 0.5 : 0.82 });
+      const b0 = lerp2(S, E, cx0), b1 = lerp2(S, E, cx1);         // 右牆(S→E)
+      const litR = rng() > 0.5;
+      g.poly([b0.x, b0.y - height * fy0, b1.x, b1.y - height * fy0, b1.x, b1.y - height * fy1, b0.x, b0.y - height * fy1])
+        .fill({ color: litR ? LIT : UNLIT, alpha: litR ? 0.38 : 0.72 });
+    }
   }
   g.poly([up(N).x, up(N).y, up(E).x, up(E).y, up(S).x, up(S).y, up(W).x, up(W).y])
-    .fill(roof).stroke({ width: 1, color: darken(roof, 1.15) });                              // 屋頂
-  // 屋頂受光邊 rim 高光(左上兩邊)+ 較大建築放空調機/天窗,屋頂不再是死平面
-  const hi = darken(roof, 1.4);
-  g.moveTo(up(N).x, up(N).y).lineTo(up(W).x, up(W).y).stroke({ width: 1.5, color: hi, alpha: 0.6 });
+    .fill(darken(roof, 1.12)).stroke({ width: 1, color: darken(roof, 1.4) });                 // 屋頂
+  const hi = darken(roof, 1.6);
+  g.moveTo(up(N).x, up(N).y).lineTo(up(W).x, up(W).y).stroke({ width: 1.5, color: hi, alpha: 0.6 });   // 受光邊高光
   g.moveTo(up(N).x, up(N).y).lineTo(up(E).x, up(E).y).stroke({ width: 1.2, color: hi, alpha: 0.4 });
-  if (height > 26) {
+  if (height > 50) {
     const cx = (up(N).x + up(S).x) / 2, cy = (up(N).y + up(S).y) / 2;
-    g.rect(cx - 5, cy - 6, 10, 6).fill(darken(roof, 0.72)).stroke({ width: 0.6, color: hi, alpha: 0.5 });  // 空調機
-    g.rect(cx - 3, cy - 5, 6, 1.5).fill({ color: hi, alpha: 0.45 });                                       // 天窗反光
+    g.rect(cx - 9, cy - 8, 18, 10).fill(darken(roof, 0.66)).stroke({ width: 0.6, color: hi, alpha: 0.5 });  // 空調機
+    g.rect(cx - 14, cy + 3, 10, 6).fill(darken(roof, 0.6));
   }
 }
 
@@ -388,8 +528,7 @@ export default function WorldView({
             st.container.x += ((A.x + (B.x - A.x) * f) - st.container.x) * 0.1;
             st.container.y += ((A.y + (B.y - A.y) * f) - st.container.y) * 0.1; }
         }
-        const armCtx = st.template === "robot_arm_6axis" ? computeArmCtx(st, animT, running) : null;
-        drawStation(st.art, st.template, t, running, animT, col, armCtx);
+        drawStation(st.art, st.template, t, running, animT, col, state === "fault");
       }
       // 廠內人員:巡走的沿走道矩形移動;作業的站定做手部動作
       for (const pr of peopleRef.current) {
@@ -406,24 +545,6 @@ export default function WorldView({
         }
       }
       smoke(animT, dt);
-    }
-
-    // 手臂目標(local 座標)+ 是否夾著工件:搬運手臂走產線編排,其餘手臂自走 pick-place
-    function computeArmCtx(st: Station, animT: number, running: boolean) {
-      const flow = flowRef.current; const cont = st.container;
-      if (flow && flow.pickerId === st.id) {
-        const p = (animT % ARM_CYCLE) / ARM_CYCLE;
-        let wt: Pt, carrying = false;
-        if (p < 0.40) wt = lerpPt(flow.drop, flow.pickup, ease(p / 0.40));           // 空手上行取件
-        else if (p < 0.50) { wt = flow.pickup; carrying = p >= 0.45; }                // 夾取
-        else if (p < 0.92) { wt = lerpPt(flow.pickup, flow.drop, ease((p - 0.50) / 0.42)); carrying = true; } // 搬下放帶
-        else wt = flow.drop;                                                          // 放開
-        return { tx: wt.x - cont.x, ty: wt.y - cont.y, carrying };
-      }
-      // 非搬運手臂:左右擺動的 pick-place,僅當運轉時夾著工件
-      const off = st.id.length * 0.7;
-      const s = (Math.sin(animT * 1.05 + off) + 1) / 2;
-      return { tx: -24 + 48 * s, ty: 16 - 12 * Math.sin(Math.PI * s), carrying: running && Math.cos(animT * 1.05 + off) > 0 };
     }
 
     function updateFlow(animT: number, dt: number) {
@@ -465,103 +586,26 @@ export default function WorldView({
         if (flow.parts[i].done) { flow.parts[i].g.destroy(); flow.parts.splice(i, 1); }
     }
 
-    function drawStation(g: Graphics, tmpl: string, t: Record<string, number>, running: boolean, animT: number, col: number,
-                         armCtx?: { tx: number; ty: number; carrying: boolean } | null) {
-      // 接地徑向陰影(讓每台機台坐在地上、有量體感)
-      g.ellipse(1, 27, 27, 11).fill({ color: 0x000000, alpha: 0.13 });
-      g.ellipse(0, 26, 22, 9).fill({ color: 0x000000, alpha: 0.14 });
-      if (tmpl === "robot_arm_6axis") {
-        // 六軸手臂:底座 + 轉盤 + 兩節臂 IK 伸向目標 + 夾爪(編排驅動,平滑不跳動)
-        g.ellipse(0, 22, 20, 9).fill(0x2c3650);                       // 地座陰影
-        g.roundRect(-14, 6, 28, 18, 3).fill(0x3a4862).stroke({ width: 1, color: 0x4d5e7e }); // 底座
-        g.roundRect(-9, 0, 18, 9, 2).fill(0x46587a);                  // 轉盤
-        const base = { x: 0, y: 2 };
-        const tx = armCtx?.tx ?? 28, ty = armCtx?.ty ?? 6;            // 預設略向右伸
-        const { joint, end } = solveArm(base.x, base.y, tx, ty, 28, 22);
-        g.moveTo(base.x, base.y).lineTo(joint.x, joint.y).stroke({ width: 8, color: 0xf08c2e, cap: "round" }); // 大臂
-        g.moveTo(joint.x, joint.y).lineTo(end.x, end.y).stroke({ width: 5, color: 0xcdd9ec, cap: "round" });   // 小臂
-        g.circle(base.x, base.y, 4).fill(0x5b9bd5).stroke({ width: 1, color: 0x2c3650 });
-        g.circle(joint.x, joint.y, 3.4).fill(0x5b9bd5).stroke({ width: 1, color: 0x2c3650 });
-        // 夾爪(夾著工件時收合)
-        const d = Math.atan2(end.y - joint.y, end.x - joint.x);
-        const gap = armCtx?.carrying ? 3 : 5.5;
-        const nx = Math.cos(d + Math.PI / 2) * gap, ny = Math.sin(d + Math.PI / 2) * gap;
-        g.moveTo(end.x, end.y).lineTo(end.x + nx + Math.cos(d) * 6, end.y + ny + Math.sin(d) * 6).stroke({ width: 3, color: col });
-        g.moveTo(end.x, end.y).lineTo(end.x - nx + Math.cos(d) * 6, end.y - ny + Math.sin(d) * 6).stroke({ width: 3, color: col });
-        if (armCtx?.carrying) g.roundRect(end.x - 5, end.y - 4, 10, 9, 1.5).fill(0xd9a441).stroke({ width: 1, color: 0x8a6b2e }); // 夾持工件
-      } else if (tmpl === "cnc_machining_center") {
-        g.roundRect(-20, -4, 40, 30, 3).fill(0x37445c).stroke({ width: 1, color: 0x4a5a78 });
-        g.rect(-20, -4, 40, 7).fill({ color: 0x4c6088, alpha: 0.45 });           // 頂部受光高光
-        g.roundRect(-14, -22, 28, 18, 3).fill(0x2c3850).stroke({ width: 1, color: 0x3d4c66 }); // 主軸箱
-        g.roundRect(8, -1, 10, 8, 1.5).fill(running ? 0x0f2e1e : 0x1c1414);      // HMI 螢幕
-        g.rect(9.5, 1.5, 7, 1.4).fill(running ? 0x6cf0a0 : 0x5a2a2a);
-        const spin = running ? animT * 9 : 0; const sx = Math.cos(spin) * 7;
-        if (running) emissive(g, 0, -13, 3.2, 0xffd479, 0.55 + 0.45 * Math.abs(Math.sin(animT * 4))); // 主軸暖黃發光
-        g.moveTo(-sx, -13).lineTo(sx, -13).stroke({ width: 3, color: running ? 0xffe6a0 : 0x6b7488 });
-        g.circle(0, -13, 2).fill(0x8a93a6);
-        g.rect(-16, 20, 32, 4).fill(darken(col, 0.7));               // 護門底飾
-      } else if (tmpl === "injection_molding") {
-        g.roundRect(-26, 0, 22, 24, 3).fill(0x3a4a44).stroke({ width: 1, color: 0x4d6158 });   // 鎖模單元
-        g.rect(-26, 0, 22, 6).fill({ color: 0x51695f, alpha: 0.45 });                            // 頂高光
-        const clamp = running ? 3 + 3 * Math.abs(Math.sin(animT * 2)) : 6;
-        g.rect(-6 - clamp, 4, 6, 16).fill(0x5b7a6e); g.rect(0, 4, 6, 16).fill(0x5b7a6e);        // 動/定模板
-        g.roundRect(6, 6, 26, 12, 3).fill(0x46506a).stroke({ width: 1, color: 0x5b6b8e });      // 射出單元
-        if (running) emissive(g, 14, 12, 3, 0xff8c3c, 0.6);                                      // 加熱段橘光
-        g.circle(32, 12, 3).fill(running ? 0xffd479 : 0x6b7488);                                 // 料斗
-      } else if (tmpl === "air_compressor") {
-        g.roundRect(-18, -4, 36, 28, 6).fill(0x3a4a44).stroke({ width: 1, color: 0x4d6158 });    // 桶
-        g.rect(-18, -4, 36, 7).fill({ color: 0x51695f, alpha: 0.4 });                            // 頂高光
-        const rot = running ? animT * 6 : 0;
-        for (let i = 0; i < 4; i++) { const a = rot + i * Math.PI / 2; g.moveTo(0, 8).lineTo(Math.cos(a) * 10, 8 + Math.sin(a) * 10).stroke({ width: 3, color: running ? 0x9fe0c0 : 0x6b7488 }); }
-        g.circle(0, 8, 2.5).fill(0x8a93a6);
-        const pl = running && Math.sin(animT * 3) > 0;
-        g.circle(13, -0, 2).fill(pl ? 0x35d07a : 0x2a4a38);                                       // 壓力綠燈脈動
-      } else if (tmpl === "wind_turbine") {
-        g.poly([-3, 26, 3, 26, 1.5, -14, -1.5, -14]).fill(0xc9d4e4);                              // 塔
-        g.roundRect(-5, -18, 14, 7, 2).fill(0x9fb0c4);                                            // 機艙
-        const rpm = t["rotor_rpm"] ?? 0; const rot = animT * (0.4 + rpm * 0.25);                  // 轉速 ∝ rpm
-        const hub = { x: -5, y: -14 };
-        for (let i = 0; i < 3; i++) { const a = rot + i * 2 * Math.PI / 3;
-          g.moveTo(hub.x, hub.y).lineTo(hub.x + Math.cos(a) * 22, hub.y + Math.sin(a) * 22).stroke({ width: 3, color: 0xeef3f9, cap: "round" }); }
-        g.circle(hub.x, hub.y, 3).fill(col);
-      } else if (tmpl === "semi_process_chamber") {
-        // 製程腔體:腔身 + 觀景窗(運轉時電漿輝光脈動)+ 上方氣管 + 下方真空泵
-        g.roundRect(-18, -6, 34, 30, 6).fill(0x2f3a52).stroke({ width: 1, color: 0x4a5a78 });     // 腔身
-        g.rect(-18, -6, 34, 7).fill({ color: 0x445273, alpha: 0.45 });                             // 頂高光
-        if (running) emissive(g, -1, 8, 8, 0x8f6bd6, 0.5 + 0.4 * Math.abs(Math.sin(animT * 3)));   // 電漿輝光
-        else g.circle(-1, 8, 8).fill({ color: 0x3a4660, alpha: 0.25 });
-        g.circle(-1, 8, 9).stroke({ width: 2, color: 0x6b7da0 });                                 // 觀景窗框
-        g.rect(-12, -12, 4, 7).fill(0x9fb0c4); g.rect(6, -12, 4, 7).fill(0x9fb0c4);               // 兩支氣管
-        g.roundRect(-10, 22, 22, 8, 2).fill(darken(col, 0.7)).stroke({ width: 1, color: 0x4a5a78 }); // 真空泵
-      } else if (tmpl === "energy_meter") {
-        // 配電 / 電表箱:箱體 + 數字面板 + 三相指示燈 + 電力 LED(運轉時脈動)
-        g.roundRect(-15, -10, 30, 34, 3).fill(0x394a40).stroke({ width: 1, color: 0x4d6158 });    // 箱體
-        g.rect(-15, -10, 30, 7).fill({ color: 0x51695f, alpha: 0.4 });                             // 頂高光
-        g.roundRect(-11, -6, 22, 9, 1.5).fill(0x0c2417);                                          // 數字面板
-        g.rect(-9, -1, 18, 2).fill(running ? 0x6cf0a0 : 0x3a6b50);                                // 面板讀數
-        for (let i = 0; i < 3; i++) { const on = running && Math.sin(animT * 4 + i * 2) > -0.2;
-          const cc = [0xff6b6b, 0xffd479, 0x6cf0a0][i];
-          if (on) emissive(g, -7 + i * 7, 12, 2.4, cc, 0.9); else g.circle(-7 + i * 7, 12, 2.4).fill(0x46506a); } // L1/L2/L3
-        g.circle(10, -6, 2).fill(running ? 0xffe08a : 0x6b7488);                                  // 電力 LED
-      } else if (tmpl === "stamping_press") {
-        // 沖壓機:C 型機架 + 上下往復滑塊(運轉時衝壓)
-        g.roundRect(-16, -18, 10, 44, 2).fill(0x3a4658).stroke({ width: 1, color: 0x4d5e7e });    // 立柱
-        g.roundRect(-16, -18, 34, 8, 2).fill(0x46587a);                                           // 上樑
-        g.roundRect(-16, 20, 34, 8, 2).fill(darken(col, 0.7));                                     // 工作台
-        const pr = running ? Math.abs(Math.sin(animT * 6)) : 0.2;
-        if (running && pr > 0.9) emissive(g, 8, 23, 4, 0xffe6a0, 1.2 * (pr - 0.9) * 10);           // 衝壓瞬間亮點
-        g.roundRect(0, -8 + pr * 16, 16, 8, 1.5).fill(0x9aa6ba).stroke({ width: 1, color: 0x5b6b8e }); // 滑塊
-        g.rect(2, 24, 12, 3).fill(running ? 0xffd479 : 0x6b7488);                                  // 工件
-      } else if (tmpl === "heat_treat_furnace") {
-        // 熱處理爐:爐體 + 爐門(運轉時橘紅輝光脈動)+ 排氣管
-        g.roundRect(-18, -8, 36, 34, 4).fill(0x40382f).stroke({ width: 1, color: 0x5a4d3e });      // 爐體(耐火磚色)
-        g.rect(-18, -8, 36, 7).fill({ color: 0x55483a, alpha: 0.5 });                              // 頂高光
-        if (running) { emissive(g, 0, 9, 10, 0xff7a3a, 0.5 + 0.35 * Math.abs(Math.sin(animT * 2))); // 爐門橘紅火光
-          g.roundRect(-11, 0, 22, 18, 2).stroke({ width: 1.5, color: 0xffb072 }); }
-        else { g.roundRect(-11, 0, 22, 18, 2).fill(0x2a1e18).stroke({ width: 1.5, color: 0x6b5036 }); }
-        g.rect(10, -16, 5, 10).fill(0x9fb0c4);                                                      // 排氣管
-      } else {
-        g.roundRect(-16, -4, 32, 26, 3).fill(0x3a4356).stroke({ width: 1, color: col });
+    // 各機台的中心偏移(anchor=地面原點角,調到坐落在站位中央)
+    const MOFF: Record<string, P2> = {
+      cnc_machining_center: [-38, -12], injection_molding: [-30, -8], robot_arm_6axis: [2, 4],
+      air_compressor: [-32, -4], wind_turbine: [8, 30], semi_process_chamber: [-30, -8],
+      energy_meter: [-16, 0], stamping_press: [-18, 6], heat_treat_furnace: [-30, -8], agv_mobile_robot: [6, 2],
+    };
+    function drawStation(g: Graphics, tmpl: string, t: Record<string, number>, running: boolean, animT: number, _col: number, fault: boolean) {
+      const [ox, oy] = MOFF[tmpl] ?? [-20, 0];
+      switch (tmpl) {
+        case "cnc_machining_center": mCNC(g, ox, oy, animT, running, fault); break;
+        case "injection_molding": mInjection(g, ox, oy, animT, running); break;
+        case "robot_arm_6axis": mArm(g, ox, oy, animT, [ox - 46, oy - 14], [ox + 34, oy + 40]); break;
+        case "air_compressor": mCompressor(g, ox, oy, animT, running); break;
+        case "wind_turbine": mTurbine(g, ox, oy, animT, running ? (t["rotor_rpm"] || 12) : 3); break;
+        case "semi_process_chamber": mChamber(g, ox, oy, animT, running); break;
+        case "energy_meter": mMeter(g, ox, oy, animT, running); break;
+        case "stamping_press": mPress(g, ox, oy, animT, running); break;
+        case "heat_treat_furnace": mFurnace(g, ox, oy, animT, running); break;
+        case "agv_mobile_robot": mAGV(g, ox, oy, animT, running); break;
+        default: isoBox3(g, ox, oy, 1.6, 1.4, 24, { top: 0x3a4356, left: 0x232d3d, right: 0x2c3648 });
       }
     }
 

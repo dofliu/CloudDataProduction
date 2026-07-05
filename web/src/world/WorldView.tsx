@@ -54,6 +54,15 @@ function isoBox(g: Graphics, gx: number, gy: number, w: number, h: number, heigh
     const b = lerp2(S, E, c / colsR);
     g.moveTo(b.x, b.y).lineTo(b.x, b.y - height).stroke({ width: 1, color: darken(roof, 0.66), alpha: 0.28 });
   }
+  // 窗光:右牆(受光面)部分窗格點亮 → 夜間廠房感(冷藍 / 暖黃,確定性)
+  const wseed = (gx * 73 + gy * 131) | 0;
+  for (let c = 1; c < colsR; c++) for (let k = 1; k < floors; k++) {
+    if (((wseed + c * 17 + k * 7) % 5) !== 0) continue;
+    const b = lerp2(S, E, (c - 0.5) / colsR);
+    const y = b.y - height * ((k - 0.35) / floors);
+    const warm = ((wseed + c + k) % 2) === 0;
+    g.rect(b.x - 1.4, y - 2.2, 2.8, 3.2).fill({ color: warm ? 0xe2b24e : 0x7fd0e6, alpha: 0.5 });
+  }
   g.poly([up(N).x, up(N).y, up(E).x, up(E).y, up(S).x, up(S).y, up(W).x, up(W).y])
     .fill(roof).stroke({ width: 1, color: darken(roof, 1.15) });                              // 屋頂
   // 屋頂受光邊 rim 高光(左上兩邊)+ 較大建築放空調機/天窗,屋頂不再是死平面
@@ -141,7 +150,7 @@ export default function WorldView({
     const safeDestroy = () => { try { app.destroy(true, { children: true }); } catch { /* */ } };
 
     (async () => {
-      await app.init({ background: focus ? 0x0c1118 : 0x10151d, antialias: true,
+      await app.init({ background: focus ? 0x0a0e14 : 0x0b0f15, antialias: true,
                        width: host.clientWidth || 800, height: host.clientHeight || 600 });
       if (cancelled) { safeDestroy(); return; }
       ready = true; appRef.current = app; host.appendChild(app.canvas);
@@ -166,13 +175,14 @@ export default function WorldView({
       for (let gx = 0; gx < GRID; gx++) for (let gy = 0; gy < GRID; gy++) {
         const N = iso(gx, gy), E = iso(gx + 1, gy), S = iso(gx + 1, gy + 1), W = iso(gx, gy + 1);
         const road = isRoad(gx, gy);
-        let base = road ? 0x20242c : ((gx + gy) % 2 === 0 ? 0x1b2230 : 0x18202c);
+        const cross = (gx - 1) % STEP === 0 && (gy - 1) % STEP === 0;
+        let base = road ? (cross ? 0x262c36 : 0x22272f) : ((gx + gy) % 2 === 0 ? 0x1b2230 : 0x18202c);
         if (!road) base = darken(base, 0.9 + gnd() * 0.2);        // 輕微亮度雜訊 → 地面不再死板棋盤
         ground.poly([N.x, N.y, E.x, E.y, S.x, S.y, W.x, W.y]).fill(base);
-        if (road) {                                               // 道路中線虛線(每格一小段拼成)
+        if (road && !cross) {                                     // 道路中線虛線(每格一小段拼成)
           const c = iso(gx + 0.5, gy + 0.5), horiz = (gy - 1) % STEP === 0;
           const dx = (horiz ? HW : -HW) * 0.4, dy = HH * 0.4;
-          ground.moveTo(c.x - dx, c.y - dy).lineTo(c.x + dx, c.y + dy).stroke({ width: 1, color: 0x3a4152, alpha: 0.5 });
+          ground.moveTo(c.x - dx, c.y - dy).lineTo(c.x + dx, c.y + dy).stroke({ width: 1, color: 0x3a4658, alpha: 0.55 });
         }
       }
       world.addChild(ground);
@@ -212,8 +222,15 @@ export default function WorldView({
         g.on("pointerout", () => setTip(null));
         world.addChild(g);
         chimneysRef.current.push({ x: p.x + fw * 6, y: p.y - ht - 4 });
-        const label = new Text({ text: c.name, style: { fill: 0xc7d2e0, fontSize: 10, fontFamily: "Microsoft JhengHei", fontWeight: "600" } });
-        label.anchor.set(0.5, 0); label.x = p.x; label.y = p.y + fh * 7 + 6; world.addChild(label);
+        const label = new Text({ text: c.name, style: { fill: 0xd7dfea, fontSize: 10, fontFamily: "IBM Plex Sans TC", fontWeight: "600" } });
+        label.anchor.set(0.5, 0.5);
+        const ly = p.y + fh * 7 + 12;
+        const pw = label.width + 22, ph = 17;
+        const plate = new Graphics();
+        plate.roundRect(p.x - pw / 2, ly - ph / 2, pw, ph, 8.5).fill({ color: 0x0c1017, alpha: 0.82 }).stroke({ width: 1, color: 0x202836 });
+        plate.circle(p.x - pw / 2 + 9, ly, 3).fill(0x35d07a);   // 狀態點(即時狀態看屋頂燈)
+        world.addChild(plate);
+        label.x = p.x + 5; label.y = ly; world.addChild(label);
         // 一公司一燈號(屋頂上方),點燈也能進廠內
         const light = new Graphics(); light.x = p.x; light.y = p.y - ht - 14;
         light.eventMode = "static"; light.cursor = "pointer"; light.on("pointertap", () => { setTip(null); setFocus(c.id); });
@@ -226,17 +243,19 @@ export default function WorldView({
       for (const light of Object.values(lightsRef.current)) {
         const kind = (light as any)._kind || "ok";
         light.clear();
+        light.moveTo(0, 6).lineTo(0, 15).stroke({ width: 1.5, color: 0x3a4658 });      // 燈桿(接屋頂)
+        light.circle(0, 15, 2).fill(0x2a3446);                                          // 桿座
         if (kind === "fault") {
           const a = 0.5 + 0.5 * Math.sin(animT * 5);
-          light.circle(0, 0, 13 + a * 6).fill({ color: 0xe24c4c, alpha: 0.12 + 0.16 * a });
-          light.circle(0, 0, 7).fill(0xe24c4c).stroke({ width: 2, color: 0x10151d });
+          light.circle(0, 0, 13 + a * 6).fill({ color: 0xe0503f, alpha: 0.12 + 0.18 * a });
+          light.circle(0, 0, 7).fill(0xe0503f).stroke({ width: 2, color: 0x10151d });
         } else if (kind === "predicted") {
           const a = 0.5 + 0.5 * Math.sin(animT * 3);
-          light.circle(0, 0, 12 + a * 4).fill({ color: 0xf08c2e, alpha: 0.1 + 0.12 * a });
-          light.circle(0, 0, 7).fill(0xf08c2e).stroke({ width: 2, color: 0x10151d });
+          light.circle(0, 0, 12 + a * 4).fill({ color: 0xf0883c, alpha: 0.1 + 0.14 * a });
+          light.circle(0, 0, 7).fill(0xf0883c).stroke({ width: 2, color: 0x10151d });
         } else {
-          light.circle(0, 0, 10).fill({ color: 0x37d67a, alpha: 0.08 });
-          light.circle(0, 0, 6.5).fill(0x37d67a).stroke({ width: 2, color: 0x10151d });
+          light.circle(0, 0, 10).fill({ color: 0x35d07a, alpha: 0.09 });
+          light.circle(0, 0, 6.5).fill(0x35d07a).stroke({ width: 2, color: 0x10151d });
         }
       }
       smoke(animT, dt);
@@ -272,7 +291,7 @@ export default function WorldView({
       const exit = new Graphics();
       exit.poly([bB.x, bB.y - 9, bB.x + 16, bB.y - 9, bB.x + 16, bB.y + 9, bB.x, bB.y + 9]).fill({ color: 0x1a212c, alpha: 0.9 });
       world.addChild(exit);
-      const exitLab = new Text({ text: "出貨 →", style: { fill: 0x6b7488, fontSize: 10, fontFamily: "Microsoft JhengHei" } });
+      const exitLab = new Text({ text: "出貨 →", style: { fill: 0x6b7488, fontSize: 10, fontFamily: "IBM Plex Sans TC" } });
       exitLab.x = bB.x + 2; exitLab.y = bB.y + 10; world.addChild(exitLab);
 
       const partsLayer = new Container(); world.addChild(partsLayer);  // 工件畫在輸送帶之上
@@ -292,7 +311,7 @@ export default function WorldView({
         cont.eventMode = "static"; cont.cursor = "pointer"; cont.on("pointertap", () => onSelectRef.current(did));
         const ring = new Graphics(); cont.addChild(ring);
         const art = new Graphics(); cont.addChild(art);
-        const lab = new Text({ text: did, style: { fill: 0xc7d2e0, fontSize: 11, fontFamily: "Segoe UI" } });
+        const lab = new Text({ text: did, style: { fill: 0xc7d2e0, fontSize: 11, fontFamily: "IBM Plex Sans TC" } });
         lab.anchor.set(0.5, 0); lab.y = 34; cont.addChild(lab);
         (cont as any)._track = { a: fiso(2, 1), b: fiso(FW - 2, 1), c: fiso(FW - 2, FH - 3), d: fiso(2, FH - 3) }; // AGV 軌跡
         world.addChild(cont);
@@ -570,33 +589,32 @@ export default function WorldView({
     <div style={{ position: "absolute", inset: 0 }}>
       <div ref={hostRef} style={{ position: "absolute", inset: 0 }} />
       {!focus && (
-        <div style={{ position: "absolute", top: 12, left: 14, color: "#8a93a6", fontSize: 13 }}>
-          滑鼠移到公司看簡介 ｜ 點公司進廠內 ｜ 點設備看即時值
+        <div className="pill" style={{ position: "absolute", top: 12, left: 14, fontSize: 12 }}>
+          滑鼠移到公司看簡介 · 點公司進廠內 · 點設備看即時值
         </div>
       )}
       {/* 公司 hover tooltip */}
       {tip && !focus && (
-        <div style={{ position: "absolute", left: Math.min(tip.x + 14, (hostRef.current?.clientWidth ?? 800) - 250),
-                      top: tip.y + 14, width: 232, background: "rgba(20,27,37,0.96)", border: "1px solid #2e3a4d",
-                      borderRadius: 8, padding: "8px 12px", pointerEvents: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.4)" }}>
-          <div style={{ fontWeight: 700, color: "#e6ecf5" }}>🏭 {tip.c.name}</div>
-          {tip.c.product && <div style={{ color: "#5b9bd5", fontSize: 12, margin: "3px 0" }}>主要產品:{tip.c.product}</div>}
-          <div style={{ color: "#8a93a6", fontSize: 12 }}>設備:{(tip.c.device_ids || []).join("、")}</div>
+        <div className="card float" style={{ position: "absolute", left: Math.min(tip.x + 14, (hostRef.current?.clientWidth ?? 800) - 250),
+                      top: tip.y + 14, width: 232, padding: "9px 12px", pointerEvents: "none" }}>
+          <div style={{ fontWeight: 700, color: "var(--text)" }}>🏭 {tip.c.name}</div>
+          {tip.c.product && <div style={{ color: "var(--accent)", fontSize: 12, margin: "3px 0" }}>主要產品:{tip.c.product}</div>}
+          <div className="mono" style={{ color: "var(--muted)", fontSize: 11 }}>設備:{(tip.c.device_ids || []).join("、")}</div>
         </div>
       )}
       {/* 廠內標題 + 返回 + 公司介紹 */}
       {fc && (
         <>
           <div style={{ position: "absolute", top: 12, left: 14, display: "flex", gap: 12, alignItems: "center" }}>
-            <button onClick={() => setFocus(null)} style={{ background: "#222c3c", color: "#e6ecf5", border: "1px solid #2e3a4d", borderRadius: 6, padding: "6px 14px", cursor: "pointer" }}>← 返回俯瞰</button>
-            <span style={{ color: "#c7d2e0", fontWeight: 600 }}>🏭 {fc.name} · 廠內即時</span>
+            <button className="btn ghost" onClick={() => setFocus(null)}>← 返回俯瞰</button>
+            <span style={{ color: "var(--text-2)", fontWeight: 600 }}>🏭 {fc.name} · 廠內即時</span>
           </div>
-          <div style={{ position: "absolute", top: 60, left: 16, width: 300, background: "rgba(20,27,37,0.9)", border: "1px solid #2e3a4d", borderRadius: 10, padding: "14px 16px" }}>
-            <div style={{ fontSize: 17, fontWeight: 700, color: "#e6ecf5" }}>{fc.name}</div>
-            {fc.product && <div style={{ color: "#5b9bd5", fontSize: 13, margin: "6px 0" }}>主要產品:{fc.product}</div>}
-            {fc.intro && <div style={{ color: "#c7d2e0", fontSize: 13, lineHeight: 1.6 }}>{fc.intro}</div>}
-            <div style={{ color: "#8a93a6", fontSize: 12, marginTop: 8 }}>廠內設備:{(fc.device_ids || []).join("、")}</div>
-            <div style={{ color: "#f08c2e", fontSize: 11, marginTop: 6 }}>⚠ 合成數據,非真實產線</div>
+          <div className="card float" style={{ position: "absolute", top: 58, left: 16, width: 300, padding: "14px 16px" }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>{fc.name}</div>
+            {fc.product && <div style={{ color: "var(--accent)", fontSize: 12.5, margin: "6px 0" }}>主要產品:{fc.product}</div>}
+            {fc.intro && <div style={{ color: "var(--text-2)", fontSize: 12.5, lineHeight: 1.6 }}>{fc.intro}</div>}
+            <div className="mono" style={{ color: "var(--muted)", fontSize: 11, marginTop: 8 }}>廠內設備:{(fc.device_ids || []).join("、")}</div>
+            <div style={{ color: "var(--pred)", fontSize: 11, marginTop: 6 }}>⚠ 合成數據,非真實產線</div>
           </div>
         </>
       )}

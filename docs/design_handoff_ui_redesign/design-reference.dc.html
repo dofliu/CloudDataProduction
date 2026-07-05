@@ -1,0 +1,1453 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#07090d;font-family:'IBM Plex Sans TC',system-ui,sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  @keyframes pulseRed{0%,100%{box-shadow:0 0 0 0 rgba(224,80,63,.55)}50%{box-shadow:0 0 0 8px rgba(224,80,63,0)}}
+  @keyframes pulseOrange{0%,100%{box-shadow:0 0 0 0 rgba(240,136,60,.5)}50%{box-shadow:0 0 0 7px rgba(240,136,60,0)}}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+  @keyframes sweep{0%{transform:translateX(-120%)}100%{transform:translateX(320%)}}
+</style>
+</helmet>
+<section id="t3" style="padding:36px 44px 44px;scroll-margin-top:16px">
+  <div style="display:flex;align-items:baseline;gap:10px;margin:0 0 8px">
+    <a href="#t3" style="font:600 10px 'IBM Plex Mono',monospace;padding:3px 7px;background:#e8edf4;color:#0b0f15;border-radius:4px;text-decoration:none">3</a>
+    <span style="font:600 14px 'IBM Plex Sans TC';color:#e8edf4">廠內設備動畫重新設計 · 更精緻真實的等距機台</span>
+  </div>
+  <p style="margin:0 0 30px;font:13px/1.6 'IBM Plex Sans TC';color:#8a94a6;max-width:880px">點進公司後的廠內畫面全面升級:金屬漸層量體、接地陰影、主軸 / 電漿 / 爐火發光、平滑的六軸手臂 pick-place、帶輪廓的輸送帶與流動工件。<b style="color:#c7d0dd">3a</b> 為完整廠內即時場景(即時動畫);<b style="color:#c7d0dd">3b</b> 為每種設備的動畫圖鑑。</p>
+  <div style="display:flex;flex-wrap:wrap;gap:44px;align-items:flex-start">
+
+    <!-- ============================= 3a 廠內即時 ============================= -->
+    <div id="3a" style="scroll-margin-top:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:10px">
+        <a href="#3a" style="font:600 11px 'IBM Plex Mono',monospace;padding:3px 8px;background:#1a212c;color:#e8edf4;border:1px solid #2a3340;border-radius:5px;text-decoration:none">3a</a>
+        <span style="font:600 13px 'IBM Plex Sans TC';color:#e8edf4">廠內即時 · 精昱機械</span>
+        <span style="font:12px 'IBM Plex Sans TC';color:#8a94a6">CNC · 射出機 · 製程腔體 · 六軸手臂 · 輸送帶 · AGV(即時動畫)</span>
+      </div>
+      <div style="width:1440px;height:864px;background:#0b0f15;border:1px solid #202836;border-radius:14px;overflow:hidden;box-shadow:0 24px 60px -20px rgba(0,0,0,.7);display:flex;flex-direction:column;color:#e8edf4">
+        <div style="height:56px;flex:0 0 56px;display:flex;align-items:center;gap:18px;padding:0 20px;background:#10151d;border-bottom:1px solid #202836">
+          <div style="display:flex;align-items:center;gap:10px"><div style="width:26px;height:26px;border-radius:7px;background:linear-gradient(140deg,#4c9ce8,#2c6fb0);display:flex;align-items:center;justify-content:center;font:700 13px 'IBM Plex Mono';color:#07090d">勤</div><span style="font:600 15px 'IBM Plex Sans TC'">勤益智慧工業區</span></div>
+          <span style="font:500 10.5px 'IBM Plex Mono';letter-spacing:.5px;color:#f0883c;border:1px solid #6b4324;background:#20160d;padding:2px 7px;border-radius:5px">合成數據</span>
+          <nav style="display:flex;gap:2px;margin-left:8px">
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">開始</span>
+            <span style="font:600 13px 'IBM Plex Sans TC';color:#e8edf4;padding:8px 12px;border-radius:7px;background:#1a212c;box-shadow:inset 0 -2px 0 #4c9ce8">2D 世界</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">學生面</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">設備目錄</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">戰情版</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">OEE 榜</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">教師控制台</span>
+          </nav>
+          <div style="flex:1"></div>
+          <span style="font:500 12.5px 'IBM Plex Mono';color:#8a94a6">sim 42.6 h · 3600×</span>
+        </div>
+
+        <div style="flex:1;display:flex;min-height:0">
+          <div style="flex:1;position:relative;min-width:0;overflow:hidden">
+            <canvas class="fx" data-kind="hero" style="position:absolute;inset:0;width:100%;height:100%;display:block"></canvas>
+            <div style="position:absolute;top:14px;left:16px;display:flex;gap:10px;align-items:center">
+              <span style="font:12.5px 'IBM Plex Sans TC';color:#c7d0dd;background:rgba(16,21,29,.85);border:1px solid #2a3340;border-radius:7px;padding:6px 12px">← 返回俯瞰</span>
+              <span style="font:600 13px 'IBM Plex Sans TC';color:#e8edf4;background:rgba(9,13,20,.55);border-radius:7px;padding:6px 12px;backdrop-filter:blur(2px)">🏭 精昱機械 · 廠內即時</span>
+            </div>
+            <div style="position:absolute;top:60px;left:16px;width:270px;background:rgba(12,16,22,.82);border:1px solid #202836;border-radius:10px;padding:13px 15px;backdrop-filter:blur(3px)">
+              <div style="font:600 15px 'IBM Plex Sans TC';color:#e8edf4">精昱機械</div>
+              <div style="font:12.5px 'IBM Plex Sans TC';color:#4c9ce8;margin:5px 0">主要產品:精密金屬零件</div>
+              <div style="font:12px/1.6 'IBM Plex Sans TC';color:#b7c0cd">以 CNC 加工中心為核心,搭配射出成型與六軸手臂上下料,產線末端由輸送帶出貨。</div>
+              <div style="font:11.5px 'IBM Plex Sans TC';color:#6d7686;margin-top:8px">廠內:cnc-01、cnc-02、inj-01、arm-01</div>
+            </div>
+            <div style="position:absolute;left:16px;bottom:16px;display:flex;gap:16px;align-items:center;background:rgba(9,13,20,.7);border:1px solid #202836;border-radius:9px;padding:8px 14px;backdrop-filter:blur(3px)">
+              <span style="display:flex;align-items:center;gap:6px;font:12px 'IBM Plex Sans TC';color:#b7c0cd"><span style="width:8px;height:8px;border-radius:50%;background:#35d07a"></span>運轉</span>
+              <span style="display:flex;align-items:center;gap:6px;font:12px 'IBM Plex Sans TC';color:#b7c0cd"><span style="width:8px;height:8px;border-radius:50%;background:#f2c14e"></span>警告</span>
+              <span style="display:flex;align-items:center;gap:6px;font:12px 'IBM Plex Sans TC';color:#b7c0cd"><span style="width:8px;height:8px;border-radius:50%;background:#e0503f"></span>故障</span>
+              <span style="font:11.5px 'IBM Plex Sans TC';color:#6d7686;border-left:1px solid #2a3340;padding-left:12px">點設備看即時值</span>
+            </div>
+          </div>
+
+          <!-- device inspector -->
+          <aside style="width:346px;flex:0 0 346px;background:#10151d;border-left:1px solid #202836;overflow-y:auto;padding:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+              <div><div style="font:600 19px 'IBM Plex Mono';letter-spacing:.5px">cnc-01</div><div style="font:12.5px 'IBM Plex Sans TC';color:#8a94a6;margin-top:2px">cnc_machining_center</div></div>
+              <span style="font:600 11px 'IBM Plex Sans TC';color:#07090d;background:#35d07a;padding:3px 10px;border-radius:20px">running</span>
+            </div>
+            <div style="width:100%;height:150px;background:#0c1219;border:1px solid #202836;border-radius:11px;margin:14px 0;overflow:hidden;position:relative">
+              <canvas class="fx" data-kind="cnc_machining_center" style="position:absolute;inset:0;width:100%;height:100%;display:block"></canvas>
+              <span style="position:absolute;left:10px;bottom:8px;font:11px 'IBM Plex Sans TC';color:#6d7686">主軸運轉中 · 切削冷卻</span>
+            </div>
+            <div style="font:600 11px 'IBM Plex Mono';letter-spacing:.6px;color:#6d7686;margin:0 0 9px">關鍵訊號</div>
+            <div style="display:flex;flex-direction:column;gap:11px;margin-bottom:16px">
+              <div style="display:flex;align-items:center;gap:10px"><span style="flex:0 0 82px;font:12px 'IBM Plex Sans TC';color:#8a94a6">振動 RMS</span><div style="flex:1;height:6px;border-radius:3px;background:#1a212c;position:relative;overflow:hidden"><div style="position:absolute;inset:0 68% 0 0;background:linear-gradient(90deg,#4c9ce8,#35d07a);border-radius:3px"></div></div><span style="flex:0 0 66px;text-align:right;font:600 12px 'IBM Plex Mono';color:#35d07a">2.4<span style="color:#8a94a6;font-weight:400"> mm/s</span></span></div>
+              <div style="display:flex;align-items:center;gap:10px"><span style="flex:0 0 82px;font:12px 'IBM Plex Sans TC';color:#8a94a6">主軸電流</span><div style="flex:1;height:6px;border-radius:3px;background:#1a212c;position:relative;overflow:hidden"><div style="position:absolute;inset:0 52% 0 0;background:linear-gradient(90deg,#4c9ce8,#35d07a);border-radius:3px"></div></div><span style="flex:0 0 66px;text-align:right;font:600 12px 'IBM Plex Mono';color:#c7d0dd">7.6<span style="color:#8a94a6;font-weight:400"> A</span></span></div>
+              <div style="display:flex;align-items:center;gap:10px"><span style="flex:0 0 82px;font:12px 'IBM Plex Sans TC';color:#8a94a6">主軸溫度</span><div style="flex:1;height:6px;border-radius:3px;background:#1a212c;position:relative;overflow:hidden"><div style="position:absolute;inset:0 58% 0 0;background:linear-gradient(90deg,#4c9ce8,#35d07a);border-radius:3px"></div></div><span style="flex:0 0 66px;text-align:right;font:600 12px 'IBM Plex Mono';color:#c7d0dd">62<span style="color:#8a94a6;font-weight:400"> °C</span></span></div>
+            </div>
+            <div style="font:600 11px 'IBM Plex Mono';letter-spacing:.6px;color:#6d7686;margin:0 0 4px">保持暫存器 · HOLDING (FC03)</div>
+            <div style="display:flex;flex-direction:column">
+              <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #1a212c;font:12.5px 'IBM Plex Mono'"><span style="color:#8a94a6">spindle_rpm</span><span>8420.00</span></div>
+              <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #1a212c;font:12.5px 'IBM Plex Mono'"><span style="color:#8a94a6">feed_rate</span><span>3200.00</span></div>
+              <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #1a212c;font:12.5px 'IBM Plex Mono'"><span style="color:#8a94a6">tool_wear</span><span>0.18</span></div>
+            </div>
+            <div style="font:600 11px 'IBM Plex Mono';letter-spacing:.6px;color:#6d7686;margin:14px 0 7px">離散輸入 · DISCRETE (FC02)</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px">
+              <span style="font:12px 'IBM Plex Mono';padding:3px 9px;border-radius:12px;background:#0f2018;color:#35d07a;border:1px solid #1e4230">● door_closed</span>
+              <span style="font:12px 'IBM Plex Mono';padding:3px 9px;border-radius:12px;background:#0f2018;color:#35d07a;border:1px solid #1e4230">● spindle_on</span>
+              <span style="font:12px 'IBM Plex Mono';padding:3px 9px;border-radius:12px;background:#151b25;color:#6d7686;border:1px solid #262f3c">○ estop</span>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================= 3b 設備動畫圖鑑 ============================= -->
+    <div id="3b" style="scroll-margin-top:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:10px">
+        <a href="#3b" style="font:600 11px 'IBM Plex Mono',monospace;padding:3px 8px;background:#1a212c;color:#e8edf4;border:1px solid #2a3340;border-radius:5px;text-decoration:none">3b</a>
+        <span style="font:600 13px 'IBM Plex Sans TC';color:#e8edf4">設備動畫圖鑑</span>
+        <span style="font:12px 'IBM Plex Sans TC';color:#8a94a6">全部設備型別的重新設計(即時動畫)</span>
+      </div>
+      <div style="width:1440px;background:#0b0f15;border:1px solid #202836;border-radius:14px;overflow:hidden;box-shadow:0 24px 60px -20px rgba(0,0,0,.7);padding:24px;color:#e8edf4">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+          <div style="background:#0c1219;border:1px solid #202836;border-radius:12px;overflow:hidden"><div style="height:140px;position:relative"><canvas class="fx" data-kind="robot_arm_6axis" style="position:absolute;inset:0;width:100%;height:100%;display:block"></canvas></div><div style="padding:11px 14px;border-top:1px solid #1a212c"><div style="font:600 13px 'IBM Plex Sans TC'">六軸機械手臂</div><div style="font:11.5px 'IBM Plex Sans TC';color:#8a94a6">robot_arm_6axis · pick-place 上下料</div></div></div>
+          <div style="background:#0c1219;border:1px solid #202836;border-radius:12px;overflow:hidden"><div style="height:140px;position:relative"><canvas class="fx" data-kind="cnc_machining_center" style="position:absolute;inset:0;width:100%;height:100%;display:block"></canvas></div><div style="padding:11px 14px;border-top:1px solid #1a212c"><div style="font:600 13px 'IBM Plex Sans TC'">CNC 加工中心</div><div style="font:11.5px 'IBM Plex Sans TC';color:#8a94a6">cnc_machining_center · 主軸切削</div></div></div>
+          <div style="background:#0c1219;border:1px solid #202836;border-radius:12px;overflow:hidden"><div style="height:140px;position:relative"><canvas class="fx" data-kind="injection_molding" style="position:absolute;inset:0;width:100%;height:100%;display:block"></canvas></div><div style="padding:11px 14px;border-top:1px solid #1a212c"><div style="font:600 13px 'IBM Plex Sans TC'">射出成型機</div><div style="font:11.5px 'IBM Plex Sans TC';color:#8a94a6">injection_molding · 鎖模射出</div></div></div>
+          <div style="background:#0c1219;border:1px solid #202836;border-radius:12px;overflow:hidden"><div style="height:140px;position:relative"><canvas class="fx" data-kind="belt" style="position:absolute;inset:0;width:100%;height:100%;display:block"></canvas></div><div style="padding:11px 14px;border-top:1px solid #1a212c"><div style="font:600 13px 'IBM Plex Sans TC'">產線輸送帶</div><div style="font:11.5px 'IBM Plex Sans TC';color:#8a94a6">conveyor · 工件流動出貨</div></div></div>
+          <div style="background:#0c1219;border:1px solid #202836;border-radius:12px;overflow:hidden"><div style="height:140px;position:relative"><canvas class="fx" data-kind="stamping_press" style="position:absolute;inset:0;width:100%;height:100%;display:block"></canvas></div><div style="padding:11px 14px;border-top:1px solid #1a212c"><div style="font:600 13px 'IBM Plex Sans TC'">沖壓機</div><div style="font:11.5px 'IBM Plex Sans TC';color:#8a94a6">stamping_press · 滑塊往復衝壓</div></div></div>
+          <div style="background:#0c1219;border:1px solid #202836;border-radius:12px;overflow:hidden"><div style="height:140px;position:relative"><canvas class="fx" data-kind="semi_process_chamber" style="position:absolute;inset:0;width:100%;height:100%;display:block"></canvas></div><div style="padding:11px 14px;border-top:1px solid #1a212c"><div style="font:600 13px 'IBM Plex Sans TC'">半導體製程腔體</div><div style="font:11.5px 'IBM Plex Sans TC';color:#8a94a6">semi_process_chamber · 電漿輝光</div></div></div>
+          <div style="background:#0c1219;border:1px solid #202836;border-radius:12px;overflow:hidden"><div style="height:140px;position:relative"><canvas class="fx" data-kind="air_compressor" style="position:absolute;inset:0;width:100%;height:100%;display:block"></canvas></div><div style="padding:11px 14px;border-top:1px solid #1a212c"><div style="font:600 13px 'IBM Plex Sans TC'">空壓機</div><div style="font:11.5px 'IBM Plex Sans TC';color:#8a94a6">air_compressor · 風扇轉動</div></div></div>
+          <div style="background:#0c1219;border:1px solid #202836;border-radius:12px;overflow:hidden"><div style="height:140px;position:relative"><canvas class="fx" data-kind="heat_treat_furnace" style="position:absolute;inset:0;width:100%;height:100%;display:block"></canvas></div><div style="padding:11px 14px;border-top:1px solid #1a212c"><div style="font:600 13px 'IBM Plex Sans TC'">熱處理爐</div><div style="font:11.5px 'IBM Plex Sans TC';color:#8a94a6">heat_treat_furnace · 爐火輝光</div></div></div>
+          <div style="background:#0c1219;border:1px solid #202836;border-radius:12px;overflow:hidden"><div style="height:140px;position:relative"><canvas class="fx" data-kind="wind_turbine" style="position:absolute;inset:0;width:100%;height:100%;display:block"></canvas></div><div style="padding:11px 14px;border-top:1px solid #1a212c"><div style="font:600 13px 'IBM Plex Sans TC'">風力機</div><div style="font:11.5px 'IBM Plex Sans TC';color:#8a94a6">wind_turbine · 葉片轉動 ∝ rpm</div></div></div>
+          <div style="background:#0c1219;border:1px solid #202836;border-radius:12px;overflow:hidden"><div style="height:140px;position:relative"><canvas class="fx" data-kind="energy_meter" style="position:absolute;inset:0;width:100%;height:100%;display:block"></canvas></div><div style="padding:11px 14px;border-top:1px solid #1a212c"><div style="font:600 13px 'IBM Plex Sans TC'">電表 / 配電箱</div><div style="font:11.5px 'IBM Plex Sans TC';color:#8a94a6">energy_meter · 三相指示燈</div></div></div>
+          <div style="background:#0c1219;border:1px solid #202836;border-radius:12px;overflow:hidden"><div style="height:140px;position:relative"><canvas class="fx" data-kind="agv_mobile_robot" style="position:absolute;inset:0;width:100%;height:100%;display:block"></canvas></div><div style="padding:11px 14px;border-top:1px solid #1a212c"><div style="font:600 13px 'IBM Plex Sans TC'">AGV 搬運車</div><div style="font:11.5px 'IBM Plex Sans TC';color:#8a94a6">agv_mobile_robot · 載貨巡走</div></div></div>
+          <div style="background:#0c1219;border:1px solid #4a2620;border-radius:12px;overflow:hidden"><div style="height:140px;position:relative"><canvas class="fx" data-kind="cnc_machining_center" data-fault="true" style="position:absolute;inset:0;width:100%;height:100%;display:block"></canvas></div><div style="padding:11px 14px;border-top:1px solid #1a212c"><div style="font:600 13px 'IBM Plex Sans TC';color:#ffb4ab">故障狀態範例</div><div style="font:11.5px 'IBM Plex Sans TC';color:#8a94a6">cnc · 紅色警示外殼</div></div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<section id="t2" style="padding:36px 44px 44px;scroll-margin-top:16px">
+  <div style="display:flex;align-items:baseline;gap:10px;margin:0 0 8px">
+    <a href="#t2" style="font:600 10px 'IBM Plex Mono',monospace;padding:3px 7px;background:#e8edf4;color:#0b0f15;border-radius:4px;text-decoration:none">2</a>
+    <span style="font:600 14px 'IBM Plex Sans TC';color:#e8edf4">新風格全站改版 · 真實感 2.5D 園區 + 六大頁面</span>
+  </div>
+  <p style="margin:0 0 30px;font:13px/1.6 'IBM Plex Sans TC';color:#8a94a6;max-width:860px"><b style="color:#c7d0dd">2a</b> 沿用 1a 的頂欄 + 世界 / 側欄佈局,把 2D 世界升級成有街道、量體、窗光與燈號的等距 2.5D 工業園區;<b style="color:#c7d0dd">2b–2f</b> 為學生面、設備目錄、戰情版、OEE 榜、教師控制台的同風格重新設計。</p>
+  <div style="display:flex;flex-wrap:wrap;gap:44px;align-items:flex-start">
+
+    <!-- ============================= 2a MONITOR ============================= -->
+    <div id="2a" style="scroll-margin-top:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:10px">
+        <a href="#2a" style="font:600 11px 'IBM Plex Mono',monospace;padding:3px 8px;background:#1a212c;color:#e8edf4;border:1px solid #2a3340;border-radius:5px;text-decoration:none">2a</a>
+        <span style="font:600 13px 'IBM Plex Sans TC';color:#e8edf4">主監控畫面 · 2.5D 園區</span>
+        <span style="font:12px 'IBM Plex Sans TC';color:#8a94a6">1a 佈局 + 等距街道 / 建築量體 / 屋頂燈號</span>
+      </div>
+
+      <div style="width:1440px;height:864px;background:#0b0f15;border:1px solid #202836;border-radius:14px;overflow:hidden;box-shadow:0 24px 60px -20px rgba(0,0,0,.7);display:flex;flex-direction:column;color:#e8edf4">
+        <!-- topbar (same as 1a) -->
+        <div style="height:56px;flex:0 0 56px;display:flex;align-items:center;gap:18px;padding:0 20px;background:#10151d;border-bottom:1px solid #202836">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:26px;height:26px;border-radius:7px;background:linear-gradient(140deg,#4c9ce8,#2c6fb0);display:flex;align-items:center;justify-content:center;font:700 13px 'IBM Plex Mono';color:#07090d">勤</div>
+            <span style="font:600 15px 'IBM Plex Sans TC'">勤益智慧工業區</span>
+          </div>
+          <span style="font:500 10.5px 'IBM Plex Mono';letter-spacing:.5px;color:#f0883c;border:1px solid #6b4324;background:#20160d;padding:2px 7px;border-radius:5px">合成數據 · SYNTHETIC</span>
+          <nav style="display:flex;gap:2px;margin-left:8px">
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px;border-radius:7px">開始</span>
+            <span style="font:600 13px 'IBM Plex Sans TC';color:#e8edf4;padding:8px 12px;border-radius:7px;background:#1a212c;box-shadow:inset 0 -2px 0 #4c9ce8">2D 世界</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">學生面</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">設備目錄</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">戰情版</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">OEE 榜</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">教師控制台</span>
+          </nav>
+          <div style="flex:1"></div>
+          <div style="display:flex;align-items:center;gap:14px;padding:0 14px;border-right:1px solid #202836;height:30px">
+            <span style="display:flex;align-items:center;gap:6px;font:600 12.5px 'IBM Plex Mono';color:#c7d0dd"><span style="width:8px;height:8px;border-radius:50%;background:#35d07a"></span>18</span>
+            <span style="display:flex;align-items:center;gap:6px;font:600 12.5px 'IBM Plex Mono';color:#c7d0dd"><span style="width:8px;height:8px;border-radius:50%;background:#f2c14e"></span>3</span>
+            <span style="display:flex;align-items:center;gap:6px;font:600 12.5px 'IBM Plex Mono';color:#c7d0dd"><span style="width:8px;height:8px;border-radius:50%;background:#e0503f;animation:blink 1.4s infinite"></span>2</span>
+          </div>
+          <span style="font:500 12.5px 'IBM Plex Mono';color:#8a94a6">sim 42.6 h · 3600×</span>
+          <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:6px 10px;border:1px solid #2a3340;border-radius:7px">名詞速查</span>
+        </div>
+
+        <div style="flex:1;display:flex;min-height:0">
+          <!-- WORLD: new isometric scene -->
+          <div style="flex:1;position:relative;min-width:0;overflow:hidden">
+            {{ world }}
+            <div style="position:absolute;top:14px;left:16px;font:12.5px 'IBM Plex Sans TC';color:#8792a3;background:rgba(9,13,20,.55);padding:4px 10px;border-radius:7px;backdrop-filter:blur(2px)">滑鼠移到公司看簡介 ｜ 點公司進廠內 ｜ 點設備看即時值</div>
+            <div style="position:absolute;left:16px;bottom:16px;display:flex;gap:16px;align-items:center;background:rgba(9,13,20,.7);border:1px solid #202836;border-radius:9px;padding:8px 14px;backdrop-filter:blur(3px)">
+              <span style="display:flex;align-items:center;gap:6px;font:12px 'IBM Plex Sans TC';color:#b7c0cd"><span style="width:8px;height:8px;border-radius:50%;background:#35d07a"></span>正常</span>
+              <span style="display:flex;align-items:center;gap:6px;font:12px 'IBM Plex Sans TC';color:#b7c0cd"><span style="width:8px;height:8px;border-radius:50%;background:#f2c14e"></span>警告</span>
+              <span style="display:flex;align-items:center;gap:6px;font:12px 'IBM Plex Sans TC';color:#b7c0cd"><span style="width:8px;height:8px;border-radius:50%;background:#f0883c"></span>預測故障</span>
+              <span style="display:flex;align-items:center;gap:6px;font:12px 'IBM Plex Sans TC';color:#b7c0cd"><span style="width:8px;height:8px;border-radius:50%;background:#e0503f"></span>故障</span>
+            </div>
+            <div style="position:absolute;right:14px;bottom:14px;display:flex;flex-direction:column;gap:6px">
+              <span style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:rgba(16,21,29,.85);border:1px solid #2a3340;border-radius:7px;font:600 16px 'IBM Plex Mono';color:#c7d0dd">+</span>
+              <span style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:rgba(16,21,29,.85);border:1px solid #2a3340;border-radius:7px;font:600 16px 'IBM Plex Mono';color:#c7d0dd">−</span>
+            </div>
+          </div>
+
+          <!-- side panel (identical to 1a) -->
+          <aside style="width:346px;flex:0 0 346px;background:#10151d;border-left:1px solid #202836;overflow:hidden;display:flex;flex-direction:column">
+            <div style="flex:1;overflow-y:auto;padding:16px 16px 8px">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                <div style="font:600 19px 'IBM Plex Mono';letter-spacing:.5px">cnc-01</div>
+                <span style="font:600 11px 'IBM Plex Sans TC';color:#07090d;background:#e0503f;padding:3px 10px;border-radius:20px;display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:#07090d;animation:blink 1.4s infinite"></span>fault</span>
+              </div>
+              <div style="font:12.5px 'IBM Plex Sans TC';color:#8a94a6;margin-top:3px">cnc_machining_center · 精昱機械</div>
+              <div style="display:flex;gap:8px;margin:12px 0 4px">
+                <span style="flex:1;text-align:center;font:600 12.5px 'IBM Plex Sans TC';color:#f2c14e;background:#221a0d;border:1px solid #4a3a1a;border-radius:7px;padding:7px 0">⏸ 停機</span>
+                <span style="flex:1;text-align:center;font:600 12.5px 'IBM Plex Sans TC';color:#35d07a;background:#0f2018;border:1px solid #1e4230;border-radius:7px;padding:7px 0">↺ 重置 / 清除故障</span>
+              </div>
+              <div style="font:11px 'IBM Plex Sans TC';color:#5c6675;margin:0 0 12px">教師 token 已載入,可寫命令線圈</div>
+              <div style="font:600 11px 'IBM Plex Mono';letter-spacing:.6px;color:#6d7686;margin:0 0 9px">關鍵訊號</div>
+              <div style="display:flex;flex-direction:column;gap:11px;margin-bottom:16px">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="flex:0 0 82px;font:12px 'IBM Plex Sans TC';color:#8a94a6">振動 RMS</span>
+                  <div style="flex:1;height:6px;border-radius:3px;background:#1a212c;position:relative;overflow:hidden"><div style="position:absolute;inset:0 12% 0 0;background:linear-gradient(90deg,#f0883c,#e0503f);border-radius:3px"></div><div style="position:absolute;left:45%;top:-3px;bottom:-3px;width:1px;background:#6d7686"></div></div>
+                  <span style="flex:0 0 70px;text-align:right;font:600 12px 'IBM Plex Mono';color:#e0503f">13.4<span style="color:#8a94a6;font-weight:400"> mm/s</span></span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="flex:0 0 82px;font:12px 'IBM Plex Sans TC';color:#8a94a6">主軸電流</span>
+                  <div style="flex:1;height:6px;border-radius:3px;background:#1a212c;position:relative;overflow:hidden"><div style="position:absolute;inset:0 32% 0 0;background:linear-gradient(90deg,#4c9ce8,#f2c14e);border-radius:3px"></div><div style="position:absolute;left:78%;top:-3px;bottom:-3px;width:1px;background:#6d7686"></div></div>
+                  <span style="flex:0 0 70px;text-align:right;font:600 12px 'IBM Plex Mono';color:#f2c14e">11.8<span style="color:#8a94a6;font-weight:400"> A</span></span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="flex:0 0 82px;font:12px 'IBM Plex Sans TC';color:#8a94a6">主軸溫度</span>
+                  <div style="flex:1;height:6px;border-radius:3px;background:#1a212c;position:relative;overflow:hidden"><div style="position:absolute;inset:0 28% 0 0;background:linear-gradient(90deg,#4c9ce8,#f2c14e);border-radius:3px"></div><div style="position:absolute;left:88%;top:-3px;bottom:-3px;width:1px;background:#6d7686"></div></div>
+                  <span style="flex:0 0 70px;text-align:right;font:600 12px 'IBM Plex Mono';color:#f2c14e">80.2<span style="color:#8a94a6;font-weight:400"> °C</span></span>
+                </div>
+              </div>
+              <div style="font:600 11px 'IBM Plex Mono';letter-spacing:.6px;color:#6d7686;margin:0 0 4px">保持暫存器 · HOLDING (FC03)</div>
+              <div style="display:flex;flex-direction:column">
+                <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #1a212c;font:12.5px 'IBM Plex Mono'"><span style="color:#8a94a6">spindle_rpm</span><span>8420.00</span></div>
+                <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #1a212c;font:12.5px 'IBM Plex Mono'"><span style="color:#8a94a6">feed_rate</span><span>3200.00</span></div>
+                <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #1a212c;font:12.5px 'IBM Plex Mono'"><span style="color:#8a94a6">tool_wear</span><span>0.62</span></div>
+                <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #1a212c;font:12.5px 'IBM Plex Mono'"><span style="color:#8a94a6">active_power</span><span>14.20</span></div>
+              </div>
+              <div style="font:600 11px 'IBM Plex Mono';letter-spacing:.6px;color:#6d7686;margin:14px 0 7px">離散輸入 · DISCRETE (FC02)</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px">
+                <span style="font:12px 'IBM Plex Mono';padding:3px 9px;border-radius:12px;background:#0f2018;color:#35d07a;border:1px solid #1e4230">● door_closed</span>
+                <span style="font:12px 'IBM Plex Mono';padding:3px 9px;border-radius:12px;background:#0f2018;color:#35d07a;border:1px solid #1e4230">● spindle_on</span>
+                <span style="font:12px 'IBM Plex Mono';padding:3px 9px;border-radius:12px;background:#151b25;color:#6d7686;border:1px solid #262f3c">○ estop</span>
+              </div>
+              <div style="font:600 11px 'IBM Plex Mono';letter-spacing:.6px;color:#6d7686;margin:14px 0 7px">設定點 · SETPOINT (FC06 ★學生可寫)</div>
+              <div style="background:#0c1219;border:1px solid #202836;border-radius:9px;padding:10px 12px">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span style="font:12.5px 'IBM Plex Sans TC';color:#c7d0dd">feed_override</span><span style="font:12px 'IBM Plex Mono';color:#8a94a6">目前 100 %</span></div>
+                <div style="display:flex;gap:8px;margin-top:8px"><div style="flex:1;background:#10151d;border:1px solid #2a3340;border-radius:6px;padding:5px 9px;font:12.5px 'IBM Plex Mono';color:#e8edf4">100</div><span style="font:600 12px 'IBM Plex Sans TC';color:#07090d;background:#4c9ce8;border-radius:6px;padding:6px 14px">寫入</span></div>
+                <div style="font:11px 'IBM Plex Sans TC';color:#5c6675;margin-top:6px">範圍 50~120 % · register 40012 · raw = 值 × 1</div>
+              </div>
+            </div>
+            <div style="flex:0 0 232px;border-top:1px solid #202836;background:#0c1017;padding:12px 16px;overflow-y:auto">
+              <div style="font:600 12px 'IBM Plex Sans TC';color:#c7d0dd;margin-bottom:8px">事件</div>
+              <div style="padding:6px 0;border-bottom:1px solid #161c26;font:12px 'IBM Plex Sans TC'"><span style="font-family:'IBM Plex Mono';color:#6d7686">42.4h</span> <span style="color:#e0503f">⚠ cnc-01 故障(spindle_bearing)</span></div>
+              <div style="padding:6px 0;border-bottom:1px solid #161c26;font:12px 'IBM Plex Sans TC'"><span style="font-family:'IBM Plex Mono';color:#6d7686">41.9h</span> <span style="color:#f0883c">🔮 cnc-01 預測故障(S001)</span></div>
+              <div style="padding:6px 0;border-bottom:1px solid #161c26;font:12px 'IBM Plex Sans TC'"><span style="font-family:'IBM Plex Mono';color:#6d7686">40.2h</span> <span style="color:#b7c0cd">cnc-01:running → alarm</span></div>
+              <div style="padding:6px 0;border-bottom:1px solid #161c26;font:12px 'IBM Plex Sans TC'"><span style="font-family:'IBM Plex Mono';color:#6d7686">38.7h</span> <span style="color:#4c9ce8">🎛 agv-02 線圈 run_enable=1(教師)</span></div>
+              <div style="padding:6px 0;font:12px 'IBM Plex Sans TC'"><span style="font-family:'IBM Plex Mono';color:#6d7686">12.0h</span> <span style="color:#35d07a">✅ arm-01 預測命中 lead 3.2h(S003)</span></div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+    <!-- ============================= 2b 學生面 ============================= -->
+    <div id="2b" style="scroll-margin-top:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:10px">
+        <a href="#2b" style="font:600 11px 'IBM Plex Mono',monospace;padding:3px 8px;background:#1a212c;color:#e8edf4;border:1px solid #2a3340;border-radius:5px;text-decoration:none">2b</a>
+        <span style="font:600 13px 'IBM Plex Sans TC';color:#e8edf4">學生面</span>
+        <span style="font:12px 'IBM Plex Sans TC';color:#8a94a6">認領公司 → 處置工單 → 上競賽榜</span>
+      </div>
+      <div style="width:1440px;height:864px;background:#0b0f15;border:1px solid #202836;border-radius:14px;overflow:hidden;box-shadow:0 24px 60px -20px rgba(0,0,0,.7);display:flex;flex-direction:column;color:#e8edf4">
+        <!-- topbar -->
+        <div style="height:56px;flex:0 0 56px;display:flex;align-items:center;gap:18px;padding:0 20px;background:#10151d;border-bottom:1px solid #202836">
+          <div style="display:flex;align-items:center;gap:10px"><div style="width:26px;height:26px;border-radius:7px;background:linear-gradient(140deg,#4c9ce8,#2c6fb0);display:flex;align-items:center;justify-content:center;font:700 13px 'IBM Plex Mono';color:#07090d">勤</div><span style="font:600 15px 'IBM Plex Sans TC'">勤益智慧工業區</span></div>
+          <span style="font:500 10.5px 'IBM Plex Mono';letter-spacing:.5px;color:#f0883c;border:1px solid #6b4324;background:#20160d;padding:2px 7px;border-radius:5px">合成數據</span>
+          <nav style="display:flex;gap:2px;margin-left:8px">
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">開始</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">2D 世界</span>
+            <span style="font:600 13px 'IBM Plex Sans TC';color:#e8edf4;padding:8px 12px;border-radius:7px;background:#1a212c;box-shadow:inset 0 -2px 0 #4c9ce8">學生面</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">設備目錄</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">戰情版</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">OEE 榜</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">教師控制台</span>
+          </nav>
+          <div style="flex:1"></div>
+          <span style="font:500 12.5px 'IBM Plex Mono';color:#8a94a6">sim 42.6 h · 3600×</span>
+        </div>
+
+        <div style="flex:1;display:flex;min-height:0">
+          <!-- left: identity + claim -->
+          <div style="flex:1;overflow-y:auto;padding:22px 26px;min-width:0">
+            <!-- identity -->
+            <div style="display:flex;align-items:center;gap:14px;background:#10151d;border:1px solid #202836;border-radius:11px;padding:14px 18px">
+              <div style="width:42px;height:42px;border-radius:10px;background:#132a1e;border:1px solid #1e4230;display:flex;align-items:center;justify-content:center;font:700 15px 'IBM Plex Mono';color:#35d07a">S1</div>
+              <div><div style="font:12px 'IBM Plex Sans TC';color:#8a94a6">我的學生 id</div><div style="font:600 17px 'IBM Plex Mono';color:#e8edf4">S001</div></div>
+              <div style="width:1px;height:34px;background:#202836;margin:0 6px"></div>
+              <div><div style="font:12px 'IBM Plex Sans TC';color:#8a94a6">我的公司</div><div style="font:600 15px 'IBM Plex Sans TC';color:#e8edf4">精昱機械</div></div>
+              <div style="flex:1"></div>
+              <div style="text-align:right"><div style="font:12px 'IBM Plex Sans TC';color:#8a94a6">未結案工單</div><div style="font:600 20px 'IBM Plex Mono';color:#e0503f">2</div></div>
+            </div>
+
+            <div style="display:flex;align-items:baseline;justify-content:space-between;margin:22px 0 12px">
+              <span style="font:600 15px 'IBM Plex Sans TC';color:#e8edf4">公司認領</span>
+              <span style="font:12px 'IBM Plex Sans TC';color:#6d7686">綠點=運轉正常 · 紅點=有設備故障</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+              <!-- mine -->
+              <div style="background:#0f1d15;border:1px solid #2f7a4f;border-radius:11px;padding:13px 14px">
+                <div style="display:flex;justify-content:space-between;align-items:center"><span style="font:600 14px 'IBM Plex Sans TC'">精昱機械</span><span style="width:9px;height:9px;border-radius:50%;background:#e0503f;animation:blink 1.4s infinite"></span></div>
+                <div style="font:12px 'IBM Plex Sans TC';color:#8a94a6;margin-top:3px">4 台 · 認領:S001</div>
+                <div style="margin-top:10px;font:600 11.5px 'IBM Plex Sans TC';color:#9be7bd;background:#12291d;border:1px solid #1e4230;border-radius:6px;padding:5px 0;text-align:center">我的公司</div>
+              </div>
+              <div style="background:#0f1620;border:1px solid #202836;border-radius:11px;padding:13px 14px">
+                <div style="display:flex;justify-content:space-between;align-items:center"><span style="font:600 14px 'IBM Plex Sans TC'">鎰達物流</span><span style="width:9px;height:9px;border-radius:50%;background:#35d07a"></span></div>
+                <div style="font:12px 'IBM Plex Sans TC';color:#8a94a6;margin-top:3px">3 台 · 未認領</div>
+                <div style="margin-top:10px;font:600 11.5px 'IBM Plex Sans TC';color:#07090d;background:#35d07a;border-radius:6px;padding:5px 0;text-align:center">認領</div>
+              </div>
+              <div style="background:#0f1620;border:1px solid #202836;border-radius:11px;padding:13px 14px">
+                <div style="display:flex;justify-content:space-between;align-items:center"><span style="font:600 14px 'IBM Plex Sans TC'">芯鼎半導體</span><span style="width:9px;height:9px;border-radius:50%;background:#f2c14e"></span></div>
+                <div style="font:12px 'IBM Plex Sans TC';color:#8a94a6;margin-top:3px">5 台 · 未認領</div>
+                <div style="margin-top:10px;font:600 11.5px 'IBM Plex Sans TC';color:#07090d;background:#35d07a;border-radius:6px;padding:5px 0;text-align:center">認領</div>
+              </div>
+              <div style="background:#0f1620;border:1px solid #202836;border-radius:11px;padding:13px 14px;opacity:.6">
+                <div style="display:flex;justify-content:space-between;align-items:center"><span style="font:600 14px 'IBM Plex Sans TC'">華辰風電</span><span style="width:9px;height:9px;border-radius:50%;background:#f0883c"></span></div>
+                <div style="font:12px 'IBM Plex Sans TC';color:#8a94a6;margin-top:3px">2 台 · 認領:S014</div>
+                <div style="margin-top:10px;font:600 11.5px 'IBM Plex Sans TC';color:#6d7686;background:#151b25;border:1px solid #262f3c;border-radius:6px;padding:5px 0;text-align:center">已被認領</div>
+              </div>
+            </div>
+
+            <!-- my tickets -->
+            <div style="font:600 15px 'IBM Plex Sans TC';color:#e8edf4;margin:24px 0 12px">我的工單 <span style="font:12px 'IBM Plex Sans TC';color:#6d7686">ack 確認 → resolve 處置修復</span></div>
+            <div style="border:1px solid #202836;border-radius:11px;overflow:hidden">
+              <div style="display:grid;grid-template-columns:70px 1fr 90px 90px 80px 80px 150px;gap:10px;padding:10px 16px;background:#10151d;font:600 11px 'IBM Plex Mono';letter-spacing:.4px;color:#6d7686">
+                <span>單號</span><span>設備 / 元件</span><span>狀態</span><span>偵測延遲</span><span>MTTR</span><span></span><span>動作</span>
+              </div>
+              <div style="display:grid;grid-template-columns:70px 1fr 90px 90px 80px 80px 150px;gap:10px;padding:12px 16px;border-top:1px solid #1a212c;align-items:center;background:#0c1219;font:13px 'IBM Plex Sans TC'">
+                <span style="font:600 12px 'IBM Plex Mono'">#1042</span><span>cnc-01 · <span style="color:#8a94a6">spindle_bearing</span></span><span style="font:600 11px;color:#e0503f">● 未處理</span><span style="font:12px 'IBM Plex Mono';color:#c7d0dd">0.2h</span><span style="font:12px 'IBM Plex Mono';color:#6d7686">—</span><span></span><span style="display:flex;gap:6px"><span style="font:600 11.5px 'IBM Plex Sans TC';color:#07090d;background:#f2c14e;border-radius:6px;padding:4px 10px">ack 確認</span><span style="font:600 11.5px 'IBM Plex Sans TC';color:#07090d;background:#35d07a;border-radius:6px;padding:4px 10px">resolve</span></span>
+              </div>
+              <div style="display:grid;grid-template-columns:70px 1fr 90px 90px 80px 80px 150px;gap:10px;padding:12px 16px;border-top:1px solid #1a212c;align-items:center;font:13px 'IBM Plex Sans TC'">
+                <span style="font:600 12px 'IBM Plex Mono'">#1039</span><span>agv-02 · <span style="color:#8a94a6">battery</span></span><span style="font:600 11px;color:#f2c14e">● 處理中</span><span style="font:12px 'IBM Plex Mono';color:#c7d0dd">0.4h</span><span style="font:12px 'IBM Plex Mono';color:#6d7686">—</span><span></span><span><span style="font:600 11.5px 'IBM Plex Sans TC';color:#07090d;background:#35d07a;border-radius:6px;padding:4px 10px">resolve 處置</span></span>
+              </div>
+              <div style="display:grid;grid-template-columns:70px 1fr 90px 90px 80px 80px 150px;gap:10px;padding:12px 16px;border-top:1px solid #1a212c;align-items:center;font:13px 'IBM Plex Sans TC';opacity:.7">
+                <span style="font:600 12px 'IBM Plex Mono'">#1021</span><span>press-01 · <span style="color:#8a94a6">hydraulic</span></span><span style="font:600 11px;color:#35d07a">● 已結案</span><span style="font:12px 'IBM Plex Mono';color:#c7d0dd">0.1h</span><span style="font:12px 'IBM Plex Mono';color:#c7d0dd">1.8h</span><span></span><span style="font:11px 'IBM Plex Sans TC';color:#5c6675">完成</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- right: leaderboards -->
+          <aside style="width:400px;flex:0 0 400px;background:#0c1017;border-left:1px solid #202836;overflow-y:auto;padding:20px 18px">
+            <div style="font:600 14px 'IBM Plex Sans TC';color:#e8edf4;margin-bottom:4px">競賽榜 <span style="font:11px 'IBM Plex Mono';color:#35d07a">● 即時</span></div>
+            <div style="font:11.5px 'IBM Plex Sans TC';color:#6d7686;margin-bottom:14px">你的名次會即時更新</div>
+
+            <div style="font:600 11px 'IBM Plex Mono';letter-spacing:.5px;color:#8a94a6;margin-bottom:8px">故障管理</div>
+            <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px">
+              <div style="display:flex;align-items:center;gap:10px;background:#111a14;border:1px solid #2f7a4f;border-radius:8px;padding:8px 11px"><span style="font:700 13px 'IBM Plex Mono';color:#f2c14e;width:18px">1</span><span style="flex:1;font:13px 'IBM Plex Sans TC';color:#e8edf4">精昱機械 <span style="font:10px 'IBM Plex Sans TC';color:#35d07a">(你)</span></span><span style="font:600 13px 'IBM Plex Mono';color:#35d07a">920</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 11px"><span style="font:700 13px 'IBM Plex Mono';color:#8a94a6;width:18px">2</span><span style="flex:1;font:13px 'IBM Plex Sans TC';color:#b7c0cd">芯鼎半導體</span><span style="font:600 13px 'IBM Plex Mono';color:#c7d0dd">874</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 11px"><span style="font:700 13px 'IBM Plex Mono';color:#8a94a6;width:18px">3</span><span style="flex:1;font:13px 'IBM Plex Sans TC';color:#b7c0cd">鎰達物流</span><span style="font:600 13px 'IBM Plex Mono';color:#c7d0dd">803</span></div>
+            </div>
+
+            <div style="font:600 11px 'IBM Plex Mono';letter-spacing:.5px;color:#8a94a6;margin-bottom:8px">預測(階段二)· lead time</div>
+            <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px">
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 11px"><span style="font:700 13px 'IBM Plex Mono';color:#f2c14e;width:18px">1</span><span style="flex:1;font:13px 'IBM Plex Sans TC';color:#b7c0cd">S003 <span style="font:10px 'IBM Plex Mono';color:#6d7686">命中 7/8 · +3.1h</span></span><span style="font:600 13px 'IBM Plex Mono';color:#c7d0dd">88</span></div>
+              <div style="display:flex;align-items:center;gap:10px;background:#111a14;border:1px solid #2f7a4f;border-radius:8px;padding:8px 11px"><span style="font:700 13px 'IBM Plex Mono';color:#8a94a6;width:18px">2</span><span style="flex:1;font:13px 'IBM Plex Sans TC';color:#e8edf4">S001 <span style="font:10px 'IBM Plex Sans TC';color:#35d07a">(你)</span> <span style="font:10px 'IBM Plex Mono';color:#6d7686">6/9 · +2.4h</span></span><span style="font:600 13px 'IBM Plex Mono';color:#35d07a">71</span></div>
+            </div>
+
+            <div style="font:600 11px 'IBM Plex Mono';letter-spacing:.5px;color:#8a94a6;margin-bottom:8px">OEE</div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 11px"><span style="font:700 13px 'IBM Plex Mono';color:#f2c14e;width:18px">1</span><span style="flex:1;font:13px 'IBM Plex Sans TC';color:#b7c0cd">鎰達物流</span><span style="font:600 13px 'IBM Plex Mono';color:#35d07a">86%</span></div>
+              <div style="display:flex;align-items:center;gap:10px;background:#111a14;border:1px solid #2f7a4f;border-radius:8px;padding:8px 11px"><span style="font:700 13px 'IBM Plex Mono';color:#8a94a6;width:18px">4</span><span style="flex:1;font:13px 'IBM Plex Sans TC';color:#e8edf4">精昱機械 <span style="font:10px 'IBM Plex Sans TC';color:#35d07a">(你)</span></span><span style="font:600 13px 'IBM Plex Mono';color:#f2c14e">71%</span></div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================= 2c 設備目錄 ============================= -->
+    <div id="2c" style="scroll-margin-top:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:10px">
+        <a href="#2c" style="font:600 11px 'IBM Plex Mono',monospace;padding:3px 8px;background:#1a212c;color:#e8edf4;border:1px solid #2a3340;border-radius:5px;text-decoration:none">2c</a>
+        <span style="font:600 13px 'IBM Plex Sans TC';color:#e8edf4">設備目錄</span>
+        <span style="font:12px 'IBM Plex Sans TC';color:#8a94a6">學生規格書 · 兩欄式設備清單 + 點位表</span>
+      </div>
+      <div style="width:1440px;height:864px;background:#0b0f15;border:1px solid #202836;border-radius:14px;overflow:hidden;box-shadow:0 24px 60px -20px rgba(0,0,0,.7);display:flex;flex-direction:column;color:#e8edf4">
+        <div style="height:56px;flex:0 0 56px;display:flex;align-items:center;gap:18px;padding:0 20px;background:#10151d;border-bottom:1px solid #202836">
+          <div style="display:flex;align-items:center;gap:10px"><div style="width:26px;height:26px;border-radius:7px;background:linear-gradient(140deg,#4c9ce8,#2c6fb0);display:flex;align-items:center;justify-content:center;font:700 13px 'IBM Plex Mono';color:#07090d">勤</div><span style="font:600 15px 'IBM Plex Sans TC'">勤益智慧工業區</span></div>
+          <span style="font:500 10.5px 'IBM Plex Mono';letter-spacing:.5px;color:#f0883c;border:1px solid #6b4324;background:#20160d;padding:2px 7px;border-radius:5px">合成數據</span>
+          <nav style="display:flex;gap:2px;margin-left:8px">
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">開始</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">2D 世界</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">學生面</span>
+            <span style="font:600 13px 'IBM Plex Sans TC';color:#e8edf4;padding:8px 12px;border-radius:7px;background:#1a212c;box-shadow:inset 0 -2px 0 #4c9ce8">設備目錄</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">戰情版</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">OEE 榜</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">教師控制台</span>
+          </nav>
+          <div style="flex:1"></div>
+          <span style="font:500 12.5px 'IBM Plex Mono';color:#8a94a6">protocol · modbus_multiport</span>
+        </div>
+
+        <div style="flex:1;display:flex;min-height:0">
+          <!-- device list -->
+          <aside style="width:262px;flex:0 0 262px;background:#0c1017;border-right:1px solid #202836;overflow-y:auto;padding:14px 12px">
+            <div style="font:600 11px 'IBM Plex Mono';letter-spacing:.5px;color:#6d7686;padding:0 6px 8px">設備清單 · 24</div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:8px;background:#132029;box-shadow:inset 2px 0 0 #4c9ce8"><span style="width:8px;height:8px;border-radius:50%;background:#e0503f"></span><div style="flex:1"><div style="font:600 13px 'IBM Plex Mono'">cnc-01</div><div style="font:11px 'IBM Plex Sans TC';color:#8a94a6">精昱機械</div></div></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:8px"><span style="width:8px;height:8px;border-radius:50%;background:#35d07a"></span><div style="flex:1"><div style="font:600 13px 'IBM Plex Mono';color:#c7d0dd">cnc-02</div><div style="font:11px 'IBM Plex Sans TC';color:#8a94a6">精昱機械</div></div></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:8px"><span style="width:8px;height:8px;border-radius:50%;background:#f2c14e"></span><div style="flex:1"><div style="font:600 13px 'IBM Plex Mono';color:#c7d0dd">agv-02</div><div style="font:11px 'IBM Plex Sans TC';color:#8a94a6">鎰達物流</div></div></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:8px"><span style="width:8px;height:8px;border-radius:50%;background:#35d07a"></span><div style="flex:1"><div style="font:600 13px 'IBM Plex Mono';color:#c7d0dd">arm-01</div><div style="font:11px 'IBM Plex Sans TC';color:#8a94a6">芯鼎半導體</div></div></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:8px"><span style="width:8px;height:8px;border-radius:50%;background:#f0883c"></span><div style="flex:1"><div style="font:600 13px 'IBM Plex Mono';color:#c7d0dd">turbine-01</div><div style="font:11px 'IBM Plex Sans TC';color:#8a94a6">華辰風電</div></div></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:8px"><span style="width:8px;height:8px;border-radius:50%;background:#35d07a"></span><div style="flex:1"><div style="font:600 13px 'IBM Plex Mono';color:#c7d0dd">press-01</div><div style="font:11px 'IBM Plex Sans TC';color:#8a94a6">宏碩成型</div></div></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:8px"><span style="width:8px;height:8px;border-radius:50%;background:#35d07a"></span><div style="flex:1"><div style="font:600 13px 'IBM Plex Mono';color:#c7d0dd">meter-01</div><div style="font:11px 'IBM Plex Sans TC';color:#8a94a6">台電動力</div></div></div>
+            </div>
+          </aside>
+
+          <!-- spec detail -->
+          <div style="flex:1;overflow-y:auto;padding:22px 26px;min-width:0">
+            <div style="display:flex;align-items:center;gap:12px">
+              <span style="font:600 22px 'IBM Plex Mono';letter-spacing:.5px">cnc-01</span>
+              <span style="font:12.5px 'IBM Plex Sans TC';color:#8a94a6">cnc_machining_center · 精昱機械</span>
+              <span style="font:600 11px 'IBM Plex Sans TC';color:#07090d;background:#e0503f;padding:3px 10px;border-radius:20px">fault</span>
+            </div>
+            <!-- connection meta -->
+            <div style="display:flex;gap:10px;margin:16px 0 22px;flex-wrap:wrap">
+              <div style="background:#10151d;border:1px solid #202836;border-radius:9px;padding:9px 14px"><div style="font:11px 'IBM Plex Sans TC';color:#6d7686">Modbus TCP</div><div style="font:13px 'IBM Plex Mono';color:#e8edf4">10.5.20.11:5021</div></div>
+              <div style="background:#10151d;border:1px solid #202836;border-radius:9px;padding:9px 14px"><div style="font:11px 'IBM Plex Sans TC';color:#6d7686">unit_id</div><div style="font:13px 'IBM Plex Mono';color:#e8edf4">1</div></div>
+              <div style="background:#10151d;border:1px solid #202836;border-radius:9px;padding:9px 14px"><div style="font:11px 'IBM Plex Sans TC';color:#6d7686">位元組序</div><div style="font:13px 'IBM Plex Mono';color:#e8edf4">big-endian</div></div>
+              <div style="background:#10151d;border:1px solid #202836;border-radius:9px;padding:9px 14px"><div style="font:11px 'IBM Plex Sans TC';color:#6d7686">ModScan holding</div><div style="font:13px 'IBM Plex Mono';color:#e8edf4">reg + 40001</div></div>
+            </div>
+
+            <!-- HOLDING table -->
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font:600 12px 'IBM Plex Sans TC';color:#c7d0dd">保持暫存器</span><span style="font:10.5px 'IBM Plex Mono';color:#4c9ce8;background:#0e1a28;border:1px solid #24405e;border-radius:5px;padding:2px 7px">FC03 · 量測</span></div>
+            <div style="border:1px solid #202836;border-radius:10px;overflow:hidden;margin-bottom:20px">
+              <div style="display:grid;grid-template-columns:1.4fr .8fr 1fr .7fr .9fr 1fr .9fr;gap:8px;padding:9px 14px;background:#10151d;font:600 10.5px 'IBM Plex Mono';letter-spacing:.3px;color:#6d7686"><span>tag</span><span>單位</span><span>型別</span><span>reg</span><span>ModScan</span><span>mqtt field</span><span style="text-align:right">即時值</span></div>
+              <div style="display:grid;grid-template-columns:1.4fr .8fr 1fr .7fr .9fr 1fr .9fr;gap:8px;padding:9px 14px;border-top:1px solid #1a212c;font:12px 'IBM Plex Mono';align-items:center"><span style="color:#e8edf4">vibration</span><span style="color:#8a94a6">mm/s</span><span style="color:#8a94a6">float32</span><span>1</span><span style="color:#8a94a6">40002</span><span style="color:#6d7686">vib</span><span style="text-align:right;color:#e0503f;font-weight:600">13.40</span></div>
+              <div style="display:grid;grid-template-columns:1.4fr .8fr 1fr .7fr .9fr 1fr .9fr;gap:8px;padding:9px 14px;border-top:1px solid #1a212c;font:12px 'IBM Plex Mono';align-items:center;background:#0c1219"><span style="color:#e8edf4">spindle_current</span><span style="color:#8a94a6">A</span><span style="color:#8a94a6">float32</span><span>3</span><span style="color:#8a94a6">40004</span><span style="color:#6d7686">cur</span><span style="text-align:right;color:#f2c14e;font-weight:600">11.80</span></div>
+              <div style="display:grid;grid-template-columns:1.4fr .8fr 1fr .7fr .9fr 1fr .9fr;gap:8px;padding:9px 14px;border-top:1px solid #1a212c;font:12px 'IBM Plex Mono';align-items:center"><span style="color:#e8edf4">spindle_temp</span><span style="color:#8a94a6">°C</span><span style="color:#8a94a6">float32</span><span>5</span><span style="color:#8a94a6">40006</span><span style="color:#6d7686">temp</span><span style="text-align:right;color:#f2c14e;font-weight:600">80.20</span></div>
+              <div style="display:grid;grid-template-columns:1.4fr .8fr 1fr .7fr .9fr 1fr .9fr;gap:8px;padding:9px 14px;border-top:1px solid #1a212c;font:12px 'IBM Plex Mono';align-items:center;background:#0c1219"><span style="color:#e8edf4">spindle_rpm</span><span style="color:#8a94a6">rpm</span><span style="color:#8a94a6">float32</span><span>7</span><span style="color:#8a94a6">40008</span><span style="color:#6d7686">rpm</span><span style="text-align:right;color:#e8edf4">8420.0</span></div>
+            </div>
+
+            <div style="display:flex;gap:22px">
+              <div style="flex:1">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font:600 12px 'IBM Plex Sans TC';color:#c7d0dd">離散輸入</span><span style="font:10.5px 'IBM Plex Mono';color:#35d07a;background:#0f2018;border:1px solid #1e4230;border-radius:5px;padding:2px 7px">FC02 · 狀態</span></div>
+                <div style="border:1px solid #202836;border-radius:10px;overflow:hidden">
+                  <div style="display:flex;justify-content:space-between;padding:8px 14px;font:12px 'IBM Plex Mono';border-bottom:1px solid #1a212c"><span style="color:#8a94a6">door_closed <span style="color:#5c6675">· 10002</span></span><span style="color:#35d07a">1 ●</span></div>
+                  <div style="display:flex;justify-content:space-between;padding:8px 14px;font:12px 'IBM Plex Mono';border-bottom:1px solid #1a212c"><span style="color:#8a94a6">spindle_on <span style="color:#5c6675">· 10003</span></span><span style="color:#35d07a">1 ●</span></div>
+                  <div style="display:flex;justify-content:space-between;padding:8px 14px;font:12px 'IBM Plex Mono'"><span style="color:#8a94a6">estop <span style="color:#5c6675">· 10004</span></span><span style="color:#6d7686">0 ○</span></div>
+                </div>
+              </div>
+              <div style="flex:1">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font:600 12px 'IBM Plex Sans TC';color:#c7d0dd">線圈</span><span style="font:10.5px 'IBM Plex Mono';color:#f2c14e;background:#221a0d;border:1px solid #4a3a1a;border-radius:5px;padding:2px 7px">FC01讀 / FC05寫 · 教師</span></div>
+                <div style="border:1px solid #202836;border-radius:10px;overflow:hidden">
+                  <div style="display:flex;justify-content:space-between;padding:8px 14px;font:12px 'IBM Plex Mono';border-bottom:1px solid #1a212c"><span style="color:#8a94a6">run_enable <span style="color:#5c6675">· 持續</span></span><span style="color:#35d07a">1 ●</span></div>
+                  <div style="display:flex;justify-content:space-between;padding:8px 14px;font:12px 'IBM Plex Mono';border-bottom:1px solid #1a212c"><span style="color:#8a94a6">reset <span style="color:#5c6675">· 瞬時</span></span><span style="color:#6d7686">0 ○</span></div>
+                  <div style="display:flex;justify-content:space-between;padding:8px 14px;font:12px 'IBM Plex Mono'"><span style="color:#8a94a6">coolant <span style="color:#5c6675">· 持續</span></span><span style="color:#35d07a">1 ●</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================= 2d 戰情版 ============================= -->
+    <div id="2d" style="scroll-margin-top:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:10px">
+        <a href="#2d" style="font:600 11px 'IBM Plex Mono',monospace;padding:3px 8px;background:#1a212c;color:#e8edf4;border:1px solid #2a3340;border-radius:5px;text-decoration:none">2d</a>
+        <span style="font:600 13px 'IBM Plex Sans TC';color:#e8edf4">戰情版</span>
+        <span style="font:12px 'IBM Plex Sans TC';color:#8a94a6">協定連線自測 · Modbus / OPC-UA / MQTT 逐設備讀樣本</span>
+      </div>
+      <div style="width:1440px;height:864px;background:#0b0f15;border:1px solid #202836;border-radius:14px;overflow:hidden;box-shadow:0 24px 60px -20px rgba(0,0,0,.7);display:flex;flex-direction:column;color:#e8edf4">
+        <div style="height:56px;flex:0 0 56px;display:flex;align-items:center;gap:18px;padding:0 20px;background:#10151d;border-bottom:1px solid #202836">
+          <div style="display:flex;align-items:center;gap:10px"><div style="width:26px;height:26px;border-radius:7px;background:linear-gradient(140deg,#4c9ce8,#2c6fb0);display:flex;align-items:center;justify-content:center;font:700 13px 'IBM Plex Mono';color:#07090d">勤</div><span style="font:600 15px 'IBM Plex Sans TC'">勤益智慧工業區</span></div>
+          <span style="font:500 10.5px 'IBM Plex Mono';letter-spacing:.5px;color:#f0883c;border:1px solid #6b4324;background:#20160d;padding:2px 7px;border-radius:5px">合成數據</span>
+          <nav style="display:flex;gap:2px;margin-left:8px">
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">開始</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">2D 世界</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">學生面</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">設備目錄</span>
+            <span style="font:600 13px 'IBM Plex Sans TC';color:#e8edf4;padding:8px 12px;border-radius:7px;background:#1a212c;box-shadow:inset 0 -2px 0 #4c9ce8">戰情版</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">OEE 榜</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">教師控制台</span>
+          </nav>
+          <div style="flex:1"></div>
+          <span style="font:500 12.5px 'IBM Plex Mono';color:#8a94a6">host 10.5.20.11</span>
+        </div>
+
+        <div style="flex:1;overflow-y:auto;padding:24px 30px">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <div style="font:600 18px 'IBM Plex Sans TC'">協定連線自測</div>
+              <div style="font:12.5px 'IBM Plex Sans TC';color:#8a94a6;margin-top:3px">以三種協定各開 client 連回伺服器,逐設備讀樣本值 — 同時驗證「通不通」與「以協定列設備」</div>
+            </div>
+            <span style="font:600 13px 'IBM Plex Sans TC';color:#07090d;background:#4c9ce8;border-radius:8px;padding:9px 20px">▶ 執行連線診斷</span>
+          </div>
+
+          <!-- protocol summary -->
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:22px 0 24px">
+            <div style="background:#10151d;border:1px solid #1e4230;border-radius:11px;padding:14px 16px"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font:600 13px 'IBM Plex Sans TC'">Modbus <span style="font:11px 'IBM Plex Mono';color:#6d7686">共用埠</span></span><span style="font:11px 'IBM Plex Mono';color:#6d7686">:502</span></div><div style="font:600 28px 'IBM Plex Mono';color:#35d07a;margin-top:6px">24<span style="font:14px;color:#6d7686">/24</span> <span style="font:12px 'IBM Plex Sans TC';color:#8a94a6;font-weight:400">可達</span></div></div>
+            <div style="background:#10151d;border:1px solid #1e4230;border-radius:11px;padding:14px 16px"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font:600 13px 'IBM Plex Sans TC'">Modbus <span style="font:11px 'IBM Plex Mono';color:#6d7686">專屬埠</span></span><span style="font:11px 'IBM Plex Mono';color:#6d7686">:50xx</span></div><div style="font:600 28px 'IBM Plex Mono';color:#35d07a;margin-top:6px">24<span style="font:14px;color:#6d7686">/24</span> <span style="font:12px 'IBM Plex Sans TC';color:#8a94a6;font-weight:400">可達</span></div></div>
+            <div style="background:#10151d;border:1px solid #4a2620;border-radius:11px;padding:14px 16px"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font:600 13px 'IBM Plex Sans TC'">OPC-UA</span><span style="font:11px 'IBM Plex Mono';color:#6d7686">:4840</span></div><div style="font:600 28px 'IBM Plex Mono';color:#e0503f;margin-top:6px">22<span style="font:14px;color:#6d7686">/24</span> <span style="font:12px 'IBM Plex Sans TC';color:#8a94a6;font-weight:400">可達</span></div></div>
+            <div style="background:#10151d;border:1px solid #1e4230;border-radius:11px;padding:14px 16px"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font:600 13px 'IBM Plex Sans TC'">MQTT</span><span style="font:11px 'IBM Plex Mono';color:#6d7686">:1883</span></div><div style="font:600 28px 'IBM Plex Mono';color:#35d07a;margin-top:6px">24<span style="font:14px;color:#6d7686">/24</span> <span style="font:12px 'IBM Plex Sans TC';color:#8a94a6;font-weight:400">可達</span></div></div>
+          </div>
+
+          <!-- matrix -->
+          <div style="font:600 12px 'IBM Plex Sans TC';color:#c7d0dd;margin-bottom:8px">設備 × 協定 矩陣</div>
+          <div style="border:1px solid #202836;border-radius:11px;overflow:hidden">
+            <div style="display:grid;grid-template-columns:150px repeat(4,1fr);gap:10px;padding:11px 16px;background:#10151d;font:600 11px 'IBM Plex Mono';letter-spacing:.3px;color:#6d7686"><span>設備</span><span>Modbus(共用)</span><span>Modbus(專屬)</span><span>OPC-UA</span><span>MQTT</span></div>
+            <div style="display:grid;grid-template-columns:150px repeat(4,1fr);gap:10px;padding:11px 16px;border-top:1px solid #1a212c;align-items:center;font:12px 'IBM Plex Mono'"><span style="font-weight:600;color:#e8edf4">cnc-01</span><span style="color:#35d07a">✓ 13.4 <span style="color:#6d7686">vib · 4ms</span></span><span style="color:#35d07a">✓ 13.4 <span style="color:#6d7686">3ms</span></span><span style="color:#35d07a">✓ 13.4 <span style="color:#6d7686">7ms</span></span><span style="color:#35d07a">✓ 13.4 <span style="color:#6d7686">vib</span></span></div>
+            <div style="display:grid;grid-template-columns:150px repeat(4,1fr);gap:10px;padding:11px 16px;border-top:1px solid #1a212c;align-items:center;font:12px 'IBM Plex Mono';background:#0c1219"><span style="font-weight:600;color:#e8edf4">arm-01</span><span style="color:#35d07a">✓ 0.31 <span style="color:#6d7686">load · 5ms</span></span><span style="color:#35d07a">✓ 0.31 <span style="color:#6d7686">4ms</span></span><span style="color:#e0503f">✗ timeout</span><span style="color:#35d07a">✓ 0.31 <span style="color:#6d7686">load</span></span></div>
+            <div style="display:grid;grid-template-columns:150px repeat(4,1fr);gap:10px;padding:11px 16px;border-top:1px solid #1a212c;align-items:center;font:12px 'IBM Plex Mono'"><span style="font-weight:600;color:#e8edf4">agv-02</span><span style="color:#35d07a">✓ 74.0 <span style="color:#6d7686">soc · 6ms</span></span><span style="color:#35d07a">✓ 74.0 <span style="color:#6d7686">5ms</span></span><span style="color:#35d07a">✓ 74.0 <span style="color:#6d7686">9ms</span></span><span style="color:#35d07a">✓ 74.0 <span style="color:#6d7686">soc</span></span></div>
+            <div style="display:grid;grid-template-columns:150px repeat(4,1fr);gap:10px;padding:11px 16px;border-top:1px solid #1a212c;align-items:center;font:12px 'IBM Plex Mono';background:#0c1219"><span style="font-weight:600;color:#e8edf4">turbine-01</span><span style="color:#35d07a">✓ 12.1 <span style="color:#6d7686">rpm · 4ms</span></span><span style="color:#35d07a">✓ 12.1 <span style="color:#6d7686">3ms</span></span><span style="color:#e0503f">✗ timeout</span><span style="color:#35d07a">✓ 12.1 <span style="color:#6d7686">rpm</span></span></div>
+            <div style="display:grid;grid-template-columns:150px repeat(4,1fr);gap:10px;padding:11px 16px;border-top:1px solid #1a212c;align-items:center;font:12px 'IBM Plex Mono'"><span style="font-weight:600;color:#e8edf4">meter-01</span><span style="color:#35d07a">✓ 14.2 <span style="color:#6d7686">kw · 5ms</span></span><span style="color:#35d07a">✓ 14.2 <span style="color:#6d7686">4ms</span></span><span style="color:#35d07a">✓ 14.2 <span style="color:#6d7686">8ms</span></span><span style="color:#35d07a">✓ 14.2 <span style="color:#6d7686">kw</span></span></div>
+          </div>
+          <div style="font:11.5px 'IBM Plex Sans TC';color:#6d7686;margin-top:12px">✗ 兩台設備的 OPC-UA 逾時 — 可能是 endpoint 尚未啟動或防火牆。其餘協定全綠。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================= 2e OEE 榜 ============================= -->
+    <div id="2e" style="scroll-margin-top:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:10px">
+        <a href="#2e" style="font:600 11px 'IBM Plex Mono',monospace;padding:3px 8px;background:#1a212c;color:#e8edf4;border:1px solid #2a3340;border-radius:5px;text-decoration:none">2e</a>
+        <span style="font:600 13px 'IBM Plex Sans TC';color:#e8edf4">OEE 榜</span>
+        <span style="font:12px 'IBM Plex Sans TC';color:#8a94a6">設備總效率排名 = 可用率 × 表現 × 良率</span>
+      </div>
+      <div style="width:1440px;height:864px;background:#0b0f15;border:1px solid #202836;border-radius:14px;overflow:hidden;box-shadow:0 24px 60px -20px rgba(0,0,0,.7);display:flex;flex-direction:column;color:#e8edf4">
+        <div style="height:56px;flex:0 0 56px;display:flex;align-items:center;gap:18px;padding:0 20px;background:#10151d;border-bottom:1px solid #202836">
+          <div style="display:flex;align-items:center;gap:10px"><div style="width:26px;height:26px;border-radius:7px;background:linear-gradient(140deg,#4c9ce8,#2c6fb0);display:flex;align-items:center;justify-content:center;font:700 13px 'IBM Plex Mono';color:#07090d">勤</div><span style="font:600 15px 'IBM Plex Sans TC'">勤益智慧工業區</span></div>
+          <span style="font:500 10.5px 'IBM Plex Mono';letter-spacing:.5px;color:#f0883c;border:1px solid #6b4324;background:#20160d;padding:2px 7px;border-radius:5px">合成數據</span>
+          <nav style="display:flex;gap:2px;margin-left:8px">
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">開始</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">2D 世界</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">學生面</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">設備目錄</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">戰情版</span>
+            <span style="font:600 13px 'IBM Plex Sans TC';color:#e8edf4;padding:8px 12px;border-radius:7px;background:#1a212c;box-shadow:inset 0 -2px 0 #4c9ce8">OEE 榜</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">教師控制台</span>
+          </nav>
+          <div style="flex:1"></div>
+          <span style="font:500 12.5px 'IBM Plex Mono';color:#8a94a6">● 即時 · 2.5s</span>
+        </div>
+
+        <div style="flex:1;overflow-y:auto;padding:24px 30px">
+          <div style="font:12.5px 'IBM Plex Sans TC';color:#8a94a6;margin-bottom:18px">OEE = <b style="color:#c7d0dd">可用率</b>(運轉/計畫)× <b style="color:#c7d0dd">表現</b>(實際/理論)× <b style="color:#c7d0dd">良率</b>。可用率由故障停機長短決定 — 越快處置越高。</div>
+
+          <!-- podium top 3 -->
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:22px">
+            <div style="background:linear-gradient(160deg,#1a1c12,#10151d);border:1px solid #4a3a1a;border-radius:13px;padding:16px 18px"><div style="display:flex;align-items:center;gap:8px"><span style="font:700 15px 'IBM Plex Mono';color:#f2c14e">#1</span><span style="font:600 15px 'IBM Plex Sans TC'">鎰達物流</span></div><div style="font:11.5px 'IBM Plex Sans TC';color:#8a94a6;margin:2px 0 8px">S014 · 3 台</div><div style="font:700 36px 'IBM Plex Mono';color:#35d07a">86.2%</div><div style="font:11px 'IBM Plex Sans TC';color:#6d7686">可用 92% · 表現 96% · 良率 98%</div></div>
+            <div style="background:#10151d;border:1px solid #202836;border-radius:13px;padding:16px 18px"><div style="display:flex;align-items:center;gap:8px"><span style="font:700 15px 'IBM Plex Mono';color:#c7d0dd">#2</span><span style="font:600 15px 'IBM Plex Sans TC'">台電動力</span></div><div style="font:11.5px 'IBM Plex Sans TC';color:#8a94a6;margin:2px 0 8px">S008 · 1 台</div><div style="font:700 36px 'IBM Plex Mono';color:#35d07a">83.5%</div><div style="font:11px 'IBM Plex Sans TC';color:#6d7686">可用 90% · 表現 95% · 良率 98%</div></div>
+            <div style="background:#10151d;border:1px solid #202836;border-radius:13px;padding:16px 18px"><div style="display:flex;align-items:center;gap:8px"><span style="font:700 15px 'IBM Plex Mono';color:#c7d0dd">#3</span><span style="font:600 15px 'IBM Plex Sans TC'">芯鼎半導體</span></div><div style="font:11.5px 'IBM Plex Sans TC';color:#8a94a6;margin:2px 0 8px">S021 · 5 台</div><div style="font:700 36px 'IBM Plex Mono';color:#f2c14e">77.9%</div><div style="font:11px 'IBM Plex Sans TC';color:#6d7686">可用 84% · 表現 95% · 良率 97%</div></div>
+          </div>
+
+          <!-- full ranking with bars -->
+          <div style="border:1px solid #202836;border-radius:11px;overflow:hidden">
+            <div style="display:grid;grid-template-columns:34px 1.4fr 90px 2.4fr;gap:16px;padding:10px 18px;background:#10151d;font:600 11px 'IBM Plex Mono';letter-spacing:.3px;color:#6d7686;align-items:center"><span>#</span><span>公司</span><span style="text-align:center">OEE</span><span>可用率 / 表現 / 良率</span></div>
+            <div style="display:grid;grid-template-columns:34px 1.4fr 90px 2.4fr;gap:16px;padding:13px 18px;border-top:1px solid #1a212c;align-items:center;background:#111a14"><span style="font:700 16px 'IBM Plex Mono';color:#f2c14e">1</span><div><div style="font:600 14px 'IBM Plex Sans TC'">鎰達物流</div><div style="font:11px 'IBM Plex Sans TC';color:#8a94a6">S014 · 3 台</div></div><span style="font:700 22px 'IBM Plex Mono';color:#35d07a;text-align:center">86%</span>
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <div style="display:flex;align-items:center;gap:8px"><span style="font:10.5px 'IBM Plex Sans TC';color:#6d7686;width:40px">可用</span><div style="flex:1;height:7px;background:#1a212c;border-radius:4px;overflow:hidden"><div style="width:92%;height:100%;background:#35d07a;border-radius:4px"></div></div><span style="font:11px 'IBM Plex Mono';color:#c7d0dd;width:38px;text-align:right">92%</span></div>
+                <div style="display:flex;align-items:center;gap:8px"><span style="font:10.5px 'IBM Plex Sans TC';color:#6d7686;width:40px">表現</span><div style="flex:1;height:7px;background:#1a212c;border-radius:4px;overflow:hidden"><div style="width:96%;height:100%;background:#35d07a;border-radius:4px"></div></div><span style="font:11px 'IBM Plex Mono';color:#c7d0dd;width:38px;text-align:right">96%</span></div>
+                <div style="display:flex;align-items:center;gap:8px"><span style="font:10.5px 'IBM Plex Sans TC';color:#6d7686;width:40px">良率</span><div style="flex:1;height:7px;background:#1a212c;border-radius:4px;overflow:hidden"><div style="width:98%;height:100%;background:#35d07a;border-radius:4px"></div></div><span style="font:11px 'IBM Plex Mono';color:#c7d0dd;width:38px;text-align:right">98%</span></div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:34px 1.4fr 90px 2.4fr;gap:16px;padding:13px 18px;border-top:1px solid #1a212c;align-items:center"><span style="font:700 16px 'IBM Plex Mono';color:#8a94a6">2</span><div><div style="font:600 14px 'IBM Plex Sans TC'">台電動力</div><div style="font:11px 'IBM Plex Sans TC';color:#8a94a6">S008 · 1 台</div></div><span style="font:700 22px 'IBM Plex Mono';color:#35d07a;text-align:center">84%</span>
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <div style="display:flex;align-items:center;gap:8px"><span style="font:10.5px 'IBM Plex Sans TC';color:#6d7686;width:40px">可用</span><div style="flex:1;height:7px;background:#1a212c;border-radius:4px;overflow:hidden"><div style="width:90%;height:100%;background:#35d07a;border-radius:4px"></div></div><span style="font:11px 'IBM Plex Mono';color:#c7d0dd;width:38px;text-align:right">90%</span></div>
+                <div style="display:flex;align-items:center;gap:8px"><span style="font:10.5px 'IBM Plex Sans TC';color:#6d7686;width:40px">表現</span><div style="flex:1;height:7px;background:#1a212c;border-radius:4px;overflow:hidden"><div style="width:95%;height:100%;background:#35d07a;border-radius:4px"></div></div><span style="font:11px 'IBM Plex Mono';color:#c7d0dd;width:38px;text-align:right">95%</span></div>
+                <div style="display:flex;align-items:center;gap:8px"><span style="font:10.5px 'IBM Plex Sans TC';color:#6d7686;width:40px">良率</span><div style="flex:1;height:7px;background:#1a212c;border-radius:4px;overflow:hidden"><div style="width:98%;height:100%;background:#35d07a;border-radius:4px"></div></div><span style="font:11px 'IBM Plex Mono';color:#c7d0dd;width:38px;text-align:right">98%</span></div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:34px 1.4fr 90px 2.4fr;gap:16px;padding:13px 18px;border-top:1px solid #1a212c;align-items:center;background:#0c1219"><span style="font:700 16px 'IBM Plex Mono';color:#8a94a6">4</span><div><div style="font:600 14px 'IBM Plex Sans TC'">精昱機械 <span style="font:10px 'IBM Plex Sans TC';color:#e0503f">故障中</span></div><div style="font:11px 'IBM Plex Sans TC';color:#8a94a6">S001 · 4 台</div></div><span style="font:700 22px 'IBM Plex Mono';color:#e0503f;text-align:center">71%</span>
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <div style="display:flex;align-items:center;gap:8px"><span style="font:10.5px 'IBM Plex Sans TC';color:#6d7686;width:40px">可用</span><div style="flex:1;height:7px;background:#1a212c;border-radius:4px;overflow:hidden"><div style="width:73%;height:100%;background:#e0503f;border-radius:4px"></div></div><span style="font:11px 'IBM Plex Mono';color:#c7d0dd;width:38px;text-align:right">73%</span></div>
+                <div style="display:flex;align-items:center;gap:8px"><span style="font:10.5px 'IBM Plex Sans TC';color:#6d7686;width:40px">表現</span><div style="flex:1;height:7px;background:#1a212c;border-radius:4px;overflow:hidden"><div style="width:94%;height:100%;background:#35d07a;border-radius:4px"></div></div><span style="font:11px 'IBM Plex Mono';color:#c7d0dd;width:38px;text-align:right">94%</span></div>
+                <div style="display:flex;align-items:center;gap:8px"><span style="font:10.5px 'IBM Plex Sans TC';color:#6d7686;width:40px">良率</span><div style="flex:1;height:7px;background:#1a212c;border-radius:4px;overflow:hidden"><div style="width:96%;height:100%;background:#35d07a;border-radius:4px"></div></div><span style="font:11px 'IBM Plex Mono';color:#c7d0dd;width:38px;text-align:right">96%</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================= 2f 教師控制台 ============================= -->
+    <div id="2f" style="scroll-margin-top:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:10px">
+        <a href="#2f" style="font:600 11px 'IBM Plex Mono',monospace;padding:3px 8px;background:#1a212c;color:#e8edf4;border:1px solid #2a3340;border-radius:5px;text-decoration:none">2f</a>
+        <span style="font:600 13px 'IBM Plex Sans TC';color:#e8edf4">教師控制台</span>
+        <span style="font:12px 'IBM Plex Sans TC';color:#8a94a6">上帝視角 · 建廠 / 注入故障 / 情境 / ground-truth / 評分</span>
+      </div>
+      <div style="width:1440px;height:864px;background:#0b0f15;border:1px solid #202836;border-radius:14px;overflow:hidden;box-shadow:0 24px 60px -20px rgba(0,0,0,.7);display:flex;flex-direction:column;color:#e8edf4">
+        <div style="height:56px;flex:0 0 56px;display:flex;align-items:center;gap:18px;padding:0 20px;background:#10151d;border-bottom:1px solid #202836">
+          <div style="display:flex;align-items:center;gap:10px"><div style="width:26px;height:26px;border-radius:7px;background:linear-gradient(140deg,#4c9ce8,#2c6fb0);display:flex;align-items:center;justify-content:center;font:700 13px 'IBM Plex Mono';color:#07090d">勤</div><span style="font:600 15px 'IBM Plex Sans TC'">勤益智慧工業區</span></div>
+          <span style="font:500 10.5px 'IBM Plex Mono';letter-spacing:.5px;color:#f2c14e;border:1px solid #4a3a1a;background:#1a1408;padding:2px 7px;border-radius:5px">教師 token 已載入</span>
+          <nav style="display:flex;gap:2px;margin-left:8px">
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">開始</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">2D 世界</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">學生面</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">設備目錄</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">戰情版</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">OEE 榜</span>
+            <span style="font:600 13px 'IBM Plex Sans TC';color:#e8edf4;padding:8px 12px;border-radius:7px;background:#1a212c;box-shadow:inset 0 -2px 0 #4c9ce8">教師控制台</span>
+          </nav>
+          <div style="flex:1"></div>
+          <div style="display:flex;gap:5px;align-items:center">
+            <span style="font:12px 'IBM Plex Mono';color:#8a94a6;margin-right:4px">時鐘</span>
+            <span style="font:11px 'IBM Plex Mono';color:#8a94a6;background:#0c1017;border:1px solid #202836;border-radius:5px;padding:4px 8px">60×</span>
+            <span style="font:11px 'IBM Plex Mono';color:#07090d;background:#4c9ce8;border-radius:5px;padding:4px 8px">600×</span>
+            <span style="font:11px 'IBM Plex Mono';color:#8a94a6;background:#0c1017;border:1px solid #202836;border-radius:5px;padding:4px 8px">3600×</span>
+            <span style="font:11px 'IBM Plex Mono';color:#8a94a6;background:#0c1017;border:1px solid #202836;border-radius:5px;padding:4px 8px">⏸</span>
+          </div>
+        </div>
+
+        <div style="flex:1;display:flex;min-height:0">
+          <!-- left: actions -->
+          <div style="flex:1;overflow-y:auto;padding:20px 24px;min-width:0;border-right:1px solid #202836">
+            <!-- build factory -->
+            <div style="background:#10151d;border:1px solid #202836;border-radius:11px;padding:14px 16px">
+              <div style="font:600 13px 'IBM Plex Sans TC';margin-bottom:8px">建廠 <span style="font:11px 'IBM Plex Sans TC';color:#6d7686">自然語言 · 🤖 AI 解析</span></div>
+              <div style="display:flex;gap:8px"><div style="flex:1;background:#0c1219;border:1px solid #2a3340;border-radius:7px;padding:8px 11px;font:12.5px 'IBM Plex Sans TC';color:#c7d0dd">半導體封裝廠,3 台手臂 + 2 台製程腔體 + 1 台電表</div><span style="font:600 12.5px 'IBM Plex Sans TC';color:#07090d;background:#35d07a;border-radius:7px;padding:8px 16px;white-space:nowrap">＋ 建立公司</span></div>
+              <div style="font:11px 'IBM Plex Sans TC';color:#5c6675;margin-top:7px">CNC / 空壓機 / AGV / 機械手臂 / 射出機 / 半導體腔體 / 電表 / 風機 — 建立後即時長出新公司</div>
+            </div>
+
+            <!-- inject fault -->
+            <div style="background:#10151d;border:1px solid #202836;border-radius:11px;padding:14px 16px;margin-top:14px">
+              <div style="font:600 13px 'IBM Plex Sans TC';margin-bottom:10px">注入故障</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr .6fr;gap:10px">
+                <div><div style="font:10.5px 'IBM Plex Sans TC';color:#6d7686;margin-bottom:4px">設備</div><div style="background:#0c1219;border:1px solid #2a3340;border-radius:6px;padding:7px 10px;font:12px 'IBM Plex Mono'">cnc-01 ▾</div></div>
+                <div><div style="font:10.5px 'IBM Plex Sans TC';color:#6d7686;margin-bottom:4px">故障型態</div><div style="background:#0c1219;border:1px solid #2a3340;border-radius:6px;padding:7px 10px;font:12px 'IBM Plex Mono'">gradual ▾</div></div>
+                <div><div style="font:10.5px 'IBM Plex Sans TC';color:#6d7686;margin-bottom:4px">目標元件</div><div style="background:#0c1219;border:1px solid #2a3340;border-radius:6px;padding:7px 10px;font:12px 'IBM Plex Mono'">spindle_bearing ▾</div></div>
+                <div><div style="font:10.5px 'IBM Plex Sans TC';color:#6d7686;margin-bottom:4px">severity</div><div style="background:#0c1219;border:1px solid #2a3340;border-radius:6px;padding:7px 10px;font:12px 'IBM Plex Mono'">1.0</div></div>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:12px">
+                <span style="font:600 12.5px 'IBM Plex Sans TC';color:#fff;background:#e0503f;border-radius:7px;padding:8px 18px">注入</span>
+                <span style="font:600 12.5px 'IBM Plex Sans TC';color:#07090d;background:#f0883c;border-radius:7px;padding:8px 16px">⚡ 快速故障(demo)</span>
+                <span style="font:600 12.5px 'IBM Plex Sans TC';color:#c7d0dd;background:#0c1017;border:1px solid #2a3340;border-radius:7px;padding:8px 16px">reset 設備</span>
+              </div>
+            </div>
+
+            <!-- scenario -->
+            <div style="background:#10151d;border:1px solid #202836;border-radius:11px;padding:14px 16px;margin-top:14px">
+              <div style="font:600 13px 'IBM Plex Sans TC';margin-bottom:10px">情境腳本 <span style="font:11px 'IBM Plex Sans TC';color:#6d7686">期末測驗</span></div>
+              <div style="display:flex;gap:8px;align-items:center"><div style="background:#0c1219;border:1px solid #2a3340;border-radius:6px;padding:7px 10px;font:12px 'IBM Plex Mono';flex:1">disaster_day(12 步)▾</div><span style="font:600 12.5px 'IBM Plex Sans TC';color:#07090d;background:#f0883c;border-radius:7px;padding:8px 16px">▶ 執行</span><span style="font:600 12.5px 'IBM Plex Sans TC';color:#c7d0dd;background:#0c1017;border:1px solid #2a3340;border-radius:7px;padding:8px 16px">停止</span></div>
+              <div style="font:11.5px 'IBM Plex Sans TC';color:#6d7686;margin-top:8px">連鎖故障情境:多站同時劣化,考驗學生分流處置與預測。</div>
+            </div>
+
+            <!-- ground truth -->
+            <div style="background:#10151d;border:1px solid #202836;border-radius:11px;padding:14px 16px;margin-top:14px">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px"><span style="font:600 13px 'IBM Plex Sans TC'">Ground-truth · cnc-01</span><span style="font:11px 'IBM Plex Mono';color:#e0503f">state=fault · RUL 0.0h</span></div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <div style="display:flex;align-items:center;gap:10px"><span style="font:12px 'IBM Plex Mono';color:#c7d0dd;width:130px">spindle_bearing</span><div style="flex:1;height:9px;background:#1a212c;border-radius:5px;overflow:hidden"><div style="width:4%;height:100%;background:#e0503f;border-radius:5px"></div></div><span style="font:11px 'IBM Plex Mono';color:#8a94a6;width:64px;text-align:right">h=0.04</span></div>
+                <div style="display:flex;align-items:center;gap:10px"><span style="font:12px 'IBM Plex Mono';color:#c7d0dd;width:130px">ball_screw</span><div style="flex:1;height:9px;background:#1a212c;border-radius:5px;overflow:hidden"><div style="width:68%;height:100%;background:#f2c14e;border-radius:5px"></div></div><span style="font:11px 'IBM Plex Mono';color:#8a94a6;width:64px;text-align:right">h=0.68</span></div>
+                <div style="display:flex;align-items:center;gap:10px"><span style="font:12px 'IBM Plex Mono';color:#c7d0dd;width:130px">coolant_pump</span><div style="flex:1;height:9px;background:#1a212c;border-radius:5px;overflow:hidden"><div style="width:91%;height:100%;background:#35d07a;border-radius:5px"></div></div><span style="font:11px 'IBM Plex Mono';color:#8a94a6;width:64px;text-align:right">h=0.91</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- right: tickets + scores -->
+          <aside style="width:452px;flex:0 0 452px;background:#0c1017;overflow-y:auto;padding:18px 18px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span style="font:600 13px 'IBM Plex Sans TC'">工單板</span><span style="font:11px 'IBM Plex Sans TC';color:#e0503f">2 未結案</span></div>
+            <div style="border:1px solid #202836;border-radius:10px;overflow:hidden;margin-bottom:20px">
+              <div style="display:grid;grid-template-columns:60px 1fr 80px 120px;gap:8px;padding:9px 13px;background:#10151d;font:600 10.5px 'IBM Plex Mono';color:#6d7686"><span>單號</span><span>設備/元件</span><span>狀態</span><span>處置</span></div>
+              <div style="display:grid;grid-template-columns:60px 1fr 80px 120px;gap:8px;padding:10px 13px;border-top:1px solid #1a212c;align-items:center;font:11.5px 'IBM Plex Sans TC'"><span style="font:600 11px 'IBM Plex Mono'">#1042</span><span>cnc-01·bearing</span><span style="color:#e0503f;font-weight:600">open</span><span style="display:flex;gap:5px"><span style="font:10.5px;color:#07090d;background:#f2c14e;border-radius:5px;padding:3px 8px">ack</span><span style="font:10.5px;color:#07090d;background:#35d07a;border-radius:5px;padding:3px 8px">resolve</span></span></div>
+              <div style="display:grid;grid-template-columns:60px 1fr 80px 120px;gap:8px;padding:10px 13px;border-top:1px solid #1a212c;align-items:center;font:11.5px 'IBM Plex Sans TC'"><span style="font:600 11px 'IBM Plex Mono'">#1039</span><span>agv-02·battery</span><span style="color:#f2c14e;font-weight:600">acked</span><span style="display:flex;gap:5px"><span style="font:10.5px;color:#07090d;background:#35d07a;border-radius:5px;padding:3px 8px">resolve</span></span></div>
+            </div>
+
+            <div style="font:600 13px 'IBM Plex Sans TC';margin-bottom:10px">評分榜</div>
+            <div style="border:1px solid #202836;border-radius:10px;overflow:hidden">
+              <div style="display:grid;grid-template-columns:26px 1fr 46px 46px 46px 54px;gap:6px;padding:9px 13px;background:#10151d;font:600 10.5px 'IBM Plex Mono';color:#6d7686"><span>#</span><span>公司</span><span>故障</span><span>偵測</span><span>漏</span><span>分數</span></div>
+              <div style="display:grid;grid-template-columns:26px 1fr 46px 46px 46px 54px;gap:6px;padding:10px 13px;border-top:1px solid #1a212c;font:11.5px 'IBM Plex Sans TC';align-items:center"><span style="color:#f2c14e;font-weight:700">1</span><span>精昱機械</span><span style="font:'IBM Plex Mono'">8</span><span style="color:#35d07a">8</span><span style="color:#6d7686">0</span><span style="font:600 12px 'IBM Plex Mono'">920</span></div>
+              <div style="display:grid;grid-template-columns:26px 1fr 46px 46px 46px 54px;gap:6px;padding:10px 13px;border-top:1px solid #1a212c;font:11.5px 'IBM Plex Sans TC';align-items:center;background:#0c1219"><span style="color:#8a94a6;font-weight:700">2</span><span>芯鼎半導體</span><span>10</span><span style="color:#35d07a">9</span><span style="color:#e0503f">1</span><span style="font:600 12px 'IBM Plex Mono'">874</span></div>
+              <div style="display:grid;grid-template-columns:26px 1fr 46px 46px 46px 54px;gap:6px;padding:10px 13px;border-top:1px solid #1a212c;font:11.5px 'IBM Plex Sans TC';align-items:center"><span style="color:#8a94a6;font-weight:700">3</span><span>鎰達物流</span><span>5</span><span style="color:#35d07a">5</span><span style="color:#6d7686">0</span><span style="font:600 12px 'IBM Plex Mono'">803</span></div>
+            </div>
+
+            <div style="background:#1a1113;border:1px solid #4a2620;border-radius:10px;padding:11px 14px;margin-top:18px;display:flex;align-items:center;gap:10px">
+              <span style="font:18px">🧹</span>
+              <div style="flex:1"><div style="font:12.5px 'IBM Plex Sans TC';color:#ffb4ab;font-weight:600">重置課堂資料</div><div style="font:11px 'IBM Plex Sans TC';color:#a5766f">清認領/工單/預測/OEE,設備修回健康(換班歸零)</div></div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+
+
+  </div>
+</section>
+
+<section id="t1" style="padding:36px 44px 44px;scroll-margin-top:16px">
+  <div style="display:flex;align-items:baseline;gap:10px;margin:0 0 8px">
+    <a href="#t1" style="font:600 10px 'IBM Plex Mono',monospace;padding:3px 7px;background:#e8edf4;color:#0b0f15;border-radius:4px;text-decoration:none">1</a>
+    <span style="font:600 14px 'IBM Plex Sans TC';color:#e8edf4">主監控畫面（2D 世界 + 遙測側欄）· 三個重新設計方案</span>
+  </div>
+  <p style="margin:0 0 30px;font:13px/1.6 'IBM Plex Sans TC';color:#8a94a6;max-width:820px">維持深色工業風,聚焦<b style="color:#c7d0dd">資訊架構、導覽方式與遙測資料視覺化</b>的三種方向。畫面以合成示範數據呈現;右上角代號可在對話中直接引用(例如「把 1b 做成可點擊原型」)。</p>
+  <div style="display:flex;flex-wrap:wrap;gap:44px;align-items:flex-start">
+
+    <!-- ============================= OPTION 1a ============================= -->
+    <div id="1a" style="scroll-margin-top:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:10px">
+        <a href="#1a" style="font:600 11px 'IBM Plex Mono',monospace;padding:3px 8px;background:#1a212c;color:#e8edf4;border:1px solid #2a3340;border-radius:5px;text-decoration:none">1a</a>
+        <span style="font:600 13px 'IBM Plex Sans TC';color:#e8edf4">精緻化現況</span>
+        <span style="font:12px 'IBM Plex Sans TC';color:#8a94a6">保留頂欄分頁 + 世界 / 側欄結構,提升排版、燈號與遙測層次</span>
+      </div>
+
+      <div style="width:1440px;height:864px;background:#0b0f15;border:1px solid #202836;border-radius:14px;overflow:hidden;box-shadow:0 24px 60px -20px rgba(0,0,0,.7);display:flex;flex-direction:column;color:#e8edf4">
+        <!-- topbar -->
+        <div style="height:56px;flex:0 0 56px;display:flex;align-items:center;gap:18px;padding:0 20px;background:#10151d;border-bottom:1px solid #202836">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:26px;height:26px;border-radius:7px;background:linear-gradient(140deg,#4c9ce8,#2c6fb0);display:flex;align-items:center;justify-content:center;font:700 13px 'IBM Plex Mono';color:#07090d">勤</div>
+            <span style="font:600 15px 'IBM Plex Sans TC'">勤益智慧工業區</span>
+          </div>
+          <span style="font:500 10.5px 'IBM Plex Mono';letter-spacing:.5px;color:#f0883c;border:1px solid #6b4324;background:#20160d;padding:2px 7px;border-radius:5px">合成數據 · SYNTHETIC</span>
+          <nav style="display:flex;gap:2px;margin-left:8px">
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px;border-radius:7px">開始</span>
+            <span style="font:600 13px 'IBM Plex Sans TC';color:#e8edf4;padding:8px 12px;border-radius:7px;background:#1a212c;box-shadow:inset 0 -2px 0 #4c9ce8">2D 世界</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">學生面</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">設備目錄</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">戰情版</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">OEE 榜</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:8px 12px">教師控制台</span>
+          </nav>
+          <div style="flex:1"></div>
+          <!-- fleet status summary -->
+          <div style="display:flex;align-items:center;gap:14px;padding:0 14px;border-right:1px solid #202836;height:30px">
+            <span style="display:flex;align-items:center;gap:6px;font:600 12.5px 'IBM Plex Mono';color:#c7d0dd"><span style="width:8px;height:8px;border-radius:50%;background:#35d07a"></span>18</span>
+            <span style="display:flex;align-items:center;gap:6px;font:600 12.5px 'IBM Plex Mono';color:#c7d0dd"><span style="width:8px;height:8px;border-radius:50%;background:#f2c14e"></span>3</span>
+            <span style="display:flex;align-items:center;gap:6px;font:600 12.5px 'IBM Plex Mono';color:#c7d0dd"><span style="width:8px;height:8px;border-radius:50%;background:#e0503f;animation:blink 1.4s infinite"></span>2</span>
+          </div>
+          <span style="font:500 12.5px 'IBM Plex Mono';color:#8a94a6">sim 42.6 h · 3600×</span>
+          <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6;padding:6px 10px;border:1px solid #2a3340;border-radius:7px">名詞速查</span>
+        </div>
+
+        <!-- body -->
+        <div style="flex:1;display:flex;min-height:0">
+          <!-- world -->
+          <div style="flex:1;position:relative;min-width:0;background:radial-gradient(120% 90% at 50% 8%,#141c28 0%,#0a0e14 62%)">
+            <div style="position:absolute;inset:0;background-image:repeating-linear-gradient(63.43deg,rgba(123,150,190,.05) 0 1px,transparent 1px 30px),repeating-linear-gradient(-63.43deg,rgba(123,150,190,.05) 0 1px,transparent 1px 30px)"></div>
+            <div style="position:absolute;top:14px;left:16px;font:12.5px 'IBM Plex Sans TC';color:#6d7686">滑鼠移到公司看簡介 ｜ 點公司進廠內 ｜ 點設備看即時值</div>
+            <!-- company pads -->
+            <div style="position:absolute;left:210px;top:230px;text-align:center"><div style="width:14px;height:14px;border-radius:50%;background:#e0503f;margin:0 auto 8px;animation:pulseRed 1.6s infinite"></div><div style="width:64px;height:32px;margin:0 auto;background:linear-gradient(150deg,#2f3a4e,#232c3a);transform:rotate(45deg) scaleY(.58);border:1px solid #3a4658;box-shadow:0 10px 16px rgba(0,0,0,.4)"></div><div style="margin-top:14px;font:600 12px 'IBM Plex Sans TC';color:#e8edf4">精昱機械</div></div>
+            <div style="position:absolute;left:430px;top:170px;text-align:center"><div style="width:12px;height:12px;border-radius:50%;background:#35d07a;margin:0 auto 8px;box-shadow:0 0 10px rgba(53,208,122,.5)"></div><div style="width:56px;height:28px;margin:0 auto;background:linear-gradient(150deg,#2b4a44,#20342f);transform:rotate(45deg) scaleY(.58);border:1px solid #365049"></div><div style="margin-top:12px;font:12px 'IBM Plex Sans TC';color:#b7c0cd">鎰達物流</div></div>
+            <div style="position:absolute;left:600px;top:290px;text-align:center"><div style="width:12px;height:12px;border-radius:50%;background:#f2c14e;margin:0 auto 8px;box-shadow:0 0 10px rgba(242,193,78,.45)"></div><div style="width:62px;height:30px;margin:0 auto;background:linear-gradient(150deg,#3a3552,#2a273e);transform:rotate(45deg) scaleY(.58);border:1px solid #48415f"></div><div style="margin-top:13px;font:12px 'IBM Plex Sans TC';color:#b7c0cd">芯鼎半導體</div></div>
+            <div style="position:absolute;left:360px;top:360px;text-align:center"><div style="width:12px;height:12px;border-radius:50%;background:#f0883c;margin:0 auto 8px;animation:pulseOrange 2s infinite"></div><div style="width:52px;height:26px;margin:0 auto;background:linear-gradient(150deg,#4a3a2a,#352a1f);transform:rotate(45deg) scaleY(.58);border:1px solid #5a4632"></div><div style="margin-top:11px;font:12px 'IBM Plex Sans TC';color:#b7c0cd">華辰風電</div></div>
+            <div style="position:absolute;left:560px;top:130px;text-align:center"><div style="width:12px;height:12px;border-radius:50%;background:#35d07a;margin:0 auto 8px;box-shadow:0 0 10px rgba(53,208,122,.5)"></div><div style="width:50px;height:26px;margin:0 auto;background:linear-gradient(150deg,#2f3a4e,#232c3a);transform:rotate(45deg) scaleY(.58);border:1px solid #3a4658"></div><div style="margin-top:11px;font:12px 'IBM Plex Sans TC';color:#b7c0cd">宏碩成型</div></div>
+            <div style="position:absolute;left:760px;top:240px;text-align:center"><div style="width:12px;height:12px;border-radius:50%;background:#35d07a;margin:0 auto 8px;box-shadow:0 0 10px rgba(53,208,122,.5)"></div><div style="width:46px;height:24px;margin:0 auto;background:linear-gradient(150deg,#33403a,#26302b);transform:rotate(45deg) scaleY(.58);border:1px solid #3d4d45"></div><div style="margin-top:11px;font:12px 'IBM Plex Sans TC';color:#b7c0cd">台電動力</div></div>
+            <!-- legend -->
+            <div style="position:absolute;left:16px;bottom:16px;display:flex;gap:16px;align-items:center;background:rgba(12,16,22,.72);border:1px solid #202836;border-radius:9px;padding:8px 14px">
+              <span style="display:flex;align-items:center;gap:6px;font:12px 'IBM Plex Sans TC';color:#b7c0cd"><span style="width:8px;height:8px;border-radius:50%;background:#35d07a"></span>正常</span>
+              <span style="display:flex;align-items:center;gap:6px;font:12px 'IBM Plex Sans TC';color:#b7c0cd"><span style="width:8px;height:8px;border-radius:50%;background:#f2c14e"></span>警告</span>
+              <span style="display:flex;align-items:center;gap:6px;font:12px 'IBM Plex Sans TC';color:#b7c0cd"><span style="width:8px;height:8px;border-radius:50%;background:#f0883c"></span>預測故障</span>
+              <span style="display:flex;align-items:center;gap:6px;font:12px 'IBM Plex Sans TC';color:#b7c0cd"><span style="width:8px;height:8px;border-radius:50%;background:#e0503f"></span>故障</span>
+            </div>
+          </div>
+
+          <!-- side panel -->
+          <aside style="width:346px;flex:0 0 346px;background:#10151d;border-left:1px solid #202836;overflow:hidden;display:flex;flex-direction:column">
+            <div style="flex:1;overflow-y:auto;padding:16px 16px 8px">
+              <!-- device header -->
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                <div style="font:600 19px 'IBM Plex Mono';letter-spacing:.5px">cnc-01</div>
+                <span style="font:600 11px 'IBM Plex Sans TC';color:#07090d;background:#e0503f;padding:3px 10px;border-radius:20px;display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:#07090d;animation:blink 1.4s infinite"></span>fault</span>
+              </div>
+              <div style="font:12.5px 'IBM Plex Sans TC';color:#8a94a6;margin-top:3px">cnc_machining_center · 精昱機械</div>
+
+              <!-- teacher controls -->
+              <div style="display:flex;gap:8px;margin:12px 0 4px">
+                <span style="flex:1;text-align:center;font:600 12.5px 'IBM Plex Sans TC';color:#f2c14e;background:#221a0d;border:1px solid #4a3a1a;border-radius:7px;padding:7px 0">⏸ 停機</span>
+                <span style="flex:1;text-align:center;font:600 12.5px 'IBM Plex Sans TC';color:#35d07a;background:#0f2018;border:1px solid #1e4230;border-radius:7px;padding:7px 0">↺ 重置 / 清除故障</span>
+              </div>
+              <div style="font:11px 'IBM Plex Sans TC';color:#5c6675;margin:0 0 12px">教師 token 已載入,可寫命令線圈</div>
+
+              <!-- headline signals with threshold bars -->
+              <div style="font:600 11px 'IBM Plex Mono';letter-spacing:.6px;color:#6d7686;margin:0 0 9px">關鍵訊號</div>
+              <div style="display:flex;flex-direction:column;gap:11px;margin-bottom:16px">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="flex:0 0 82px;font:12px 'IBM Plex Sans TC';color:#8a94a6">振動 RMS</span>
+                  <div style="flex:1;height:6px;border-radius:3px;background:#1a212c;position:relative;overflow:hidden"><div style="position:absolute;inset:0 12% 0 0;background:linear-gradient(90deg,#f0883c,#e0503f);border-radius:3px"></div><div style="position:absolute;left:45%;top:-3px;bottom:-3px;width:1px;background:#6d7686"></div></div>
+                  <span style="flex:0 0 70px;text-align:right;font:600 12px 'IBM Plex Mono';color:#e0503f">13.4<span style="color:#8a94a6;font-weight:400"> mm/s</span></span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="flex:0 0 82px;font:12px 'IBM Plex Sans TC';color:#8a94a6">主軸電流</span>
+                  <div style="flex:1;height:6px;border-radius:3px;background:#1a212c;position:relative;overflow:hidden"><div style="position:absolute;inset:0 32% 0 0;background:linear-gradient(90deg,#4c9ce8,#f2c14e);border-radius:3px"></div><div style="position:absolute;left:78%;top:-3px;bottom:-3px;width:1px;background:#6d7686"></div></div>
+                  <span style="flex:0 0 70px;text-align:right;font:600 12px 'IBM Plex Mono';color:#f2c14e">11.8<span style="color:#8a94a6;font-weight:400"> A</span></span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="flex:0 0 82px;font:12px 'IBM Plex Sans TC';color:#8a94a6">主軸溫度</span>
+                  <div style="flex:1;height:6px;border-radius:3px;background:#1a212c;position:relative;overflow:hidden"><div style="position:absolute;inset:0 28% 0 0;background:linear-gradient(90deg,#4c9ce8,#f2c14e);border-radius:3px"></div><div style="position:absolute;left:88%;top:-3px;bottom:-3px;width:1px;background:#6d7686"></div></div>
+                  <span style="flex:0 0 70px;text-align:right;font:600 12px 'IBM Plex Mono';color:#f2c14e">80.2<span style="color:#8a94a6;font-weight:400"> °C</span></span>
+                </div>
+              </div>
+
+              <!-- holding registers -->
+              <div style="font:600 11px 'IBM Plex Mono';letter-spacing:.6px;color:#6d7686;margin:0 0 4px">保持暫存器 · HOLDING (FC03)</div>
+              <div style="display:flex;flex-direction:column">
+                <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #1a212c;font:12.5px 'IBM Plex Mono'"><span style="color:#8a94a6">spindle_rpm</span><span>8420.00</span></div>
+                <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #1a212c;font:12.5px 'IBM Plex Mono'"><span style="color:#8a94a6">feed_rate</span><span>3200.00</span></div>
+                <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #1a212c;font:12.5px 'IBM Plex Mono'"><span style="color:#8a94a6">tool_wear</span><span>0.62</span></div>
+                <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #1a212c;font:12.5px 'IBM Plex Mono'"><span style="color:#8a94a6">active_power</span><span>14.20</span></div>
+              </div>
+
+              <!-- discretes -->
+              <div style="font:600 11px 'IBM Plex Mono';letter-spacing:.6px;color:#6d7686;margin:14px 0 7px">離散輸入 · DISCRETE (FC02)</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px">
+                <span style="font:12px 'IBM Plex Mono';padding:3px 9px;border-radius:12px;background:#0f2018;color:#35d07a;border:1px solid #1e4230">● door_closed</span>
+                <span style="font:12px 'IBM Plex Mono';padding:3px 9px;border-radius:12px;background:#0f2018;color:#35d07a;border:1px solid #1e4230">● spindle_on</span>
+                <span style="font:12px 'IBM Plex Mono';padding:3px 9px;border-radius:12px;background:#151b25;color:#6d7686;border:1px solid #262f3c">○ estop</span>
+              </div>
+
+              <!-- setpoint -->
+              <div style="font:600 11px 'IBM Plex Mono';letter-spacing:.6px;color:#6d7686;margin:14px 0 7px">設定點 · SETPOINT (FC06 ★學生可寫)</div>
+              <div style="background:#0c1219;border:1px solid #202836;border-radius:9px;padding:10px 12px">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span style="font:12.5px 'IBM Plex Sans TC';color:#c7d0dd">feed_override</span><span style="font:12px 'IBM Plex Mono';color:#8a94a6">目前 100 %</span></div>
+                <div style="display:flex;gap:8px;margin-top:8px"><div style="flex:1;background:#10151d;border:1px solid #2a3340;border-radius:6px;padding:5px 9px;font:12.5px 'IBM Plex Mono';color:#e8edf4">100</div><span style="font:600 12px 'IBM Plex Sans TC';color:#07090d;background:#4c9ce8;border-radius:6px;padding:6px 14px">寫入</span></div>
+                <div style="font:11px 'IBM Plex Sans TC';color:#5c6675;margin-top:6px">範圍 50~120 % · register 40012 · raw = 值 × 1</div>
+              </div>
+            </div>
+
+            <!-- events feed -->
+            <div style="flex:0 0 232px;border-top:1px solid #202836;background:#0c1017;padding:12px 16px;overflow-y:auto">
+              <div style="font:600 12px 'IBM Plex Sans TC';color:#c7d0dd;margin-bottom:8px">事件</div>
+              <div style="display:flex;flex-direction:column;gap:0">
+                <div style="padding:6px 0;border-bottom:1px solid #161c26;font:12px 'IBM Plex Sans TC'"><span style="font-family:'IBM Plex Mono';color:#6d7686">42.4h</span> <span style="color:#e0503f">⚠ cnc-01 故障(spindle_bearing)</span></div>
+                <div style="padding:6px 0;border-bottom:1px solid #161c26;font:12px 'IBM Plex Sans TC'"><span style="font-family:'IBM Plex Mono';color:#6d7686">41.9h</span> <span style="color:#f0883c">🔮 cnc-01 預測故障(S001)</span></div>
+                <div style="padding:6px 0;border-bottom:1px solid #161c26;font:12px 'IBM Plex Sans TC'"><span style="font-family:'IBM Plex Mono';color:#6d7686">40.2h</span> <span style="color:#b7c0cd">cnc-01:running → alarm</span></div>
+                <div style="padding:6px 0;border-bottom:1px solid #161c26;font:12px 'IBM Plex Sans TC'"><span style="font-family:'IBM Plex Mono';color:#6d7686">38.7h</span> <span style="color:#4c9ce8">🎛 agv-02 線圈 run_enable=1(教師)</span></div>
+                <div style="padding:6px 0;font:12px 'IBM Plex Sans TC'"><span style="font-family:'IBM Plex Mono';color:#6d7686">12.0h</span> <span style="color:#35d07a">✅ arm-01 預測命中 lead 3.2h(S003)</span></div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+    <!-- ============================= OPTION 1b ============================= -->
+    <div id="1b" style="scroll-margin-top:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:10px">
+        <a href="#1b" style="font:600 11px 'IBM Plex Mono',monospace;padding:3px 8px;background:#1a212c;color:#e8edf4;border:1px solid #2a3340;border-radius:5px;text-decoration:none">1b</a>
+        <span style="font:600 13px 'IBM Plex Sans TC';color:#e8edf4">左側圖示導覽 + 儀表化檢視器</span>
+        <span style="font:12px 'IBM Plex Sans TC';color:#8a94a6">SCADA 風格側欄導覽,右側用儀表環 / RUL / 趨勢圖強化監控感</span>
+      </div>
+
+      <div style="width:1440px;height:864px;background:#0b0f15;border:1px solid #202836;border-radius:14px;overflow:hidden;box-shadow:0 24px 60px -20px rgba(0,0,0,.7);display:flex;color:#e8edf4">
+        <!-- left icon rail -->
+        <div style="width:76px;flex:0 0 76px;background:#0c1017;border-right:1px solid #202836;display:flex;flex-direction:column;align-items:center;padding:14px 0">
+          <div style="width:36px;height:36px;border-radius:9px;background:linear-gradient(140deg,#45b6d6,#2c8296);display:flex;align-items:center;justify-content:center;font:700 15px 'IBM Plex Mono';color:#07090d;margin-bottom:20px">勤</div>
+          <div style="display:flex;flex-direction:column;gap:6px;width:100%;align-items:center">
+            <div style="width:52px;padding:9px 0;text-align:center;border-radius:9px"><div style="font-size:16px">🚀</div><div style="font:10px 'IBM Plex Sans TC';color:#6d7686;margin-top:2px">開始</div></div>
+            <div style="width:52px;padding:9px 0;text-align:center;border-radius:9px;background:#132029;box-shadow:inset 2px 0 0 #45b6d6;position:relative"><div style="font-size:16px">🗺️</div><div style="font:10px 'IBM Plex Sans TC';color:#e8edf4;margin-top:2px">世界</div></div>
+            <div style="width:52px;padding:9px 0;text-align:center;border-radius:9px"><div style="font-size:16px">🎫</div><div style="font:10px 'IBM Plex Sans TC';color:#6d7686;margin-top:2px">學生</div></div>
+            <div style="width:52px;padding:9px 0;text-align:center;border-radius:9px"><div style="font-size:16px">📖</div><div style="font:10px 'IBM Plex Sans TC';color:#6d7686;margin-top:2px">目錄</div></div>
+            <div style="width:52px;padding:9px 0;text-align:center;border-radius:9px"><div style="font-size:16px">📡</div><div style="font:10px 'IBM Plex Sans TC';color:#6d7686;margin-top:2px">戰情</div></div>
+            <div style="width:52px;padding:9px 0;text-align:center;border-radius:9px"><div style="font-size:16px">📊</div><div style="font:10px 'IBM Plex Sans TC';color:#6d7686;margin-top:2px">OEE</div></div>
+            <div style="width:52px;padding:9px 0;text-align:center;border-radius:9px"><div style="font-size:16px">🎛</div><div style="font:10px 'IBM Plex Sans TC';color:#6d7686;margin-top:2px">教師</div></div>
+          </div>
+          <div style="flex:1"></div>
+          <div style="width:52px;padding:9px 0;text-align:center;border-radius:9px"><div style="font-size:16px">❓</div><div style="font:10px 'IBM Plex Sans TC';color:#6d7686;margin-top:2px">名詞</div></div>
+        </div>
+
+        <!-- center column -->
+        <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+          <!-- slim topbar -->
+          <div style="height:46px;flex:0 0 46px;display:flex;align-items:center;gap:14px;padding:0 20px;background:#10151d;border-bottom:1px solid #202836">
+            <span style="font:600 14px 'IBM Plex Sans TC'">俯瞰</span>
+            <span style="font:13px 'IBM Plex Mono';color:#5c6675">/</span>
+            <span style="font:13px 'IBM Plex Sans TC';color:#8a94a6">園區世界即時</span>
+            <span style="font:500 10.5px 'IBM Plex Mono';letter-spacing:.5px;color:#f0883c;border:1px solid #6b4324;background:#20160d;padding:2px 7px;border-radius:5px;margin-left:4px">合成數據</span>
+            <div style="flex:1"></div>
+            <span style="display:flex;align-items:center;gap:6px;font:600 12px 'IBM Plex Mono';color:#c7d0dd"><span style="width:8px;height:8px;border-radius:50%;background:#35d07a"></span>18 運轉</span>
+            <span style="display:flex;align-items:center;gap:6px;font:600 12px 'IBM Plex Mono';color:#c7d0dd"><span style="width:8px;height:8px;border-radius:50%;background:#f2c14e"></span>3 警告</span>
+            <span style="display:flex;align-items:center;gap:6px;font:600 12px 'IBM Plex Mono';color:#c7d0dd"><span style="width:8px;height:8px;border-radius:50%;background:#e0503f;animation:blink 1.4s infinite"></span>2 故障</span>
+            <span style="font:500 12.5px 'IBM Plex Mono';color:#8a94a6;padding-left:8px;border-left:1px solid #202836">sim 42.6 h · 3600×</span>
+          </div>
+
+          <!-- world -->
+          <div style="flex:1;position:relative;min-width:0;background:radial-gradient(120% 90% at 50% 6%,#101a26 0%,#0a0e14 62%)">
+            <div style="position:absolute;inset:0;background-image:repeating-linear-gradient(63.43deg,rgba(69,182,214,.055) 0 1px,transparent 1px 30px),repeating-linear-gradient(-63.43deg,rgba(69,182,214,.055) 0 1px,transparent 1px 30px)"></div>
+            <div style="position:absolute;left:180px;top:210px;text-align:center"><div style="width:14px;height:14px;border-radius:50%;background:#e0503f;margin:0 auto 8px;animation:pulseRed 1.6s infinite"></div><div style="width:64px;height:32px;margin:0 auto;background:linear-gradient(150deg,#2f3a4e,#232c3a);transform:rotate(45deg) scaleY(.58);border:1px solid #3a4658;box-shadow:0 10px 16px rgba(0,0,0,.4)"></div><div style="margin-top:14px;font:600 12px 'IBM Plex Sans TC'">精昱機械</div></div>
+            <div style="position:absolute;left:400px;top:160px;text-align:center"><div style="width:12px;height:12px;border-radius:50%;background:#35d07a;margin:0 auto 8px;box-shadow:0 0 10px rgba(53,208,122,.5)"></div><div style="width:56px;height:28px;margin:0 auto;background:linear-gradient(150deg,#2b4a44,#20342f);transform:rotate(45deg) scaleY(.58);border:1px solid #365049"></div><div style="margin-top:12px;font:12px 'IBM Plex Sans TC';color:#b7c0cd">鎰達物流</div></div>
+            <div style="position:absolute;left:560px;top:270px;text-align:center"><div style="width:12px;height:12px;border-radius:50%;background:#f2c14e;margin:0 auto 8px;box-shadow:0 0 10px rgba(242,193,78,.45)"></div><div style="width:62px;height:30px;margin:0 auto;background:linear-gradient(150deg,#3a3552,#2a273e);transform:rotate(45deg) scaleY(.58);border:1px solid #48415f"></div><div style="margin-top:13px;font:12px 'IBM Plex Sans TC';color:#b7c0cd">芯鼎半導體</div></div>
+            <div style="position:absolute;left:330px;top:350px;text-align:center"><div style="width:12px;height:12px;border-radius:50%;background:#f0883c;margin:0 auto 8px;animation:pulseOrange 2s infinite"></div><div style="width:52px;height:26px;margin:0 auto;background:linear-gradient(150deg,#4a3a2a,#352a1f);transform:rotate(45deg) scaleY(.58);border:1px solid #5a4632"></div><div style="margin-top:11px;font:12px 'IBM Plex Sans TC';color:#b7c0cd">華辰風電</div></div>
+            <div style="position:absolute;left:540px;top:120px;text-align:center"><div style="width:12px;height:12px;border-radius:50%;background:#35d07a;margin:0 auto 8px;box-shadow:0 0 10px rgba(53,208,122,.5)"></div><div style="width:50px;height:26px;margin:0 auto;background:linear-gradient(150deg,#2f3a4e,#232c3a);transform:rotate(45deg) scaleY(.58);border:1px solid #3a4658"></div><div style="margin-top:11px;font:12px 'IBM Plex Sans TC';color:#b7c0cd">宏碩成型</div></div>
+            <div style="position:absolute;left:720px;top:230px;text-align:center"><div style="width:12px;height:12px;border-radius:50%;background:#35d07a;margin:0 auto 8px;box-shadow:0 0 10px rgba(53,208,122,.5)"></div><div style="width:46px;height:24px;margin:0 auto;background:linear-gradient(150deg,#33403a,#26302b);transform:rotate(45deg) scaleY(.58);border:1px solid #3d4d45"></div><div style="margin-top:11px;font:12px 'IBM Plex Sans TC';color:#b7c0cd">台電動力</div></div>
+            <div style="position:absolute;left:14px;top:12px;font:12.5px 'IBM Plex Sans TC';color:#6d7686">點公司進廠內 ｜ 點設備看檢視器</div>
+          </div>
+        </div>
+
+        <!-- gauge inspector -->
+        <aside style="width:372px;flex:0 0 372px;background:#10151d;border-left:1px solid #202836;overflow-y:auto;padding:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <div><div style="font:600 19px 'IBM Plex Mono';letter-spacing:.5px">cnc-01</div><div style="font:12px 'IBM Plex Sans TC';color:#8a94a6;margin-top:2px">cnc_machining_center · 精昱機械</div></div>
+            <span style="font:600 11px 'IBM Plex Sans TC';color:#07090d;background:#e0503f;padding:3px 10px;border-radius:20px;display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:#07090d;animation:blink 1.4s infinite"></span>fault</span>
+          </div>
+
+          <!-- gauge rings -->
+          <div style="display:flex;gap:12px;margin:16px 0">
+            <div style="flex:1;background:#0c1219;border:1px solid #202836;border-radius:11px;padding:12px 10px;text-align:center">
+              <div style="width:96px;height:96px;margin:0 auto;border-radius:50%;background:conic-gradient(#e0503f 0deg 306deg,#1a212c 306deg 360deg);display:flex;align-items:center;justify-content:center;position:relative"><div style="width:74px;height:74px;border-radius:50%;background:#0c1219;display:flex;flex-direction:column;align-items:center;justify-content:center"><span style="font:600 20px 'IBM Plex Mono';color:#e0503f">13.4</span><span style="font:10px 'IBM Plex Sans TC';color:#8a94a6">mm/s</span></div></div>
+              <div style="font:12px 'IBM Plex Sans TC';color:#c7d0dd;margin-top:9px">振動 RMS</div>
+              <div style="font:11px 'IBM Plex Mono';color:#6d7686">門檻 6.0</div>
+            </div>
+            <div style="flex:1;background:#0c1219;border:1px solid #202836;border-radius:11px;padding:12px 10px;text-align:center">
+              <div style="width:96px;height:96px;margin:0 auto;border-radius:50%;background:conic-gradient(#f2c14e 0deg 234deg,#1a212c 234deg 360deg);display:flex;align-items:center;justify-content:center"><div style="width:74px;height:74px;border-radius:50%;background:#0c1219;display:flex;flex-direction:column;align-items:center;justify-content:center"><span style="font:600 20px 'IBM Plex Mono';color:#f2c14e">80</span><span style="font:10px 'IBM Plex Sans TC';color:#8a94a6">°C</span></div></div>
+              <div style="font:12px 'IBM Plex Sans TC';color:#c7d0dd;margin-top:9px">主軸溫度</div>
+              <div style="font:11px 'IBM Plex Mono';color:#6d7686">門檻 90.0</div>
+            </div>
+          </div>
+
+          <!-- RUL bar -->
+          <div style="background:#1a1113;border:1px solid #4a2620;border-radius:11px;padding:12px 14px;margin-bottom:14px">
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font:12.5px 'IBM Plex Sans TC';color:#ffb4ab">剩餘壽命 RUL(ground-truth)</span><span style="font:600 16px 'IBM Plex Mono';color:#e0503f">已故障</span></div>
+            <div style="height:7px;border-radius:4px;background:#2a1518;margin-top:9px;overflow:hidden"><div style="width:100%;height:100%;background:linear-gradient(90deg,#f0883c,#e0503f)"></div></div>
+            <div style="font:11px 'IBM Plex Sans TC';color:#a5766f;margin-top:6px">spindle_bearing 退化軌跡:健康 1.00 → 0.00 · 於 42.4h 觸發故障</div>
+          </div>
+
+          <!-- trend sparkline -->
+          <div style="font:600 11px 'IBM Plex Mono';letter-spacing:.6px;color:#6d7686;margin:0 0 8px">振動 RMS 趨勢 · 近 6 小時</div>
+          <div style="background:#0c1219;border:1px solid #202836;border-radius:11px;padding:10px;margin-bottom:16px;position:relative;overflow:hidden">
+            <svg width="332" height="86" viewBox="0 0 332 86" style="display:block">
+              <line x1="0" y1="30" x2="332" y2="30" stroke="#6d7686" stroke-width="1" stroke-dasharray="3 4" opacity="0.5"></line>
+              <text x="4" y="26" fill="#6d7686" font-size="9" font-family="IBM Plex Mono">門檻 6.0</text>
+              <polyline points="0,72 40,70 78,66 115,60 150,54 188,44 225,34 262,22 300,12 332,8" fill="none" stroke="#45b6d6" stroke-width="2"></polyline>
+              <polyline points="0,72 40,70 78,66 115,60 150,54 188,44 225,34 262,22 300,12 332,8 332,86 0,86" fill="url(#g1b)" opacity="0.25"></polyline>
+              <defs><linearGradient id="g1b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#45b6d6"></stop><stop offset="1" stop-color="#45b6d6" stop-opacity="0"></stop></linearGradient></defs>
+              <circle cx="332" cy="8" r="3" fill="#e0503f"></circle>
+            </svg>
+          </div>
+
+          <!-- compact tags -->
+          <div style="font:600 11px 'IBM Plex Mono';letter-spacing:.6px;color:#6d7686;margin:0 0 4px">全部點位 · HOLDING (FC03)</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 18px">
+            <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #1a212c;font:12px 'IBM Plex Mono'"><span style="color:#8a94a6">rpm</span><span>8420</span></div>
+            <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #1a212c;font:12px 'IBM Plex Mono'"><span style="color:#8a94a6">current</span><span style="color:#f2c14e">11.8</span></div>
+            <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #1a212c;font:12px 'IBM Plex Mono'"><span style="color:#8a94a6">feed</span><span>3200</span></div>
+            <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #1a212c;font:12px 'IBM Plex Mono'"><span style="color:#8a94a6">power</span><span>14.2</span></div>
+            <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #1a212c;font:12px 'IBM Plex Mono'"><span style="color:#8a94a6">wear</span><span>0.62</span></div>
+            <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #1a212c;font:12px 'IBM Plex Mono'"><span style="color:#8a94a6">coolant</span><span>1</span></div>
+          </div>
+
+          <!-- events timeline -->
+          <div style="font:600 11px 'IBM Plex Mono';letter-spacing:.6px;color:#6d7686;margin:16px 0 8px">事件時間軸</div>
+          <div style="display:flex;flex-direction:column;gap:2px;padding-left:8px;border-left:1px solid #232c39">
+            <div style="position:relative;padding:0 0 9px 14px"><span style="position:absolute;left:-12px;top:3px;width:7px;height:7px;border-radius:50%;background:#e0503f"></span><span style="font:11px 'IBM Plex Mono';color:#6d7686">42.4h</span><div style="font:12px 'IBM Plex Sans TC';color:#e0503f">故障 spindle_bearing</div></div>
+            <div style="position:relative;padding:0 0 9px 14px"><span style="position:absolute;left:-12px;top:3px;width:7px;height:7px;border-radius:50%;background:#f0883c"></span><span style="font:11px 'IBM Plex Mono';color:#6d7686">41.9h</span><div style="font:12px 'IBM Plex Sans TC';color:#f0883c">S001 預測故障</div></div>
+            <div style="position:relative;padding:0 0 0 14px"><span style="position:absolute;left:-12px;top:3px;width:7px;height:7px;border-radius:50%;background:#6d7686"></span><span style="font:11px 'IBM Plex Mono';color:#6d7686">40.2h</span><div style="font:12px 'IBM Plex Sans TC';color:#b7c0cd">running → alarm</div></div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- ============================= OPTION 1c ============================= -->
+    <div id="1c" style="scroll-margin-top:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:10px">
+        <a href="#1c" style="font:600 11px 'IBM Plex Mono',monospace;padding:3px 8px;background:#1a212c;color:#e8edf4;border:1px solid #2a3340;border-radius:5px;text-decoration:none">1c</a>
+        <span style="font:600 13px 'IBM Plex Sans TC';color:#e8edf4">戰情總覽 + 學生任務列</span>
+        <span style="font:12px 'IBM Plex Sans TC';color:#8a94a6">頂部全區 KPI、左側常駐任務進度、底部遙測 dock — 以學生為主的指揮中心</span>
+      </div>
+
+      <div style="width:1440px;height:864px;background:#0b0f15;border:1px solid #202836;border-radius:14px;overflow:hidden;box-shadow:0 24px 60px -20px rgba(0,0,0,.7);display:flex;flex-direction:column;color:#e8edf4">
+        <!-- top KPI strip -->
+        <div style="height:74px;flex:0 0 74px;display:flex;align-items:center;gap:16px;padding:0 20px;background:#10151d;border-bottom:1px solid #202836">
+          <div style="display:flex;align-items:center;gap:10px;padding-right:16px;border-right:1px solid #202836">
+            <div style="width:30px;height:30px;border-radius:8px;background:linear-gradient(140deg,#4c9ce8,#2c6fb0);display:flex;align-items:center;justify-content:center;font:700 14px 'IBM Plex Mono';color:#07090d">勤</div>
+            <div><div style="font:600 14px 'IBM Plex Sans TC';line-height:1.1">勤益智慧工業區</div><div style="font:10.5px 'IBM Plex Mono';color:#f0883c">SYNTHETIC · sim 42.6h · 3600×</div></div>
+          </div>
+          <!-- KPI tiles -->
+          <div style="display:flex;gap:10px;flex:1">
+            <div style="flex:1;background:#0c1219;border:1px solid #202836;border-radius:9px;padding:8px 12px"><div style="font:11px 'IBM Plex Sans TC';color:#8a94a6">設備總數</div><div style="font:600 20px 'IBM Plex Mono';color:#e8edf4">24</div></div>
+            <div style="flex:1;background:#0c1219;border:1px solid #1e4230;border-radius:9px;padding:8px 12px"><div style="font:11px 'IBM Plex Sans TC';color:#8a94a6">運轉中</div><div style="font:600 20px 'IBM Plex Mono';color:#35d07a">18</div></div>
+            <div style="flex:1;background:#0c1219;border:1px solid #4a3a1a;border-radius:9px;padding:8px 12px"><div style="font:11px 'IBM Plex Sans TC';color:#8a94a6">警告</div><div style="font:600 20px 'IBM Plex Mono';color:#f2c14e">3</div></div>
+            <div style="flex:1;background:#1a1113;border:1px solid #4a2620;border-radius:9px;padding:8px 12px"><div style="font:11px 'IBM Plex Sans TC';color:#8a94a6">故障</div><div style="font:600 20px 'IBM Plex Mono';color:#e0503f;display:flex;align-items:center;gap:7px">2<span style="width:8px;height:8px;border-radius:50%;background:#e0503f;animation:blink 1.4s infinite"></span></div></div>
+            <div style="flex:1;background:#0c1219;border:1px solid #5a3a1c;border-radius:9px;padding:8px 12px"><div style="font:11px 'IBM Plex Sans TC';color:#8a94a6">預測中</div><div style="font:600 20px 'IBM Plex Mono';color:#f0883c">1</div></div>
+            <div style="flex:1;background:#0c1219;border:1px solid #202836;border-radius:9px;padding:8px 12px"><div style="font:11px 'IBM Plex Sans TC';color:#8a94a6">平均 OEE</div><div style="font:600 20px 'IBM Plex Mono';color:#4c9ce8">78.4%</div></div>
+          </div>
+          <!-- segmented nav -->
+          <div style="display:flex;background:#0c1017;border:1px solid #202836;border-radius:9px;padding:3px">
+            <span style="font:12px 'IBM Plex Sans TC';color:#8a94a6;padding:6px 11px;border-radius:6px">開始</span>
+            <span style="font:600 12px 'IBM Plex Sans TC';color:#07090d;background:#4c9ce8;padding:6px 11px;border-radius:6px">世界</span>
+            <span style="font:12px 'IBM Plex Sans TC';color:#8a94a6;padding:6px 11px">學生</span>
+            <span style="font:12px 'IBM Plex Sans TC';color:#8a94a6;padding:6px 11px">目錄</span>
+            <span style="font:12px 'IBM Plex Sans TC';color:#8a94a6;padding:6px 11px">戰情</span>
+            <span style="font:12px 'IBM Plex Sans TC';color:#8a94a6;padding:6px 11px">OEE</span>
+          </div>
+        </div>
+
+        <!-- middle: mission rail + world -->
+        <div style="flex:1;display:flex;min-height:0">
+          <!-- mission rail -->
+          <aside style="width:296px;flex:0 0 296px;background:#0c1017;border-right:1px solid #202836;overflow-y:auto;padding:16px 16px">
+            <div style="display:flex;align-items:center;justify-content:space-between"><span style="font:600 13px 'IBM Plex Sans TC'">我的任務</span><span style="font:11px 'IBM Plex Mono';color:#35d07a">S001</span></div>
+            <div style="background:#0f1620;border:1px solid #202836;border-radius:10px;padding:12px 13px;margin-top:10px">
+              <div style="font:12px 'IBM Plex Sans TC';color:#8a94a6">我的公司</div>
+              <div style="font:600 15px 'IBM Plex Sans TC';margin-top:1px">精昱機械</div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:10px"><div style="flex:1;height:7px;background:#10151d;border-radius:4px;overflow:hidden"><div style="width:60%;height:100%;background:linear-gradient(90deg,#4c9ce8,#35d07a)"></div></div><span style="font:600 12px 'IBM Plex Mono';color:#c7d0dd">3/5</span></div>
+            </div>
+
+            <!-- quest steps -->
+            <div style="display:flex;flex-direction:column;gap:7px;margin-top:12px">
+              <div style="display:flex;gap:10px;align-items:center;background:#0f1c15;border:1px solid #1e4230;border-radius:8px;padding:8px 10px"><span style="width:20px;height:20px;flex:0 0 20px;border-radius:50%;background:#35d07a;color:#07090d;font:700 11px 'IBM Plex Mono';display:flex;align-items:center;justify-content:center">✓</span><span style="font:12.5px 'IBM Plex Sans TC';color:#9be7bd">設定學生 id</span></div>
+              <div style="display:flex;gap:10px;align-items:center;background:#0f1c15;border:1px solid #1e4230;border-radius:8px;padding:8px 10px"><span style="width:20px;height:20px;flex:0 0 20px;border-radius:50%;background:#35d07a;color:#07090d;font:700 11px 'IBM Plex Mono';display:flex;align-items:center;justify-content:center">✓</span><span style="font:12.5px 'IBM Plex Sans TC';color:#9be7bd">認領公司</span></div>
+              <div style="display:flex;gap:10px;align-items:center;background:#0f1c15;border:1px solid #1e4230;border-radius:8px;padding:8px 10px"><span style="width:20px;height:20px;flex:0 0 20px;border-radius:50%;background:#35d07a;color:#07090d;font:700 11px 'IBM Plex Mono';display:flex;align-items:center;justify-content:center">✓</span><span style="font:12.5px 'IBM Plex Sans TC';color:#9be7bd">連上第一台設備</span></div>
+              <div style="display:flex;gap:10px;align-items:center;background:#150f0c;border:1px solid #4a2620;border-radius:8px;padding:8px 10px"><span style="width:20px;height:20px;flex:0 0 20px;border-radius:50%;background:#e0503f;color:#07090d;font:700 11px 'IBM Plex Mono';display:flex;align-items:center;justify-content:center">4</span><span style="font:12.5px 'IBM Plex Sans TC';color:#e8edf4">偵測故障 → 開單處置</span></div>
+              <div style="display:flex;gap:10px;align-items:center;background:#0f1620;border:1px solid #202836;border-radius:8px;padding:8px 10px"><span style="width:20px;height:20px;flex:0 0 20px;border-radius:50%;background:#2a3648;color:#8a94a6;font:700 11px 'IBM Plex Mono';display:flex;align-items:center;justify-content:center">5</span><span style="font:12.5px 'IBM Plex Sans TC';color:#8a94a6">訓練模型 → 送預測</span></div>
+            </div>
+
+            <!-- alert -->
+            <div style="background:#1a1113;border:1px solid #4a2620;border-radius:9px;padding:10px 12px;margin-top:12px;color:#ffb4ab;font:12px/1.5 'IBM Plex Sans TC'">⚠ 你有 1 台設備故障(cnc-01)。<span style="color:#ff8a7d;font-weight:600">去處置工單 →</span></div>
+
+            <!-- my devices -->
+            <div style="font:600 11px 'IBM Plex Mono';letter-spacing:.6px;color:#6d7686;margin:16px 0 8px">我的設備</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="background:#150f0c;border:1px solid #4a2620;border-radius:9px;padding:9px 11px"><div style="display:flex;justify-content:space-between;align-items:center"><b style="font:600 13px 'IBM Plex Mono'">cnc-01</b><span style="font:600 10px 'IBM Plex Sans TC';color:#07090d;background:#e0503f;padding:2px 8px;border-radius:12px">fault</span></div><div style="display:flex;justify-content:space-between;font:11px 'IBM Plex Mono';color:#8a94a6;margin-top:5px"><span>vibration</span><span style="color:#e0503f">13.4</span></div></div>
+              <div style="background:#0f1620;border:1px solid #202836;border-radius:9px;padding:9px 11px"><div style="display:flex;justify-content:space-between;align-items:center"><b style="font:600 13px 'IBM Plex Mono'">cnc-02</b><span style="font:600 10px 'IBM Plex Sans TC';color:#07090d;background:#35d07a;padding:2px 8px;border-radius:12px">running</span></div><div style="display:flex;justify-content:space-between;font:11px 'IBM Plex Mono';color:#8a94a6;margin-top:5px"><span>vibration</span><span>2.1</span></div></div>
+            </div>
+          </aside>
+
+          <!-- world -->
+          <div style="flex:1;position:relative;min-width:0;background:radial-gradient(120% 90% at 50% 8%,#141c28 0%,#0a0e14 62%)">
+            <div style="position:absolute;inset:0;background-image:repeating-linear-gradient(63.43deg,rgba(123,150,190,.05) 0 1px,transparent 1px 30px),repeating-linear-gradient(-63.43deg,rgba(123,150,190,.05) 0 1px,transparent 1px 30px)"></div>
+            <div style="position:absolute;left:150px;top:150px;text-align:center"><div style="width:14px;height:14px;border-radius:50%;background:#e0503f;margin:0 auto 8px;animation:pulseRed 1.6s infinite"></div><div style="width:60px;height:30px;margin:0 auto;background:linear-gradient(150deg,#2f3a4e,#232c3a);transform:rotate(45deg) scaleY(.58);border:1px solid #3a4658;box-shadow:0 10px 16px rgba(0,0,0,.4)"></div><div style="margin-top:13px;font:600 12px 'IBM Plex Sans TC'">精昱機械</div></div>
+            <div style="position:absolute;left:340px;top:110px;text-align:center"><div style="width:12px;height:12px;border-radius:50%;background:#35d07a;margin:0 auto 8px;box-shadow:0 0 10px rgba(53,208,122,.5)"></div><div style="width:54px;height:28px;margin:0 auto;background:linear-gradient(150deg,#2b4a44,#20342f);transform:rotate(45deg) scaleY(.58);border:1px solid #365049"></div><div style="margin-top:12px;font:12px 'IBM Plex Sans TC';color:#b7c0cd">鎰達物流</div></div>
+            <div style="position:absolute;left:500px;top:190px;text-align:center"><div style="width:12px;height:12px;border-radius:50%;background:#f2c14e;margin:0 auto 8px;box-shadow:0 0 10px rgba(242,193,78,.45)"></div><div style="width:58px;height:30px;margin:0 auto;background:linear-gradient(150deg,#3a3552,#2a273e);transform:rotate(45deg) scaleY(.58);border:1px solid #48415f"></div><div style="margin-top:13px;font:12px 'IBM Plex Sans TC';color:#b7c0cd">芯鼎半導體</div></div>
+            <div style="position:absolute;left:290px;top:250px;text-align:center"><div style="width:12px;height:12px;border-radius:50%;background:#f0883c;margin:0 auto 8px;animation:pulseOrange 2s infinite"></div><div style="width:50px;height:26px;margin:0 auto;background:linear-gradient(150deg,#4a3a2a,#352a1f);transform:rotate(45deg) scaleY(.58);border:1px solid #5a4632"></div><div style="margin-top:11px;font:12px 'IBM Plex Sans TC';color:#b7c0cd">華辰風電</div></div>
+            <div style="position:absolute;left:640px;top:150px;text-align:center"><div style="width:12px;height:12px;border-radius:50%;background:#35d07a;margin:0 auto 8px;box-shadow:0 0 10px rgba(53,208,122,.5)"></div><div style="width:46px;height:24px;margin:0 auto;background:linear-gradient(150deg,#33403a,#26302b);transform:rotate(45deg) scaleY(.58);border:1px solid #3d4d45"></div><div style="margin-top:11px;font:12px 'IBM Plex Sans TC';color:#b7c0cd">台電動力</div></div>
+            <div style="position:absolute;left:14px;top:12px;font:12.5px 'IBM Plex Sans TC';color:#6d7686">點公司進廠內 ｜ 點設備看下方遙測 dock</div>
+          </div>
+        </div>
+
+        <!-- bottom telemetry dock -->
+        <div style="height:200px;flex:0 0 200px;background:#0c1017;border-top:1px solid #202836;display:flex;min-height:0">
+          <div style="flex:1;padding:12px 18px;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><span style="font:600 15px 'IBM Plex Mono'">cnc-01</span><span style="font:600 10px 'IBM Plex Sans TC';color:#07090d;background:#e0503f;padding:2px 9px;border-radius:12px">fault</span><span style="font:12px 'IBM Plex Sans TC';color:#8a94a6">cnc_machining_center · 精昱機械</span><span style="flex:1"></span><span style="font:12px 'IBM Plex Sans TC';color:#f2c14e;background:#221a0d;border:1px solid #4a3a1a;border-radius:6px;padding:4px 12px">⏸ 停機</span><span style="font:12px 'IBM Plex Sans TC';color:#35d07a;background:#0f2018;border:1px solid #1e4230;border-radius:6px;padding:4px 12px">↺ 重置</span></div>
+            <div style="display:flex;gap:12px">
+              <div style="flex:1;background:#10151d;border:1px solid #4a2620;border-radius:10px;padding:10px 12px"><div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font:11px 'IBM Plex Sans TC';color:#8a94a6">振動 RMS</span><span style="font:600 16px 'IBM Plex Mono';color:#e0503f">13.4</span></div><svg width="100%" height="42" viewBox="0 0 220 42" preserveAspectRatio="none" style="margin-top:6px;display:block"><polyline points="0,36 30,34 60,30 95,26 130,20 165,12 200,6 220,4" fill="none" stroke="#e0503f" stroke-width="2"></polyline></svg></div>
+              <div style="flex:1;background:#10151d;border:1px solid #202836;border-radius:10px;padding:10px 12px"><div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font:11px 'IBM Plex Sans TC';color:#8a94a6">主軸電流</span><span style="font:600 16px 'IBM Plex Mono';color:#f2c14e">11.8</span></div><svg width="100%" height="42" viewBox="0 0 220 42" preserveAspectRatio="none" style="margin-top:6px;display:block"><polyline points="0,28 30,26 60,27 95,24 130,22 165,18 200,16 220,15" fill="none" stroke="#f2c14e" stroke-width="2"></polyline></svg></div>
+              <div style="flex:1;background:#10151d;border:1px solid #202836;border-radius:10px;padding:10px 12px"><div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font:11px 'IBM Plex Sans TC';color:#8a94a6">主軸溫度</span><span style="font:600 16px 'IBM Plex Mono';color:#f2c14e">80.2</span></div><svg width="100%" height="42" viewBox="0 0 220 42" preserveAspectRatio="none" style="margin-top:6px;display:block"><polyline points="0,32 30,31 60,29 95,27 130,24 165,20 200,17 220,16" fill="none" stroke="#f2c14e" stroke-width="2"></polyline></svg></div>
+              <div style="flex:1;background:#10151d;border:1px solid #202836;border-radius:10px;padding:10px 12px"><div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font:11px 'IBM Plex Sans TC';color:#8a94a6">主軸轉速</span><span style="font:600 16px 'IBM Plex Mono';color:#e8edf4">8420</span></div><svg width="100%" height="42" viewBox="0 0 220 42" preserveAspectRatio="none" style="margin-top:6px;display:block"><polyline points="0,20 30,19 60,21 95,20 130,19 165,20 200,21 220,20" fill="none" stroke="#4c9ce8" stroke-width="2"></polyline></svg></div>
+            </div>
+          </div>
+          <!-- event ticker -->
+          <div style="width:330px;flex:0 0 330px;border-left:1px solid #202836;padding:12px 16px;overflow-y:auto">
+            <div style="font:600 12px 'IBM Plex Sans TC';color:#c7d0dd;margin-bottom:8px">事件</div>
+            <div style="padding:5px 0;border-bottom:1px solid #161c26;font:12px 'IBM Plex Sans TC'"><span style="font-family:'IBM Plex Mono';color:#6d7686">42.4h</span> <span style="color:#e0503f">⚠ cnc-01 故障</span></div>
+            <div style="padding:5px 0;border-bottom:1px solid #161c26;font:12px 'IBM Plex Sans TC'"><span style="font-family:'IBM Plex Mono';color:#6d7686">41.9h</span> <span style="color:#f0883c">🔮 cnc-01 預測(S001)</span></div>
+            <div style="padding:5px 0;font:12px 'IBM Plex Sans TC'"><span style="font-family:'IBM Plex Mono';color:#6d7686">12.0h</span> <span style="color:#35d07a">✅ arm-01 命中 lead 3.2h</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+  </div>
+  <p style="margin:28px 0 0;font:12px/1.6 'IBM Plex Sans TC';color:#5c6675">下一步可試:「把 <a href="#1a" style="color:#8a94a6">1a</a> 的關鍵訊號改成 <a href="#1b" style="color:#8a94a6">1b</a> 的儀表環」·「<a href="#1c" style="color:#8a94a6">1c</a> 的任務列做成可收合」·「選定一個方案做成可點擊原型」</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    return { world: this.buildWorld() };
+  }
+
+  buildWorld() {
+    const TW = 56, TH = 28, OX = 470, OY = 120;
+    const iso = (gx, gy) => [OX + (gx - gy) * TW, OY + (gx + gy) * TH];
+    const hex = (c) => "#" + c.toString(16).padStart(6, "0");
+    const dark = (c, f) => {
+      const r = Math.min(255, ((c >> 16) & 255) * f) | 0;
+      const g = Math.min(255, ((c >> 8) & 255) * f) | 0;
+      const b = Math.min(255, (c & 255) * f) | 0;
+      return hex((r << 16) | (g << 8) | b);
+    };
+    let seed = 20260705;
+    const rnd = () => { seed = (seed * 1664525 + 1013904223) & 0xffffffff; return ((seed >>> 8) & 0xffffff) / 0xffffff; };
+    const P = (pts) => pts.map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
+    const N = 8, ROADS = new Set([2, 5]);
+    const isRoad = (i) => ROADS.has(i);
+
+    const parts = [];
+    // ambient defs + glow
+    parts.push(`<defs>
+      <radialGradient id="amb" cx="50%" cy="34%" r="62%">
+        <stop offset="0" stop-color="#182436"/><stop offset="55%" stop-color="#0d131c"/><stop offset="100%" stop-color="#090d14"/>
+      </radialGradient>
+      <linearGradient id="haze" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#20344f" stop-opacity="0.5"/><stop offset="1" stop-color="#20344f" stop-opacity="0"/></linearGradient>
+    </defs>`);
+    parts.push(`<rect x="-200" y="-200" width="1500" height="1100" fill="url(#amb)"/>`);
+    // soft ground pool
+    const cen = iso(4, 4);
+    parts.push(`<ellipse cx="${cen[0]}" cy="${cen[1]+40}" rx="640" ry="330" fill="#152238" opacity="0.35"/>`);
+
+    // ground tiles
+    for (let gi = 0; gi < N; gi++) for (let gj = 0; gj < N; gj++) {
+      const a = iso(gi, gj), b = iso(gi + 1, gj), c = iso(gi + 1, gj + 1), d = iso(gi, gj + 1);
+      const road = isRoad(gi) || isRoad(gj);
+      let col;
+      if (road) col = (isRoad(gi) && isRoad(gj)) ? "#262c36" : "#22272f";
+      else { const v = 0.9 + rnd() * 0.22; col = dark((gi + gj) % 2 === 0 ? 0x18202c : 0x151c27, v); }
+      parts.push(`<polygon points="${P([a,b,c,d])}" fill="${col}" stroke="#0f151d" stroke-width="0.5"/>`);
+      if (road) {
+        const m = iso(gi + 0.5, gj + 0.5);
+        const horiz = isRoad(gj) && !isRoad(gi);
+        const vert = isRoad(gi) && !isRoad(gj);
+        if (horiz) parts.push(`<line x1="${(m[0]-TW*0.42).toFixed(1)}" y1="${(m[1]+TH*0.42).toFixed(1)}" x2="${(m[0]+TW*0.42).toFixed(1)}" y2="${(m[1]-TH*0.42).toFixed(1)}" stroke="#3a4considered" stroke-width="1.4" stroke-dasharray="5 5" opacity="0.5"/>`.replace("3a4considered","3a4658"));
+        if (vert) parts.push(`<line x1="${(m[0]-TW*0.42).toFixed(1)}" y1="${(m[1]-TH*0.42).toFixed(1)}" x2="${(m[0]+TW*0.42).toFixed(1)}" y2="${(m[1]+TH*0.42).toFixed(1)}" stroke="#3a4658" stroke-width="1.4" stroke-dasharray="5 5" opacity="0.5"/>`);
+      }
+    }
+
+    // buildings
+    const companies = [
+      { gx:0, gy:0, w:2, d:2, h:118, col:0x3f5a7a, name:"精昱機械",   state:"fault",  glow:"#e0503f" },
+      { gx:3, gy:0, w:2, d:2, h:52,  col:0x46655c, name:"鎰達物流",   state:"ok",     glow:"#35d07a" },
+      { gx:6, gy:0, w:2, d:2, h:134, col:0x5f5480, name:"芯鼎半導體", state:"warn",   glow:"#f2c14e" },
+      { gx:0, gy:3, w:2, d:2, h:78,  col:0x7a5a3c, name:"華辰風電",   state:"pred",   glow:"#f0883c" },
+      { gx:3, gy:3, w:2, d:2, h:64,  col:0x486079, name:"宏碩成型",   state:"ok",     glow:"#35d07a" },
+      { gx:6, gy:3, w:2, d:2, h:72,  col:0x4a6b70, name:"台電動力",   state:"ok",     glow:"#35d07a" },
+    ];
+    // filler small structures in the bottom blocks
+    const fillers = [];
+    [[0,6],[3,6],[6,6]].forEach(([bx,by]) => {
+      for (let k=0;k<3;k++){
+        const gx = bx + (rnd()*1.4), gy = by + (rnd()*1.4);
+        fillers.push({ gx, gy, w:0.5+rnd()*0.4, d:0.5+rnd()*0.4, h:16+rnd()*44, col:[0x303a48,0x384250,0x2c3644][k%3] });
+      }
+    });
+    const trees = [];
+    for (let gi=0; gi<N; gi++) for (let gj=0; gj<N; gj++){
+      if (isRoad(gi)||isRoad(gj)) continue;
+      // skip tiles covered by company blocks (blocks are 0-1,3-4,6-7)
+      const inCompany = ((gi<2||(gi>=3&&gi<5)||gi>=6) && (gj<2||(gj>=3&&gj<5))) && gj<5;
+      if (inCompany) continue;
+      if (rnd() < 0.28) trees.push({ gx: gi+0.5, gy: gj+0.5, s: 0.75+rnd()*0.6 });
+    }
+
+    const drawBox = (o, opts={}) => {
+      const inset = opts.inset ?? 0.18;
+      const gx=o.gx+inset, gy=o.gy+inset, w=o.w-inset*2, d=o.d-inset*2, h=o.h, col=o.col;
+      const A=iso(gx,gy), B=iso(gx+w,gy), C=iso(gx+w,gy+d), D=iso(gx,gy+d);
+      const up=(p)=>[p[0], p[1]-h];
+      const Au=up(A),Bu=up(B),Cu=up(C),Du=up(D);
+      const s=[];
+      // contact shadow
+      const sh=Math.min(h*0.14,16), sv=Math.min(h*0.07,8);
+      s.push(`<polygon points="${P([[A[0]+sh,A[1]+sv],[B[0]+sh,B[1]+sv],[C[0]+sh,C[1]+sv],[D[0]+sh,D[1]+sv]])}" fill="#000" opacity="0.28"/>`);
+      const cLeft=dark(col,0.5), cRight=dark(col,0.72), cRoof=col;
+      // left front wall D-C
+      s.push(`<polygon points="${P([D,C,Cu,Du])}" fill="${cLeft}"/>`);
+      // right front wall C-B
+      s.push(`<polygon points="${P([C,B,Bu,Cu])}" fill="${cRight}"/>`);
+      // windows on both walls
+      if (!opts.noWin){
+        const winCol = o.state==="fault" ? "#3a2420" : "#20303f";
+        const litCol = o.state==="fault" ? "#c25a48" : (o.state==="warn"?"#e2b24e":"#7fd0e6");
+        const rows=Math.max(2,Math.floor(h/26));
+        const lerp=(p,q,t)=>[p[0]+(q[0]-p[0])*t,p[1]+(q[1]-p[1])*t];
+        for(let r=0;r<rows;r++){
+          const fy0=(r+0.28)/rows, fy1=(r+0.72)/rows;
+          for(let cN=0;cN<3;cN++){
+            const cx0=(cN+0.22)/3, cx1=(cN+0.78)/3;
+            // left wall quad interpolation between D(0,0) C(1,0) up
+            const q=(bx,by)=>{ const bot=lerp(D,C,bx); return [bot[0], bot[1]-h*by]; };
+            const lit = rnd()>0.45;
+            s.push(`<polygon points="${P([q(cx0,fy0),q(cx1,fy0),q(cx1,fy1),q(cx0,fy1)])}" fill="${lit?litCol:winCol}" opacity="${lit?0.55:0.8}"/>`);
+            const q2=(bx,by)=>{ const bot=lerp(C,B,bx); return [bot[0], bot[1]-h*by]; };
+            const lit2 = rnd()>0.5;
+            s.push(`<polygon points="${P([q2(cx0,fy0),q2(cx1,fy0),q2(cx1,fy1),q2(cx0,fy1)])}" fill="${lit2?litCol:winCol}" opacity="${lit2?0.4:0.7}"/>`);
+          }
+        }
+      }
+      // roof
+      s.push(`<polygon points="${P([Au,Bu,Cu,Du])}" fill="${dark(col,1.12)}" stroke="${dark(col,1.4)}" stroke-width="1"/>`);
+      // roof rim highlight
+      s.push(`<line x1="${Au[0]}" y1="${Au[1]}" x2="${Du[0]}" y2="${Du[1]}" stroke="${dark(col,1.6)}" stroke-width="1.5" opacity="0.6"/>`);
+      s.push(`<line x1="${Au[0]}" y1="${Au[1]}" x2="${Bu[0]}" y2="${Bu[1]}" stroke="${dark(col,1.6)}" stroke-width="1.2" opacity="0.4"/>`);
+      // rooftop HVAC on tall
+      if (h>60){
+        const rc=[(Au[0]+Cu[0])/2,(Au[1]+Cu[1])/2];
+        s.push(`<rect x="${rc[0]-9}" y="${rc[1]-8}" width="18" height="10" rx="1.5" fill="${dark(col,0.66)}" stroke="${dark(col,1.3)}" stroke-width="0.6"/>`);
+        s.push(`<rect x="${rc[0]-14}" y="${rc[1]+3}" width="10" height="6" rx="1" fill="${dark(col,0.6)}"/>`);
+      }
+      return { key: gx+w/2 + gy+d/2, svg: s.join(""), topCenter:[(Au[0]+Cu[0])/2,(Au[1]+Cu[1])/2 - 0], name:o.name, glow:o.glow, front:[(D[0]+C[0])/2,(D[1]+C[1])/2] };
+    };
+
+    const drawTree = (o) => {
+      const p = iso(o.gx, o.gy), s = o.s;
+      const g = [];
+      g.push(`<ellipse cx="${p[0]+3*s}" cy="${p[1]+2*s}" rx="${9*s}" ry="${3.4*s}" fill="#000" opacity="0.2"/>`);
+      g.push(`<rect x="${p[0]-1.4*s}" y="${p[1]-6*s}" width="${2.8*s}" height="${7*s}" fill="#5a4632"/>`);
+      const greens=[0x2f5a35,0x3e7440,0x4f8a48];
+      for(let k=0;k<3;k++){ const yy=p[1]-6*s-k*4*s, rr=(9-k*1.9)*s;
+        g.push(`<circle cx="${p[0]-1.8*s}" cy="${yy}" r="${rr}" fill="${dark(greens[k],0.72)}"/>`);
+        g.push(`<circle cx="${p[0]+1.8*s}" cy="${yy}" r="${rr}" fill="${hex(greens[k])}"/>`);
+      }
+      g.push(`<circle cx="${p[0]+2.6*s}" cy="${p[1]-15*s}" r="${2.4*s}" fill="#9fd08a" opacity="0.5"/>`);
+      return { key: o.gx + o.gy, svg: g.join("") };
+    };
+
+    // build prop list, depth sort
+    const props = [];
+    companies.forEach(c => props.push(drawBox(c)));
+    fillers.forEach(f => props.push({ ...drawBox(f,{inset:0.05}), name:null }));
+    trees.forEach(t => props.push(drawTree(t)));
+    props.sort((a,b) => a.key - b.key);
+    props.forEach(p => parts.push(p.svg));
+
+    // labels + beacons on top (drawn last, above everything)
+    const labelSvg = [];
+    companies.forEach(c => {
+      const b = drawBox(c); // recompute anchor
+      const tc = b.topCenter, glow = c.glow;
+      const mastTop = [tc[0], tc[1]-20];
+      labelSvg.push(`<line x1="${tc[0]}" y1="${tc[1]}" x2="${mastTop[0]}" y2="${mastTop[1]}" stroke="#2a3340" stroke-width="1.5"/>`);
+      labelSvg.push(`<circle cx="${mastTop[0]}" cy="${mastTop[1]}" r="9" fill="${glow}" opacity="0.22"/>`);
+      const anim = c.state==="fault"?"blink 1.3s infinite": c.state==="pred"?"blink 2s infinite":"none";
+      labelSvg.push(`<circle cx="${mastTop[0]}" cy="${mastTop[1]}" r="4.5" fill="${glow}" style="animation:${anim};filter:drop-shadow(0 0 5px ${glow})"/>`);
+      // name plate
+      const fp = b.front;
+      const ly = fp[1] + 20;
+      labelSvg.push(`<rect x="${fp[0]-38}" y="${ly-13}" width="76" height="19" rx="4" fill="#0c1017" stroke="#232c39" stroke-width="1" opacity="0.92"/>`);
+      labelSvg.push(`<circle cx="${fp[0]-27}" cy="${ly-3.5}" r="3.5" fill="${glow}"/>`);
+      labelSvg.push(`<text x="${fp[0]-19}" y="${ly}" fill="#cfd8e4" font-size="11.5" font-family="'IBM Plex Sans TC',sans-serif" font-weight="600">${c.name}</text>`);
+    });
+    labelSvg.forEach(s => parts.push(s));
+
+    const svg = `<svg viewBox="0 0 980 640" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" style="display:block">${parts.join("")}</svg>`;
+    return React.createElement("div", { style:{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }, dangerouslySetInnerHTML:{ __html: svg } });
+  }
+
+  componentDidMount() {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const TW = 30, TH = 15;
+    let X = null;
+    const iso = (gx, gy) => [gx * TW - gy * TW, gx * TH + gy * TH];
+    const sh = (hex, f) => { const c = parseInt(hex.slice(1), 16); const r = Math.min(255, ((c >> 16) & 255) * f) | 0, g = Math.min(255, ((c >> 8) & 255) * f) | 0, b = Math.min(255, (c & 255) * f) | 0; return "#" + ((r << 16) | (g << 8) | b).toString(16).padStart(6, "0"); };
+    const lg = (x0, y0, x1, y1, st) => { const g = X.createLinearGradient(x0, y0, x1, y1); st.forEach(s => g.addColorStop(s[0], s[1])); return g; };
+    const box = (ox, oy, w, d, h, pal) => {
+      const A = [ox, oy], B = [ox + w * TW, oy + w * TH], C = [ox + w * TW - d * TW, oy + w * TH + d * TH], D = [ox - d * TW, oy + d * TH];
+      const up = p => [p[0], p[1] - h]; const Au = up(A), Bu = up(B), Cu = up(C), Du = up(D);
+      X.beginPath(); X.moveTo(D[0], D[1]); X.lineTo(C[0], C[1]); X.lineTo(Cu[0], Cu[1]); X.lineTo(Du[0], Du[1]); X.closePath();
+      X.fillStyle = lg(Du[0], Du[1], C[0], C[1], [[0, sh(pal.left, 1.18)], [1, sh(pal.left, 0.82)]]); X.fill();
+      X.beginPath(); X.moveTo(C[0], C[1]); X.lineTo(B[0], B[1]); X.lineTo(Bu[0], Bu[1]); X.lineTo(Cu[0], Cu[1]); X.closePath();
+      X.fillStyle = lg(Cu[0], Cu[1], B[0], B[1], [[0, sh(pal.right, 1.12)], [1, sh(pal.right, 0.88)]]); X.fill();
+      X.beginPath(); X.moveTo(Au[0], Au[1]); X.lineTo(Bu[0], Bu[1]); X.lineTo(Cu[0], Cu[1]); X.lineTo(Du[0], Du[1]); X.closePath();
+      X.fillStyle = lg(Au[0], Au[1], Cu[0], Cu[1], [[0, sh(pal.top, 1.1)], [1, sh(pal.top, 0.95)]]); X.fill();
+      X.strokeStyle = sh(pal.top, 1.4); X.lineWidth = 1; X.stroke();
+      return { A, B, C, D, Au, Bu, Cu, Du };
+    };
+    const shadow = (cx, cy, rx, ry, a) => { const g = X.createRadialGradient(cx, cy, 0, cx, cy, rx); g.addColorStop(0, "rgba(0,0,0," + a + ")"); g.addColorStop(1, "rgba(0,0,0,0)"); X.save(); X.translate(cx, cy); X.scale(1, ry / rx); X.beginPath(); X.arc(0, 0, rx, 0, 7); X.fillStyle = g; X.fill(); X.restore(); };
+    const glow = (cx, cy, r, col, a) => { X.save(); const g = X.createRadialGradient(cx, cy, 0, cx, cy, r); g.addColorStop(0, col); g.addColorStop(1, "rgba(0,0,0,0)"); X.globalAlpha = a; X.fillStyle = g; X.beginPath(); X.arc(cx, cy, r, 0, 7); X.fill(); X.restore(); };
+    const solveArm = (bx, by, px, py, L1, L2) => { let dx = px - bx, dy = py - by; let d = Math.hypot(dx, dy) || 0.01; const a = Math.atan2(dy, dx); d = Math.max(Math.abs(L1 - L2) + 0.5, Math.min(L1 + L2 - 0.5, d)); const cosA = (d * d + L1 * L1 - L2 * L2) / (2 * L1 * d); const s2 = a - Math.acos(Math.max(-1, Math.min(1, cosA))); return { joint: [bx + L1 * Math.cos(s2), by + L1 * Math.sin(s2)], end: [bx + Math.cos(a) * d, by + Math.sin(a) * d] }; };
+
+    // ---- machine drawers (anchor = ground origin corner) ----
+    const mCNC = (ox, oy, t, running, fault) => {
+      shadow(ox + 0.3 * TW, oy + 1.6 * TH, 64, 30, 0.4);
+      const pal = fault ? { top: "#5a4750", left: "#33232a", right: "#3f2c34" } : { top: "#3d4d66", left: "#232d3d", right: "#2f3b50" };
+      box(ox, oy, 2.4, 2.2, 42, pal);
+      box(ox + 0.2 * TW, oy + 0.2 * TH - 42, 1.7, 1.5, 24, { top: "#324058", left: "#1c2432", right: "#28324a" });
+      box(ox + 2.55 * TW, oy + 2.4 * TH, 0.55, 0.55, 36, { top: "#4a5c7e", left: "#2b3648", right: "#39465e" });
+      const pc = [ox + 2.8 * TW, oy + 2.8 * TH - 24];
+      X.fillStyle = running ? "#123a28" : "#241a1a"; X.fillRect(pc[0] - 6, pc[1] - 8, 13, 10);
+      X.fillStyle = running ? "#4fd08a" : "#e0503f"; X.fillRect(pc[0] - 4, pc[1] - 5, 9, 2);
+      X.beginPath(); X.moveTo(ox + 1.9 * TW, oy + 1.9 * TH - 8); X.lineTo(ox + 1.0 * TW, oy + 2.9 * TH - 8); X.lineTo(ox + 1.0 * TW, oy + 2.9 * TH - 30); X.lineTo(ox + 1.9 * TW, oy + 1.9 * TH - 30); X.closePath();
+      X.fillStyle = "rgba(20,40,55,0.85)"; X.fill(); X.strokeStyle = "#4a6078"; X.lineWidth = 1.2; X.stroke();
+      const cx = ox + 1.45 * TW, cy = oy + 1.55 * TH - 16;
+      if (running) glow(cx, cy + 6, 20, "rgba(255,212,120,0.5)", 0.7);
+      const spin = running ? t * 10 : 0, off = Math.cos(spin) * 5;
+      X.strokeStyle = running ? "#ffd479" : "#7a8598"; X.lineWidth = 3; X.lineCap = "round";
+      X.beginPath(); X.moveTo(cx - off, cy); X.lineTo(cx + off, cy + 10); X.stroke();
+      if (running) { for (let i = 0; i < 5; i++) { const a = (t * 8 + i * 0.2) % 1; X.globalAlpha = 1 - a; X.fillStyle = "#bfe6ff"; X.fillRect(cx + (i - 2) * 2, cy + 10 + a * 10, 1.5, 1.5); } X.globalAlpha = 1; }
+    };
+    const mInjection = (ox, oy, t, running) => {
+      shadow(ox + 0.2 * TW, oy + 1.4 * TH, 60, 28, 0.4);
+      box(ox, oy, 1.4, 1.8, 34, { top: "#3f5147", left: "#212c26", right: "#2c3a33" });
+      const clamp = running ? (0.5 + 0.5 * Math.sin(t * 2.2)) : 1;
+      box(ox + 1.5 * TW, oy + 1.5 * TH, 1.8, 0.9, 20, { top: "#46506a", left: "#262d3d", right: "#333c52" });
+      box(ox + 2.3 * TW, oy + 2.3 * TH - 20, 0.5, 0.5, 14, { top: "#5b6b8e", left: "#333c52", right: "#414d68" });
+      if (running) glow(ox + 2.0 * TW, oy + 2.0 * TH - 6, 22, "rgba(255,140,60,0.55)", 0.7);
+      const px = ox + 0.6 * TW - clamp * 10;
+      X.fillStyle = "#6a8073"; X.fillRect(px, oy + 0.5 * TH - 24, 7, 20);
+      X.fillStyle = "#54685c"; X.fillRect(ox + 0.9 * TW, oy + 0.7 * TH - 24, 7, 20);
+      if (running && clamp > 0.8) glow(ox + 0.6 * TW, oy + 0.9 * TH - 6, 10, "rgba(255,200,120,0.6)", 0.6);
+    };
+    const mArm = (ox, oy, t, opt) => {
+      opt = opt || {};
+      shadow(ox, oy + 0.2 * TH, 42, 20, 0.42);
+      box(ox - 0.7 * TW, oy + 0.7 * TH, 1.4, 1.4, 16, { top: "#46587a", left: "#28324a", right: "#35435e" });
+      const base = [ox, oy - 14];
+      X.fillStyle = "#3a4660"; X.beginPath(); X.ellipse(base[0], base[1] + 4, 14, 7, 0, 0, 7); X.fill();
+      const p = (t % 4.5) / 4.5; let tx, ty, carry = false;
+      const pickup = opt.pickup || [base[0] - 46, base[1] - 10], drop = opt.drop || [base[0] + 40, base[1] + 30];
+      const es = f => f * f * (3 - 2 * f);
+      if (p < 0.4) { const f = es(p / 0.4); tx = drop[0] + (pickup[0] - drop[0]) * f; ty = drop[1] + (pickup[1] - drop[1]) * f; }
+      else if (p < 0.5) { tx = pickup[0]; ty = pickup[1]; carry = p >= 0.45; }
+      else if (p < 0.92) { const f = es((p - 0.5) / 0.42); tx = pickup[0] + (drop[0] - pickup[0]) * f; ty = pickup[1] + (drop[1] - pickup[1]) * f; carry = true; }
+      else { tx = drop[0]; ty = drop[1]; }
+      const { joint, end } = solveArm(base[0], base[1], tx, ty, 42, 34);
+      X.strokeStyle = "#f0883c"; X.lineWidth = 11; X.lineCap = "round"; X.beginPath(); X.moveTo(base[0], base[1]); X.lineTo(joint[0], joint[1]); X.stroke();
+      X.strokeStyle = sh("#f0883c", 1.25); X.lineWidth = 4; X.beginPath(); X.moveTo(base[0], base[1]); X.lineTo(joint[0], joint[1]); X.stroke();
+      X.strokeStyle = "#cdd9ec"; X.lineWidth = 7; X.beginPath(); X.moveTo(joint[0], joint[1]); X.lineTo(end[0], end[1]); X.stroke();
+      X.fillStyle = "#5b9bd5"; X.beginPath(); X.arc(base[0], base[1], 6, 0, 7); X.fill(); X.strokeStyle = "#1c2432"; X.lineWidth = 1.5; X.stroke();
+      X.beginPath(); X.arc(joint[0], joint[1], 5, 0, 7); X.fill(); X.stroke();
+      const d = Math.atan2(end[1] - joint[1], end[0] - joint[0]), gap = carry ? 3 : 6;
+      const nx = Math.cos(d + Math.PI / 2) * gap, ny = Math.sin(d + Math.PI / 2) * gap;
+      X.strokeStyle = "#8a93a6"; X.lineWidth = 3;
+      X.beginPath(); X.moveTo(end[0], end[1]); X.lineTo(end[0] + nx + Math.cos(d) * 7, end[1] + ny + Math.sin(d) * 7); X.stroke();
+      X.beginPath(); X.moveTo(end[0], end[1]); X.lineTo(end[0] - nx + Math.cos(d) * 7, end[1] - ny + Math.sin(d) * 7); X.stroke();
+      if (carry) { X.fillStyle = "#d9a441"; X.fillRect(end[0] - 5, end[1] - 3, 11, 9); X.fillStyle = "#f0c674"; X.fillRect(end[0] - 5, end[1] - 3, 11, 3); }
+    };
+    const mBelt = (gx0, gy0, gx1, gy1, t) => {
+      const a = iso(gx0, gy0), b = iso(gx1, gy1);
+      const wA = [a[0], a[1] - 8], wB = [b[0], b[1] - 8], wC = [b[0], b[1] + 8], wD = [a[0], a[1] + 8];
+      X.beginPath(); X.moveTo(wA[0], wA[1]); X.lineTo(wB[0], wB[1]); X.lineTo(wC[0], wC[1]); X.lineTo(wD[0], wD[1]); X.closePath();
+      X.fillStyle = lg(wA[0], wA[1], wD[0], wD[1], [[0, "#333c4c"], [1, "#232a36"]]); X.fill();
+      X.strokeStyle = "#465268"; X.lineWidth = 1; X.stroke();
+      X.strokeStyle = "#54627a"; X.lineWidth = 2; X.beginPath(); X.moveTo(wA[0], wA[1]); X.lineTo(wB[0], wB[1]); X.stroke(); X.beginPath(); X.moveTo(wD[0], wD[1]); X.lineTo(wC[0], wC[1]); X.stroke();
+      const off = (t * 0.5) % 1;
+      for (let i = 0; i < 16; i++) { const f = (i + off) / 16; const cx = a[0] + (b[0] - a[0]) * f, cy = a[1] + (b[1] - a[1]) * f; X.strokeStyle = "rgba(90,110,140,0.55)"; X.lineWidth = 2; X.beginPath(); X.moveTo(cx - 2, cy - 6); X.lineTo(cx + 3, cy); X.lineTo(cx - 2, cy + 6); X.stroke(); }
+      for (let i = 0; i < 4; i++) { const f = (t * 0.16 + i / 4) % 1; const cx = a[0] + (b[0] - a[0]) * f, cy = a[1] + (b[1] - a[1]) * f; glow(cx, cy - 4, 9, "rgba(255,200,120,0.35)", 0.5); X.fillStyle = "#d9a441"; X.fillRect(cx - 6, cy - 9, 12, 10); X.fillStyle = "#f0c674"; X.fillRect(cx - 6, cy - 9, 12, 3); X.strokeStyle = "#8a6b2e"; X.lineWidth = 1; X.strokeRect(cx - 6, cy - 9, 12, 10); }
+    };
+    const mCompressor = (ox, oy, t, running) => {
+      shadow(ox + 0.3 * TW, oy + 1.2 * TH, 52, 24, 0.4);
+      box(ox, oy, 2.2, 1.3, 26, { top: "#3f5147", left: "#212c26", right: "#2c3a33" });
+      box(ox + 1.6 * TW, oy + 1.6 * TH - 26, 0.7, 0.7, 20, { top: "#46506a", left: "#262d3d", right: "#333c52" });
+      const fc = [ox + 0.2 * TW, oy + 0.7 * TH - 13]; const rot = running ? t * 6 : 0;
+      X.strokeStyle = running ? "#9fe0c0" : "#6b7488"; X.lineWidth = 2.5; X.lineCap = "round";
+      for (let i = 0; i < 4; i++) { const a = rot + i * Math.PI / 2; X.beginPath(); X.moveTo(fc[0], fc[1]); X.lineTo(fc[0] + Math.cos(a) * 9, fc[1] + Math.sin(a) * 9); X.stroke(); }
+      X.fillStyle = "#8a93a6"; X.beginPath(); X.arc(fc[0], fc[1], 2.5, 0, 7); X.fill();
+      const gz = running ? 0.5 + 0.4 * Math.abs(Math.sin(t * 3)) : 0.2; X.fillStyle = running ? "#6cf0a0" : "#3a6b50"; X.globalAlpha = gz; X.beginPath(); X.arc(ox + 1.9 * TW, oy + 1.9 * TH - 26, 3, 0, 7); X.fill(); X.globalAlpha = 1;
+    };
+    const mTurbine = (ox, oy, t, rpm) => {
+      shadow(ox, oy + 0.1 * TH, 20, 10, 0.35);
+      X.fillStyle = lg(ox - 3, oy, ox + 3, oy, [[0, "#aeb9c8"], [1, "#7f8b9c"]]); X.beginPath(); X.moveTo(ox - 3, oy); X.lineTo(ox + 3, oy); X.lineTo(ox + 1.5, oy - 64); X.lineTo(ox - 1.5, oy - 64); X.closePath(); X.fill();
+      X.fillStyle = "#9fb0c4"; X.fillRect(ox - 5, oy - 70, 15, 7);
+      const hub = [ox - 5, oy - 66], rot = t * (0.5 + (rpm || 8) * 0.08);
+      X.strokeStyle = "#eef3f9"; X.lineWidth = 3.5; X.lineCap = "round";
+      for (let i = 0; i < 3; i++) { const a = rot + i * 2 * Math.PI / 3; X.beginPath(); X.moveTo(hub[0], hub[1]); X.lineTo(hub[0] + Math.cos(a) * 26, hub[1] + Math.sin(a) * 26); X.stroke(); }
+      X.fillStyle = "#5b9bd5"; X.beginPath(); X.arc(hub[0], hub[1], 3.5, 0, 7); X.fill();
+    };
+    const mChamber = (ox, oy, t, running) => {
+      shadow(ox + 0.2 * TW, oy + 1.3 * TH, 52, 24, 0.4);
+      box(ox, oy, 2.0, 1.8, 34, { top: "#37425c", left: "#1f2838", right: "#2b344a" });
+      const vc = [ox + 0.5 * TW, oy + 1.3 * TH - 14];
+      const gz = running ? 0.5 + 0.4 * Math.abs(Math.sin(t * 3)) : 0.12;
+      if (running) glow(vc[0], vc[1], 22, "rgba(150,110,220,0.6)", gz);
+      X.fillStyle = running ? "#8f6bd6" : "#2f3a52"; X.globalAlpha = running ? 0.85 : 1; X.beginPath(); X.arc(vc[0], vc[1], 10, 0, 7); X.fill(); X.globalAlpha = 1;
+      X.strokeStyle = "#6b7da0"; X.lineWidth = 2.5; X.beginPath(); X.arc(vc[0], vc[1], 10, 0, 7); X.stroke();
+      X.strokeStyle = "#9fb0c4"; X.lineWidth = 3; X.beginPath(); X.moveTo(ox + 0.5 * TW, oy + 0.5 * TH - 34); X.lineTo(ox + 0.5 * TW, oy + 0.5 * TH - 48); X.stroke();
+      box(ox + 1.8 * TW, oy + 1.8 * TH, 0.6, 0.6, 12, { top: "#2b3648", left: "#1a2230", right: "#232d3d" });
+    };
+    const mMeter = (ox, oy, t, running) => {
+      shadow(ox + 0.1 * TW, oy + 0.9 * TH, 40, 20, 0.38);
+      box(ox, oy, 1.5, 1.2, 40, { top: "#394a40", left: "#1e2a24", right: "#28362f" });
+      const px = ox + 0.75 * TW, py = oy + 0.4 * TH - 26;
+      X.fillStyle = "#0c2a18"; X.fillRect(px - 13, py - 2, 26, 12); X.strokeStyle = "#1e4230"; X.strokeRect(px - 13, py - 2, 26, 12);
+      X.fillStyle = running ? "#6cf0a0" : "#3a6b50"; X.font = "bold 7px monospace"; X.fillText(running ? "14.20 kW" : "-- --", px - 11, py + 7);
+      for (let i = 0; i < 3; i++) { const on = running && Math.sin(t * 4 + i * 2) > -0.2; X.fillStyle = on ? ["#ff6b6b", "#ffd479", "#6cf0a0"][i] : "#46506a"; X.beginPath(); X.arc(px - 8 + i * 8, py + 16, 2.6, 0, 7); X.fill(); }
+    };
+    const mPress = (ox, oy, t, running) => {
+      shadow(ox + 0.1 * TW, oy + 1.0 * TH, 44, 22, 0.4);
+      box(ox, oy, 0.6, 1.6, 52, { top: "#3a4658", left: "#212a38", right: "#2c3648" });
+      box(ox, oy - 52, 2.2, 1.6, 10, { top: "#46587a", left: "#28324a", right: "#35435e" });
+      box(ox + 1.4 * TW, oy + 1.4 * TH, 1.0, 0.6, 12, { top: "#324058", left: "#1c2432", right: "#28324a" });
+      const press = running ? Math.abs(Math.sin(t * 5)) : 0.15;
+      const slx = ox + 1.55 * TW, sly = oy + 0.4 * TH - 40 + press * 26;
+      X.fillStyle = lg(slx, sly, slx, sly + 12, [[0, "#9aa4b6"], [1, "#5b6b8e"]]); X.fillRect(slx, sly, 20, 12); X.strokeStyle = "#3a4658"; X.strokeRect(slx, sly, 20, 12);
+      X.fillStyle = running ? "#ffd479" : "#6b7488"; X.fillRect(slx + 3, oy + 1.0 * TH - 6, 14, 4);
+      if (running && press > 0.85) { glow(slx + 10, oy + 1.0 * TH - 4, 12, "rgba(255,220,140,0.7)", 0.7); }
+    };
+    const mFurnace = (ox, oy, t, running) => {
+      shadow(ox + 0.2 * TW, oy + 1.3 * TH, 52, 24, 0.4);
+      box(ox, oy, 2.0, 1.7, 34, { top: "#4a4034", left: "#2a231b", right: "#372e24" });
+      const dc = [ox + 0.55 * TW, oy + 1.2 * TH - 14];
+      const heat = running ? 0.5 + 0.4 * Math.abs(Math.sin(t * 2)) : 0.1;
+      if (running) glow(dc[0], dc[1], 24, "rgba(255,120,50,0.7)", heat);
+      X.fillStyle = running ? "#ff7a3a" : "#3a2a22"; X.globalAlpha = running ? 0.9 : 1; X.fillRect(dc[0] - 11, dc[1] - 10, 22, 20); X.globalAlpha = 1;
+      X.strokeStyle = "#6b5036"; X.lineWidth = 2; X.strokeRect(dc[0] - 11, dc[1] - 10, 22, 20);
+      X.strokeStyle = "#9fb0c4"; X.lineWidth = 3.5; X.beginPath(); X.moveTo(ox + 1.7 * TW, oy + 1.7 * TH - 34); X.lineTo(ox + 1.7 * TW, oy + 1.7 * TH - 52); X.stroke();
+      if (running) { const sy = (t * 20) % 30; X.globalAlpha = 0.3 * (1 - sy / 30); X.fillStyle = "#c9b8a0"; X.beginPath(); X.arc(ox + 1.7 * TW, oy + 1.7 * TH - 52 - sy, 3 + sy * 0.1, 0, 7); X.fill(); X.globalAlpha = 1; }
+    };
+    const mAGV = (ox, oy, t, running) => {
+      const bob = running ? Math.sin(t * 3) * 1 : 0;
+      shadow(ox, oy + 0.1 * TH, 30, 15, 0.4);
+      box(ox - 0.7 * TW, oy + 0.7 * TH - bob, 1.4, 1.0, 12, { top: "#4a8a7b", left: "#274a42", right: "#356156" });
+      X.fillStyle = "#d9a441"; X.fillRect(ox - 6, oy - 20 - bob, 12, 8); X.fillStyle = "#f0c674"; X.fillRect(ox - 6, oy - 20 - bob, 12, 2.5);
+      const on = Math.sin(t * 6) > 0; X.fillStyle = on ? "#6cf0a0" : "#2a4a3a"; X.beginPath(); X.arc(ox + 0.7 * TW - 4, oy + 0.7 * TH - 8 - bob, 2, 0, 7); X.fill();
+    };
+
+    const drawMachine = (kind, ox, oy, t, running, fault, extra) => {
+      if (kind === "cnc_machining_center") mCNC(ox, oy, t, running, fault);
+      else if (kind === "injection_molding") mInjection(ox, oy, t, running);
+      else if (kind === "robot_arm_6axis") mArm(ox, oy, t, extra);
+      else if (kind === "air_compressor") mCompressor(ox, oy, t, running);
+      else if (kind === "wind_turbine") mTurbine(ox, oy, t, running ? 12 : 3);
+      else if (kind === "semi_process_chamber") mChamber(ox, oy, t, running);
+      else if (kind === "energy_meter") mMeter(ox, oy, t, running);
+      else if (kind === "stamping_press") mPress(ox, oy, t, running);
+      else if (kind === "heat_treat_furnace") mFurnace(ox, oy, t, running);
+      else if (kind === "agv_mobile_robot") mAGV(ox, oy, t, running);
+    };
+
+    // ---- hero interior scene ----
+    const drawHero = (w, h, t) => {
+      X.clearRect(0, 0, w, h);
+      const bgg = X.createRadialGradient(w / 2, h * 0.24, 60, w / 2, h * 0.3, w * 0.72); bgg.addColorStop(0, "#16202f"); bgg.addColorStop(1, "#080c12"); X.fillStyle = bgg; X.fillRect(0, 0, w, h);
+      X.save(); X.translate(w * 0.46, h * 0.14);
+      const FW = 12, FH = 9;
+      for (let gx = 0; gx < FW; gx++) for (let gy = 0; gy < FH; gy++) {
+        const a = iso(gx, gy), b = iso(gx + 1, gy), c = iso(gx + 1, gy + 1), d = iso(gx, gy + 1);
+        X.beginPath(); X.moveTo(a[0], a[1]); X.lineTo(b[0], b[1]); X.lineTo(c[0], c[1]); X.lineTo(d[0], d[1]); X.closePath();
+        X.fillStyle = (gx + gy) % 2 ? "#161d29" : "#131924"; X.fill(); X.strokeStyle = "rgba(60,74,100,0.16)"; X.lineWidth = 0.5; X.stroke();
+      }
+      [[3, 2], [8, 2], [6, 6]].forEach(p => { const s = iso(p[0], p[1]); glow(s[0], s[1], 90, "rgba(120,150,190,0.10)", 1); });
+      mCNC(iso(1.4, 0.6)[0], iso(1.4, 0.6)[1], t, true, false);
+      mInjection(iso(6.2, 0.5)[0], iso(6.2, 0.5)[1], t, true);
+      const chamber = iso(9.0, 1.2); mChamber(chamber[0], chamber[1], t, true);
+      mBelt(1, 7.2, 10.5, 7.2, t);
+      const arm = iso(4.2, 4.4); mArm(arm[0], arm[1], t, { pickup: [arm[0] - 46, arm[1] - 12], drop: [arm[0] + 30, arm[1] + 40] });
+      mAGV(iso(9, 5)[0], iso(9, 5)[1], t, true);
+      X.restore();
+    };
+
+    const canvases = [];
+    const register = () => {
+      document.querySelectorAll("canvas.fx").forEach(cv => {
+        if (cv._fx) return; cv._fx = true;
+        const ctx = cv.getContext("2d"); canvases.push({ cv, ctx });
+      });
+    };
+    const sizeCanvas = (cv, ctx) => {
+      const w = cv.clientWidth || 300, h = cv.clientHeight || 200;
+      if (cv._w !== w || cv._h !== h) { cv._w = w; cv._h = h; cv.width = w * dpr; cv.height = h * dpr; }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return [w, h];
+    };
+    const start = performance.now();
+    const draw = (t) => {
+      register();
+      for (const { cv, ctx } of canvases) {
+        if (!cv.isConnected) continue;
+        const [w, h] = sizeCanvas(cv, ctx); X = ctx;
+        const kind = cv.dataset.kind;
+        if (kind === "hero") drawHero(w, h, t);
+        else if (kind === "belt") { X.clearRect(0, 0, w, h); X.save(); X.translate(w * 0.5 - 60, h * 0.5 - 4); mBelt(0, 0, 4, 0, t); X.restore(); }
+        else {
+          X.clearRect(0, 0, w, h);
+          const ayMap = { wind_turbine: 0.9, stamping_press: 0.74, energy_meter: 0.72, robot_arm_6axis: 0.66 };
+          const axMap = { wind_turbine: 0.5, injection_molding: 0.42, semi_process_chamber: 0.44, heat_treat_furnace: 0.44, cnc_machining_center: 0.42 };
+          const ax = (axMap[kind] ?? 0.46) * w, ay = (ayMap[kind] ?? 0.6) * h;
+          X.save(); X.translate(ax, ay); drawMachine(kind, 0, 0, t, cv.dataset.running !== "false", cv.dataset.fault === "true", { pickup: [-42, -14], drop: [34, 24] }); X.restore();
+        }
+      }
+    };
+    const frame = (now) => { draw((now - start) / 1000); this._raf = requestAnimationFrame(frame); };
+    draw(0);                                   // immediate static first frame
+    this._raf = requestAnimationFrame(frame);  // single self-sustaining chain
+  }
+
+  componentWillUnmount() { if (this._raf) cancelAnimationFrame(this._raf); }
+}
+</script>
+</body>
+</html>

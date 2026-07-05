@@ -20,6 +20,7 @@ export default function TeacherView({
   const [target, setTarget] = useState("");
   const [severity, setSeverity] = useState(1.0);
   const [msg, setMsg] = useState("");
+  const [clockMult, setClockMult] = useState<number | null>(null);
 
   const [health, setHealth] = useState<HealthGT | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -106,188 +107,160 @@ export default function TeacherView({
     }
   };
 
+  const clk = (m: number) => { setClock({ multiplier: m }); setClockMult(m); };
+
   return (
-    <div className="catalog">
-      <h2>教師控制台 · 上帝視角</h2>
-
-      {/* token + 時鐘 */}
-      <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 16 }}>
-        <div>
-          <div className="hint">teacher token（= .env 的 TEACHER_TOKEN,預設 dev-teacher-token）</div>
-          <input value={token} onChange={(e) => setTok(e.target.value)} placeholder="dev-teacher-token"
-                 style={inp} />
-          <button onClick={saveToken} style={btn}>儲存</button>
-        </div>
-        <div>
-          <div className="hint">模擬時鐘</div>
-          <button style={btn} onClick={() => setClock({ multiplier: 60 })}>60×</button>
-          <button style={btn} onClick={() => setClock({ multiplier: 600 })}>600×</button>
-          <button style={btn} onClick={() => setClock({ multiplier: 3600 })}>3600×</button>
-          <button style={btn} onClick={() => setClock({ paused: true })}>⏸</button>
-          <button style={btn} onClick={() => setClock({ paused: false })}>▶</button>
-        </div>
-        <div>
-          <div className="hint">課堂管理</div>
-          <button style={{ ...btn, background: "#5b3a3a", color: "#ffd7d7", border: "1px solid #6b2f34" }}
-                  onClick={doResetSession} title="清認領/工單/預測/OEE、設備修回健康(換班/下堂課歸零,不刪 DB)">🧹 重置課堂資料</button>
-        </div>
-      </div>
-
-      {/* 建廠(自然語言) */}
-      <h3>建廠（自然語言)</h3>
-      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-        <input value={factoryDesc} onChange={(e) => setFactoryDesc(e.target.value)}
-               placeholder="例:半導體封裝廠,3 台手臂 + 2 台製程腔體 + 1 台電表" style={{ ...inp, width: 420 }} />
-        <button style={{ ...btn, background: "#37d67a", color: "#08121e" }} onClick={doFactory}>＋ 建立公司</button>
-      </div>
-      <div className="hint" style={{ marginTop: 4 }}>
-        設了 Gemini key → 🤖 AI 解析自由描述、可<b>多型別混搭</b>;否則規則式(單一型別 + 數量)。
-        設備:CNC / 空壓機 / AGV / 機械手臂 / 射出機 / 半導體腔體 / 電表 / 風機。建立後即時長出新公司。
-      </div>
-
-      {/* 故障注入 */}
-      <h3 style={{ marginTop: 22 }}>注入故障</h3>
-      <div style={{ display: "flex", gap: 10, alignItems: "end", flexWrap: "wrap" }}>
-        <Field label="設備">
-          <select value={dev} onChange={(e) => setDev(e.target.value)} style={inp}>
-            {deviceIds.map((d) => <option key={d}>{d}</option>)}
-          </select>
-        </Field>
-        <Field label="故障型態">
-          <select value={ftype} onChange={(e) => { setFtype(e.target.value); setTarget(""); }} style={inp}>
-            {FAULT_TYPES.map((f) => <option key={f}>{f}</option>)}
-          </select>
-        </Field>
-        <Field label={isSensor ? "目標 tag" : "目標元件"}>
-          <select value={target} onChange={(e) => setTarget(e.target.value)} style={inp}>
-            <option value="">— 選擇 —</option>
-            {targetOpts.map((t) => <option key={t}>{t}</option>)}
-          </select>
-        </Field>
-        <Field label="severity">
-          <input type="number" min={0} max={1} step={0.1} value={severity}
-                 onChange={(e) => setSeverity(parseFloat(e.target.value))} style={{ ...inp, width: 70 }} />
-        </Field>
-        <button style={{ ...btn, background: "#e24c4c", color: "#fff" }} disabled={!dev || !target} onClick={doInject}>注入</button>
-        <button style={{ ...btn, background: "#f08c2e", color: "#08121e" }} disabled={!dev || !health?.components?.length}
-                onClick={doQuickFault} title="對此設備主元件注入快速劣化,課堂 demo 用">⚡ 快速故障(demo)</button>
-        <button style={btn} onClick={doReset}>reset 設備</button>
-      </div>
-      <div className="hint" style={{ marginTop: 6 }}>
-        課堂快速上手:選一台運轉中的機台 → 按「⚡ 快速故障」→ 時鐘調 600×↑ → 幾分鐘內故障自動開單,學生即可練偵測 / 處置。
-      </div>
-      {msg && <div className="hint" style={{ marginTop: 8, color: "#5b9bd5" }}>{msg}</div>}
-
-      {/* 情境腳本(災難日) */}
-      <h3 style={{ marginTop: 22 }}>情境腳本（期末測驗）</h3>
-      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <select value={scenName} onChange={(e) => setScenName(e.target.value)} style={inp}>
-          {scripts.map((s) => <option key={s.name} value={s.name}>{s.name}（{s.steps} 步）</option>)}
-        </select>
-        <button style={{ ...btn, background: "#f08c2e", color: "#08121e" }}
-                disabled={!!scenStatus?.running}
-                onClick={async () => { try { await runScenario(scenName); setMsg(`已啟動情境 ${scenName}`); } catch (e: any) { setMsg(`啟動失敗:${e.message}`); } }}>
-          ▶ 執行
-        </button>
-        <button style={btn} onClick={async () => { await stopScenario(); setMsg("已停止情境"); }}>停止</button>
-        {scenStatus?.running && <span style={{ color: "#f08c2e" }}>● 執行中:{scenStatus.running}</span>}
-      </div>
-      {scripts.find((s) => s.name === scenName) &&
-        <div className="hint" style={{ marginTop: 4 }}>{scripts.find((s) => s.name === scenName)!.description}</div>}
-      {scenStatus && scenStatus.log.length > 0 && (
-        <div className="hint" style={{ marginTop: 6 }}>
-          {scenStatus.log.slice(0, 6).map((l, i) => (
-            <div key={i}>{(l.sim_t / 3600).toFixed(1)}h · {l.message}</div>
+    <div className="page">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 14 }}>
+        <h2 style={{ margin: 0 }}>教師控制台 · 上帝視角</h2>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <input className="inp" value={token} onChange={(e) => setTok(e.target.value)} placeholder="dev-teacher-token" style={{ width: 150 }} />
+          <button className="btn ghost" onClick={saveToken}>儲存</button>
+          {getTeacherToken() && <span className="pill" style={{ color: "var(--warn)", borderColor: "#5a4a1e", background: "#241d0c" }}>🔑 已載入</span>}
+          <span className="muted" style={{ fontSize: 11 }}>倍率</span>
+          {[60, 600, 3600].map((m) => (
+            <button key={m} className={`btn ghost${clockMult === m ? " speed-active" : ""}`} onClick={() => clk(m)}
+              style={clockMult === m ? { background: "#14304d", borderColor: "var(--accent)", color: "var(--accent)" } : {}}>{m}×</button>
           ))}
+          <button className="btn ghost" onClick={() => setClock({ paused: true })}>⏸</button>
+          <button className="btn ghost" onClick={() => setClock({ paused: false })}>▶</button>
         </div>
-      )}
+      </div>
 
-      {/* ground-truth */}
-      <h3 style={{ marginTop: 22 }}>Ground-truth · {dev}</h3>
-      {health ? (
-        <div>
-          <div className="hint">
-            state=<b>{health.state}</b> · RUL={health.rul_sim_s === null ? "—" : (health.rul_sim_s / 3600).toFixed(1)}h
-            {health.is_sensor_fault && <span style={{ color: "#f2c037" }}> · 含感測器故障 {Object.keys(health.sensor_faults).join(",")}</span>}
-          </div>
-          {health.components.map((c) => (
-            <div key={c.name} style={{ display: "flex", alignItems: "center", gap: 10, margin: "4px 0" }}>
-              <span style={{ width: 160 }}>{c.name}</span>
-              <div style={{ flex: 1, maxWidth: 320, background: "#222c3c", borderRadius: 4, height: 12 }}>
-                <div style={{ width: `${c.health * 100}%`, height: "100%", borderRadius: 4,
-                  background: c.health > 0.5 ? "#37d67a" : c.health > 0.2 ? "#f2c037" : "#e24c4c" }} />
-              </div>
-              <span style={{ width: 90, textAlign: "right" }}>h={c.health.toFixed(2)}</span>
-              <span className="hint" style={{ width: 120 }}>
-                RUL {c.rul_sim_s === null ? "—（待機）" : (c.rul_sim_s / 3600).toFixed(1) + "h"}
-              </span>
+      <div style={{ display: "flex", gap: 18, alignItems: "flex-start" }}>
+        {/* 左:actions */}
+        <div style={{ flex: 1, minWidth: 0, display: "grid", gap: 14 }}>
+          <div className="card">
+            <div className="card-title">🏭 建廠(自然語言)</div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <input className="inp" value={factoryDesc} onChange={(e) => setFactoryDesc(e.target.value)}
+                     placeholder="例:半導體封裝廠,3 台手臂 + 2 台製程腔體 + 1 台電表" style={{ flex: 1, minWidth: 260 }} />
+              <button className="btn" style={{ background: "var(--ok)", color: "#08121e" }} onClick={doFactory}>＋ 建立公司</button>
             </div>
-          ))}
+            <div className="hint" style={{ margin: "6px 0 0" }}>
+              設了 Gemini key → 🤖 AI 解析自由描述、可<b>多型別混搭</b>;否則規則式(單一型別 + 數量)。建立後即時長出新公司(三協定免重啟)。
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-title">⚠ 注入故障</div>
+            <div style={{ display: "flex", gap: 10, alignItems: "end", flexWrap: "wrap" }}>
+              <Field label="設備"><select className="inp" value={dev} onChange={(e) => setDev(e.target.value)}>{deviceIds.map((d) => <option key={d}>{d}</option>)}</select></Field>
+              <Field label="故障型態"><select className="inp" value={ftype} onChange={(e) => { setFtype(e.target.value); setTarget(""); }}>{FAULT_TYPES.map((f) => <option key={f}>{f}</option>)}</select></Field>
+              <Field label={isSensor ? "目標 tag" : "目標元件"}><select className="inp" value={target} onChange={(e) => setTarget(e.target.value)}><option value="">— 選擇 —</option>{targetOpts.map((t) => <option key={t}>{t}</option>)}</select></Field>
+              <Field label="severity"><input className="inp" type="number" min={0} max={1} step={0.1} value={severity} onChange={(e) => setSeverity(parseFloat(e.target.value))} style={{ width: 68 }} /></Field>
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+              <button className="btn" style={{ background: "var(--fault)", color: "#fff" }} disabled={!dev || !target} onClick={doInject}>注入</button>
+              <button className="btn" style={{ background: "var(--pred)", color: "#08121e" }} disabled={!dev || !health?.components?.length}
+                      onClick={doQuickFault} title="對此設備主元件注入快速劣化,課堂 demo 用">⚡ 快速故障(demo)</button>
+              <button className="btn ghost" onClick={doReset}>reset 設備</button>
+            </div>
+            <div className="hint" style={{ margin: "6px 0 0" }}>選運轉中機台 → ⚡ 快速故障 → 時鐘 600×↑ → 幾分鐘內故障自動開單,學生即可練。</div>
+            {msg && <div style={{ marginTop: 8, color: "var(--accent)", fontSize: 12 }}>{msg}</div>}
+          </div>
+
+          <div className="card">
+            <div className="card-title">🎬 情境腳本(期末測驗)</div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <select className="inp" value={scenName} onChange={(e) => setScenName(e.target.value)}>{scripts.map((s) => <option key={s.name} value={s.name}>{s.name}({s.steps} 步)</option>)}</select>
+              <button className="btn" style={{ background: "var(--pred)", color: "#08121e" }} disabled={!!scenStatus?.running}
+                      onClick={async () => { try { await runScenario(scenName); setMsg(`已啟動情境 ${scenName}`); } catch (e: any) { setMsg(`啟動失敗:${e.message}`); } }}>▶ 執行</button>
+              <button className="btn ghost" onClick={async () => { await stopScenario(); setMsg("已停止情境"); }}>停止</button>
+              {scenStatus?.running && <span style={{ color: "var(--pred)", fontSize: 12 }}>● 執行中:{scenStatus.running}</span>}
+            </div>
+            {scripts.find((s) => s.name === scenName) && <div className="hint" style={{ margin: "6px 0 0" }}>{scripts.find((s) => s.name === scenName)!.description}</div>}
+            {scenStatus && scenStatus.log.length > 0 && (
+              <div className="mono" style={{ marginTop: 6, fontSize: 11, color: "var(--muted)" }}>
+                {scenStatus.log.slice(0, 6).map((l, i) => <div key={i}>{(l.sim_t / 3600).toFixed(1)}h · {l.message}</div>)}
+              </div>
+            )}
+          </div>
+
+          <div className="card">
+            <div className="card-title">🔬 Ground-truth · <span className="mono" style={{ fontWeight: 400 }}>{dev}</span></div>
+            {health ? (
+              <>
+                <div className="hint" style={{ margin: "0 0 6px" }}>
+                  state=<b>{health.state}</b> · RUL={health.rul_sim_s === null ? "—" : (health.rul_sim_s / 3600).toFixed(1)}h
+                  {health.is_sensor_fault && <span style={{ color: "var(--warn)" }}> · 含感測器故障 {Object.keys(health.sensor_faults).join(",")}</span>}
+                </div>
+                {health.components.map((c) => (
+                  <div key={c.name} style={{ display: "flex", alignItems: "center", gap: 10, margin: "5px 0" }}>
+                    <span style={{ width: 150, fontSize: 12 }}>{c.name}</span>
+                    <div style={{ flex: 1, maxWidth: 300, background: "var(--line-3)", borderRadius: 4, height: 8, overflow: "hidden" }}>
+                      <div style={{ width: `${c.health * 100}%`, height: "100%", borderRadius: 4, transition: "width .3s ease",
+                        background: c.health > 0.5 ? "var(--ok)" : c.health > 0.2 ? "var(--warn)" : "var(--fault)" }} />
+                    </div>
+                    <span className="mono" style={{ width: 70, textAlign: "right", fontSize: 12 }}>h={c.health.toFixed(2)}</span>
+                  </div>
+                ))}
+              </>
+            ) : <div className="hint" style={{ margin: 0 }}>(設好 token 後顯示隱藏健康狀態)</div>}
+          </div>
         </div>
-      ) : <div className="hint">（設好 token 後顯示隱藏健康狀態）</div>}
 
-      {/* 工單板 */}
-      <h3 style={{ marginTop: 22 }}>工單板</h3>
-      <table>
-        <thead><tr><th>單號</th><th>設備</th><th>元件</th><th>狀態</th><th>偵測延遲</th><th>MTTR</th><th>處置</th></tr></thead>
-        <tbody>
-          {tickets.length === 0 && <tr><td colSpan={7} className="hint">尚無工單</td></tr>}
-          {tickets.map((t) => (
-            <tr key={t.id}>
-              <td>{t.id}</td><td>{t.device}</td><td>{t.component}</td>
-              <td><span className="badge" style={{ background: t.status === "resolved" ? "#37d67a" : t.status === "acked" ? "#f2c037" : "#e24c4c" }}>{t.status}</span></td>
-              <td>{t.detection_latency_sim_s !== null ? (t.detection_latency_sim_s / 3600).toFixed(2) + "h" : "—"}</td>
-              <td>{t.mttr_sim_s !== null ? (t.mttr_sim_s / 3600).toFixed(2) + "h" : "—"}</td>
-              <td>
-                <button style={btnS} onClick={() => ackTicket(t.id)}>ack</button>
-                <button style={btnS} onClick={() => resolveTicket(t.id)}>resolve</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+        {/* 右:工單 / 評分 / 重置 */}
+        <div style={{ width: 452, flex: "0 0 452px", display: "grid", gap: 14 }}>
+          <div className="card" style={{ padding: "12px 14px" }}>
+            <div className="card-title">🎫 工單板</div>
+            <MiniTable head={["單號", "設備", "元件", "狀態", "MTTR", "處置"]}
+              rows={tickets.slice(0, 12).map((t) => [
+                t.id, t.device, t.component ?? "—",
+                <span key="s" className="badge" style={{ background: t.status === "resolved" ? "var(--ok)" : t.status === "acked" ? "var(--warn)" : "var(--fault)", fontSize: 10 }}>{t.status}</span>,
+                t.mttr_sim_s !== null ? (t.mttr_sim_s / 3600).toFixed(1) + "h" : "—",
+                <span key="a" style={{ display: "flex", gap: 4 }}>
+                  <button className="btn ghost" style={{ padding: "2px 7px", fontSize: 11 }} onClick={() => ackTicket(t.id)}>ack</button>
+                  <button className="btn" style={{ padding: "2px 7px", fontSize: 11, background: "var(--ok)", color: "#08121e" }} onClick={() => resolveTicket(t.id)}>fix</button>
+                </span>,
+              ])} empty="尚無工單" />
+          </div>
 
-      {/* 評分榜 */}
-      <h3 style={{ marginTop: 22 }}>評分榜</h3>
-      <table>
-        <thead><tr><th>#</th><th>公司</th><th>認領</th><th>故障</th><th>偵測</th><th>解決</th><th>漏報</th><th>平均偵測</th><th>平均MTTR</th><th>分數</th></tr></thead>
-        <tbody>
-          {scores.map((s, i) => (
-            <tr key={s.company}>
-              <td>{i + 1}</td><td>{s.name}</td><td>{s.owner ?? "—"}</td>
-              <td>{s.faults}</td><td>{s.detected}</td><td>{s.resolved}</td><td>{s.missed}</td>
-              <td>{s.avg_detection_h ?? "—"}</td><td>{s.avg_mttr_h ?? "—"}</td>
-              <td><b>{s.score}</b></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+          <div className="card" style={{ padding: "12px 14px" }}>
+            <div className="card-title">📊 故障管理評分榜</div>
+            <MiniTable head={["#", "公司", "偵測", "解決", "漏", "分"]}
+              rows={scores.map((s, i) => [String(i + 1), s.name, s.detected, s.resolved, s.missed, <b key="b">{s.score}</b>])} empty="尚無資料" />
+          </div>
 
-      {/* 階段二預測榜 */}
-      <h3 style={{ marginTop: 22 }}>階段二預測榜（lead time）</h3>
-      <table>
-        <thead><tr><th>#</th><th>學生</th><th>預測數</th><th>命中</th><th>誤報</th><th>待定</th><th>平均提前(h)</th><th>命中率</th><th>分數</th></tr></thead>
-        <tbody>
-          {predScores.length === 0 && <tr><td colSpan={9} className="hint">尚無預測（學生用 student_kit/p3_predictor.py 上傳）</td></tr>}
-          {predScores.map((s, i) => (
-            <tr key={s.student}>
-              <td>{i + 1}</td><td>{s.student}</td><td>{s.predictions}</td>
-              <td style={{ color: "#37d67a" }}>{s.hits}</td>
-              <td style={{ color: "#e24c4c" }}>{s.false_alarms}</td>
-              <td>{s.pending}</td>
-              <td>{s.avg_lead_time_h ?? "—"}</td><td>{s.hit_rate ?? "—"}</td>
-              <td><b>{s.score}</b></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+          <div className="card" style={{ padding: "12px 14px" }}>
+            <div className="card-title">🔮 階段二預測榜(lead time)</div>
+            <MiniTable head={["#", "學生", "命中", "誤報", "提前h", "分"]}
+              rows={predScores.map((s, i) => [String(i + 1), s.student,
+                <span key="h" style={{ color: "var(--ok)" }}>{s.hits}</span>,
+                <span key="f" style={{ color: "var(--fault)" }}>{s.false_alarms}</span>,
+                s.avg_lead_time_h ?? "—", <b key="b">{s.score}</b>])} empty="尚無預測(student_kit p3 上傳)" />
+          </div>
+
+          <div className="card" style={{ borderColor: "#4a2620", background: "#160f10" }}>
+            <div className="card-title" style={{ color: "var(--fault)" }}>🧹 重置課堂資料</div>
+            <div className="hint" style={{ margin: "0 0 8px" }}>換班 / 下堂課歸零:清認領 / 工單 / 預測 / OEE,設備修回健康(不刪 DB)。</div>
+            <button className="btn" style={{ background: "var(--fault)", color: "#fff" }} onClick={doResetSession}>🧹 重置課堂資料</button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
 function Field({ label, children }: { label: string; children: any }) {
-  return <div><div className="hint">{label}</div>{children}</div>;
+  return <div><div className="muted" style={{ fontSize: 10.5, marginBottom: 3 }}>{label}</div>{children}</div>;
 }
-const inp: React.CSSProperties = { background: "#222c3c", color: "#e6ecf5", border: "1px solid #2e3a4d", borderRadius: 6, padding: "5px 8px", marginRight: 6 };
-const btn: React.CSSProperties = { background: "#222c3c", color: "#e6ecf5", border: "1px solid #2e3a4d", borderRadius: 6, padding: "5px 12px", marginRight: 6, cursor: "pointer" };
-const btnS: React.CSSProperties = { ...btn, padding: "2px 8px", marginRight: 4 };
+
+function MiniTable({ head, rows, empty }: { head: string[]; rows: React.ReactNode[][]; empty: string }) {
+  return (
+    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <thead><tr>{head.map((h, i) => (
+        <th key={h} className="mono" style={{ textAlign: i === 0 ? "left" : "left", padding: "5px 6px", color: "var(--dim)", fontSize: 10, letterSpacing: ".4px", borderBottom: "1px solid var(--line)", fontWeight: 500 }}>{h}</th>
+      ))}</tr></thead>
+      <tbody>
+        {rows.length === 0 ? <tr><td colSpan={head.length} className="hint" style={{ padding: "8px 6px" }}>{empty}</td></tr> :
+          rows.map((r, i) => (
+            <tr key={i}>{r.map((c, j) => (
+              <td key={j} className={j === 0 || (typeof c === "string" && /^[\w.-]+$/.test(c)) ? "mono" : ""}
+                  style={{ padding: "5px 6px", fontSize: 11.5, borderBottom: "1px solid var(--line-3)", color: "var(--text-2)" }}>{c}</td>
+            ))}</tr>
+          ))}
+      </tbody>
+    </table>
+  );
+}

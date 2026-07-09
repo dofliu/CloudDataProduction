@@ -11,6 +11,9 @@ park:
     tick_hz: 2                 # 引擎每秒步進 2 次,每步 = 1 模擬分鐘(退化積分維持細緻度)
     time_multiplier: 120       # 1 真實秒 = 2 模擬分鐘
     broadcast_interval_s: 5    # telemetry / 資料每 5 真實秒才推一次 = 一次跳 10 模擬分鐘(畫面平靜;動畫走前端 ticker 仍滑順)
+  # MES(製造執行系統,Phase 1):離散製造設備「有工單才運轉」,退化因此綁生產節奏。
+  # 疊在班表之上(班表決定工廠開不開工、MES 決定開工時做哪張單)。預設開啟;設 enabled: false 回到純班表。
+  mes: {enabled: true}
   protocol_mode: channel_mux
   ports: {modbus: 6020, opcua: 6041, mqtt: 6083}   # 預設;.env 可覆寫(統一 6xxx 區)
 

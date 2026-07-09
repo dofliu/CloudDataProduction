@@ -11,6 +11,8 @@ import OeeView from "./oee/OeeView";
 import StudentView from "./student/StudentView";
 import OnboardingView from "./onboarding/OnboardingView";
 import GlossaryOverlay from "./help/GlossaryOverlay";
+import TourOverlay from "./tour/TourOverlay";
+import DemoPlayground from "./demo/DemoPlayground";
 
 const WARN_STATES = new Set(["alarm", "tool_change", "blocked", "warning"]);
 // 關鍵訊號的參考門檻(側欄門檻條上色用;非硬性告警)
@@ -35,7 +37,14 @@ export default function App() {
   const [resetMsg, setResetMsg] = useState("");
   const [apiError, setApiError] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
+  const [demoOpen, setDemoOpen] = useState(false);
   const telemetryRef = useRef<TelemetryMsg | null>(null);
+
+  // 首次進站自動開一次新手導覽(看過就不再打擾;頂欄「🎮 導覽」可重播)。
+  useEffect(() => {
+    if (!localStorage.getItem("tour_seen_v1")) setTourOpen(true);
+  }, []);
 
   useEffect(() => {
     const loadPark = () => getPark().then((p) => { setPark(p); setApiError(false); })
@@ -76,24 +85,28 @@ export default function App() {
         <div className="logo">勤</div>
         <h1>{park?.name ?? "勤益智慧工業區"}</h1>
         <span className="synthetic">合成數據 SYNTHETIC</span>
-        <nav className="nav" style={{ marginLeft: 8 }}>
+        <nav className="nav" style={{ marginLeft: 8 }} data-tour="nav">
           {TABS.map(([k, label]) => (
-            <button key={k} className={view === k ? "active" : ""} onClick={() => setView(k as typeof view)}>{label}</button>
+            <button key={k} data-tour={`tab-${k}`} className={view === k ? "active" : ""} onClick={() => setView(k as typeof view)}>{label}</button>
           ))}
         </nav>
         <div className="spacer" />
         {telemetry && (
-          <div className="lightsum">
+          <div className="lightsum" data-tour="lightsum">
             <span className="grp"><span className="dot ok" />{nOk}</span>
             <span className="grp"><span className="dot warn" />{nWarn}</span>
             <span className="grp"><span className="dot fault" />{nFault}</span>
           </div>
         )}
-        <span className="clock">sim {simHours} h · {mult ?? "—"}×</span>
-        <button className="btn ghost" style={{ padding: "5px 11px" }} onClick={() => setHelpOpen(true)} title="名詞速查(Modbus / OEE / RUL …)">❓ 名詞</button>
+        <span className="clock" data-tour="clock">sim {simHours} h · {mult ?? "—"}×</span>
+        <button className="btn ghost" style={{ padding: "5px 11px" }} onClick={() => setDemoOpen(true)} title="看一個完整的故障處置範例(全程模擬)">▶ 範例</button>
+        <button className="btn ghost" style={{ padding: "5px 11px" }} onClick={() => setTourOpen(true)} title="重新播放新手導覽">🎮 導覽</button>
+        <button className="btn ghost" style={{ padding: "5px 11px" }} data-tour="help" onClick={() => setHelpOpen(true)} title="名詞速查(Modbus / OEE / RUL …)">❓ 名詞</button>
       </header>
 
       {helpOpen && <GlossaryOverlay onClose={() => setHelpOpen(false)} />}
+      {tourOpen && <TourOverlay onNav={setView} onClose={() => setTourOpen(false)} onStartDemo={() => setDemoOpen(true)} />}
+      {demoOpen && <DemoPlayground onClose={() => setDemoOpen(false)} onNav={setView} />}
 
       <div className="main">
         {!park ? (
@@ -109,7 +122,8 @@ export default function App() {
             </div>
           </div>
         ) : view === "start" ? (
-          <OnboardingView park={park} telemetry={telemetry} catalog={catalog} onNav={setView} />
+          <OnboardingView park={park} telemetry={telemetry} catalog={catalog} onNav={setView}
+                          onOpenTour={() => setTourOpen(true)} onOpenDemo={() => setDemoOpen(true)} />
         ) : view === "world" ? (
           <>
             <div className="stage">

@@ -74,6 +74,14 @@ header.topbar {
 
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .28; } }
 
+/* 導覽聚光燈的柔和脈動(含 9999px 遮罩,只給高亮框用) */
+@keyframes tourPulse {
+  0%, 100% { box-shadow: 0 0 0 9999px rgba(4,8,14,0.74), 0 0 0 0 rgba(76,156,232,.5); }
+  50% { box-shadow: 0 0 0 9999px rgba(4,8,14,0.74), 0 0 0 6px rgba(76,156,232,0); }
+}
+/* 小圓點脈動(範例即時指示) */
+@keyframes dotPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.8); } }
+
 /* ── 分頁 nav ─────────────────────────────────────── */
 .nav { display: flex; gap: 2px; flex-wrap: nowrap; }
 .nav button, .speed button {

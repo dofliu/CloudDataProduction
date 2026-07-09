@@ -24,9 +24,10 @@ const SIGNATURE_PREF = [
 ];
 
 export default function OnboardingView({
-  park, telemetry, catalog, onNav,
+  park, telemetry, catalog, onNav, onOpenTour, onOpenDemo,
 }: {
   park: Park; telemetry: TelemetryMsg | null; catalog: Catalog | null; onNav: (v: View) => void;
+  onOpenTour?: () => void; onOpenDemo?: () => void;
 }) {
   const [me, setMe] = useState(localStorage.getItem("student_id") || "");
   const [meInput, setMeInput] = useState(me);
@@ -123,6 +124,13 @@ export default function OnboardingView({
         <div style={{ marginTop: 10, fontSize: 12, color: "#f08c2e" }}>
           ⚠ 全部為合成數據(synthetic),帶 ground-truth 標籤,專為教學設計 —— 放心動手、放心試錯。
         </div>
+        {(onOpenTour || onOpenDemo) && (
+          <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {onOpenTour && <button onClick={onOpenTour} style={btn("#5b9bd5")}>🎮 新手導覽(60 秒)</button>}
+            {onOpenDemo && <button onClick={onOpenDemo} style={btn("#f08c2e")}>▶ 看完整範例(認領→故障→診斷→排除)</button>}
+            <span className="hint" style={{ margin: 0, alignSelf: "center" }}>第一次來?先看這兩個,再動手。</span>
+          </div>
+        )}
       </div>
 
       {/* 身分 */}

@@ -1,0 +1,74 @@
+# 雲端生產數據導論 —— 每週情境定義(教師手動套用)。
+#
+# 教師在教師控制台按「套用第 N 週情境」→ 平台據此設定當週的:
+#   - faults        : 異常條件(clear=全部修復正常 / keep=沿用上週 / dict=注入指定異常)
+#   - order_density : 訂單密度(light/normal/high → 設備稼動率,影響待機/退化/OEE)
+# 並記錄「資料窗起點」(套用當下的 sim_t / wall_t),供作業自動比對界定「這週的資料」。
+#
+# 對應課程規劃(docs/課程規劃_18週.md)。只列需要平台條件的週;未列的週維持現況。
+#
+# fault dict 欄位:
+#   policy: spread              # 目前僅 spread
+#   scope:  all_companies|random
+#   count:  每間公司(all_companies)或全園區(random)挑幾台 producer 設備
+#   kind:   equipment(退化元件→設備故障) | sensor(感測器資料品質問題)
+#   type:   gradual/sudden/... (equipment) 或 sensor_drift/sensor_stuck/sensor_bias (sensor)
+#   severity: 0..1
+
+course:
+  name: "雲端生產數據導論"
+  default_tolerance: 0.10        # 統計類作業預設相對誤差容差(±10%)
+
+  weeks:
+    - week: 4
+      title: "正常運轉 + 敘述統計"
+      faults: clear              # 全部修復,呈現健康基線
+      order_density: normal
+
+    - week: 5
+      title: "正常運轉(續)"
+      faults: clear
+      order_density: normal
+
+    - week: 6
+      title: "明顯異常"
+      order_density: high        # 多投工單,設備忙、退化明顯
+      faults:
+        policy: spread
+        scope: all_companies     # 每間公司挑 1 台注入明顯設備故障
+        count: 1
+        kind: equipment
+        type: gradual
+        severity: 0.85           # 明顯、好判讀
+
+    - week: 7
+      title: "時序聚合"
+      faults: keep               # 沿用上週,讓學生對同一批資料做時序處理
+      order_density: normal
+
+    - week: 8
+      title: "感測器資料品質"
+      order_density: normal
+      faults:
+        policy: spread
+        scope: all_companies     # 每間公司挑 1 台注入感測器漂移(讀值脫鉤真實,health 仍乾淨)
+        count: 1
+        kind: sensor
+        type: sensor_drift
+        severity: 0.6
+
+    - week: 11
+      title: "生產 KPI / OEE"
+      faults: clear              # 回到正常,聚焦產能/稼動/良率的 KPI 計算
+      order_density: high
+
+    - week: 13
+      title: "趨勢與預警"
+      order_density: normal
+      faults:
+        policy: spread
+        scope: all_companies     # 較緩的漸進退化,讓學生在故障前抓趨勢做預警
+        count: 1
+        kind: equipment
+        type: gradual
+        severity: 0.5

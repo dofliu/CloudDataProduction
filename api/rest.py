@@ -15,9 +15,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from adapters.modbus_server import ModbusAdapter
+from engine.course import CourseManager
 from engine.world import World
 from historian.writer import Historian
 from .catalog import build_catalog
+from .submissions import SubmissionStore
 from .diagnostics import run_diagnostics
 from .oee import OeeEngine
 from .predictions import PredictionStore
@@ -126,6 +128,10 @@ def create_app(
     # OEE 設備總效率排名
     oee = OeeEngine(world)
 
+    # 課程情境(教師手動套用每週條件)+ 作業自動比對(對 ground-truth 計分)
+    course = CourseManager(world, path=config.get("course_file", "scenarios/course_weeks.yaml"))
+    submissions = SubmissionStore(world, historian, course, persist=state)
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         # 啟動順序:先連 Historian、起協定 server,再把各訂閱者掛進世界,最後起世界迴圈
@@ -206,7 +212,8 @@ def create_app(
             "name": "CloudDataProduction",
             "phase": "P0",
             "synthetic_data": True,
-            "endpoints": ["/api/health", "/api/park", "/api/catalog", "/api/devices/{id}", "/api/history", "/api/orders"],
+            "endpoints": ["/api/health", "/api/park", "/api/catalog", "/api/devices/{id}", "/api/history",
+                          "/api/orders", "/api/submissions", "/api/course/status"],
         }
 
     @app.get("/api/health")
@@ -294,6 +301,39 @@ def create_app(
     @app.get("/api/orders/summary")
     def orders_summary(company: Optional[str] = None):
         return world.mes.summary(company=company)
+
+    # ── 作業自動比對(學生面公開繳交)──────────────────────
+    @app.post("/api/submissions")
+    async def post_submission(payload: dict):
+        """繳交作業並自動對 ground-truth 計分。type: connect/stats/oee/anomaly(見 api/submissions.py)。"""
+        try:
+            return await submissions.submit(payload)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+    @app.get("/api/submissions")
+    def list_submissions(student: Optional[str] = None, week: Optional[str] = None, type: Optional[str] = None):
+        return {"submissions": submissions.list(student=student, week=week, type=type)}
+
+    @app.get("/api/submissions/leaderboard")
+    def submissions_leaderboard(week: Optional[str] = None, type: Optional[str] = None):
+        return {"leaderboard": submissions.leaderboard(week=week, type=type)}
+
+    # ── 課程情境(狀態/週表公開唯讀;套用需教師 auth)────────
+    @app.get("/api/course/status")
+    def course_status():
+        return course.status()
+
+    @app.get("/api/course/weeks")
+    def course_weeks():
+        return {"weeks": course.list_weeks()}
+
+    @app.post("/api/course/weeks/{n}/apply", dependencies=[Depends(require_teacher)])
+    def course_apply(n: int):
+        try:
+            return course.apply_week(n)
+        except KeyError as e:
+            raise HTTPException(404, str(e))
 
     @app.get("/api/scores")
     def get_scores():

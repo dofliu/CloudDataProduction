@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Park, Company, Catalog, CatalogDevice, DeviceSnapshot, TelemetryMsg, Ticket, PredScoreRow,
+  Park, Company, Catalog, CatalogDevice, DeviceSnapshot, TelemetryMsg, Ticket, PredScoreRow, CourseStatus,
   getPark, getCatalog, getTickets, getPredictionScores, claimCompany, STATUS_COLOR_CSS,
 } from "../api";
 import SubmissionForm from "../student/SubmissionForm";
@@ -25,10 +25,10 @@ const SIGNATURE_PREF = [
 ];
 
 export default function OnboardingView({
-  park, telemetry, catalog, onNav, onOpenTour, onOpenDemo,
+  park, telemetry, catalog, onNav, onOpenTour, onOpenDemo, courseStatus,
 }: {
   park: Park; telemetry: TelemetryMsg | null; catalog: Catalog | null; onNav: (v: View) => void;
-  onOpenTour?: () => void; onOpenDemo?: () => void;
+  onOpenTour?: () => void; onOpenDemo?: () => void; courseStatus?: CourseStatus | null;
 }) {
   const [me, setMe] = useState(localStorage.getItem("student_id") || "");
   const [meInput, setMeInput] = useState(me);
@@ -117,6 +117,14 @@ export default function OnboardingView({
         <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: 0.3 }}>
           🏭 歡迎來到{park.name}
         </div>
+        {courseStatus?.current_week != null && (
+          <div style={{ marginTop: 10, display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13,
+                        color: "#c7d2e0", background: "rgba(91,155,213,0.12)", border: "1px solid #2e3a4d",
+                        borderRadius: 8, padding: "6px 12px" }}>
+            📅 本週課程:<b style={{ color: "#5b9bd5" }}>第 {courseStatus.current_week} 週{courseStatus.title ? `「${courseStatus.title}」` : ""}</b>
+            {` · 稼動率 ${courseStatus.utilization}`}
+          </div>
+        )}
         <p style={{ margin: "8px 0 0", color: "#c7d2e0", lineHeight: 1.7, maxWidth: 760 }}>
           你是這座虛擬工業區的<b style={{ color: "#5b9bd5" }}>維運工程師</b>。園區裡 {companies.length} 間公司、
           數十台真實運轉的設備(以標準 <b>Modbus / OPC-UA / MQTT</b> 協定對外),

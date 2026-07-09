@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useState } from "react";
+import { CourseStatus } from "../api";
 
 /**
  * 🎮 新手導覽 —— 像遊戲開場的互動聚光燈教學。
@@ -130,11 +131,12 @@ const CARD_W = 340;
 const CARD_GAP = 14;      // 卡片與高亮框的距離
 
 export default function TourOverlay({
-  onNav, onClose, onStartDemo,
+  onNav, onClose, onStartDemo, courseStatus,
 }: {
   onNav: (v: View) => void;
   onClose: () => void;
   onStartDemo: () => void;
+  courseStatus?: CourseStatus | null;
 }) {
   const [i, setI] = useState(0);
   const [rect, setRect] = useState<DOMRect | null>(null);
@@ -221,6 +223,13 @@ export default function TourOverlay({
           </button>
         </div>
 
+        {courseStatus?.current_week != null && (
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--accent)",
+                        background: "var(--panel-3)", border: "1px solid var(--line-2)", borderRadius: 12,
+                        padding: "2px 9px", margin: "4px 0 2px" }}>
+            📅 本學期目前第 {courseStatus.current_week} 週{courseStatus.title ? ` · ${courseStatus.title}` : ""}
+          </div>
+        )}
         <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)", margin: "2px 0 8px" }}>
           {step.emoji ? `${step.emoji} ` : ""}{step.title}
         </div>

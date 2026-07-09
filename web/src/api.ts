@@ -176,6 +176,44 @@ export interface PredScoreRow {
 }
 export const getPredictionScores = () => getJSON<{ ranking: PredScoreRow[] }>("/api/predictions/scores");
 
+// ── 課程情境(每週釋出)+ 作業自動比對 ──────────────────
+export interface CourseWeek { week: number; title: string | null; faults: string; order_density: string | null; }
+export interface CourseStatus {
+  name: string; current_week: number | null; title: string | null;
+  window_start_sim_t: number | null; window_start_wall: number | null;
+  utilization: number; default_tolerance: number;
+}
+export const getCourseWeeks = () => getJSON<{ weeks: CourseWeek[] }>("/api/course/weeks");
+export const getCourseStatus = () => getJSON<CourseStatus>("/api/course/status");
+export const applyCourseWeek = (n: number) =>
+  post(`/api/course/weeks/${n}/apply`, undefined, true) as Promise<{
+    applied_week: number; title: string; faults: string; injected: any[]; order_density: string | null; utilization: number;
+  }>;
+
+// 作業繳交(學生面公開):type = connect / stats / oee / anomaly
+export interface SubmissionResult {
+  id: string; student: string; week: number | string | null; type: string;
+  submitted_wall: number; sim_t: number; score: number; passed: boolean; feedback: string;
+}
+export const postSubmission = (payload: Record<string, any>) =>
+  post("/api/submissions", payload) as Promise<SubmissionResult>;
+export const getSubmissions = (student?: string, week?: string, type?: string) => {
+  const q = new URLSearchParams();
+  if (student) q.set("student", student);
+  if (week) q.set("week", week);
+  if (type) q.set("type", type);
+  const qs = q.toString();
+  return getJSON<{ submissions: SubmissionResult[] }>(`/api/submissions${qs ? `?${qs}` : ""}`);
+};
+export const getSubmissionsLeaderboard = (week?: string, type?: string) => {
+  const q = new URLSearchParams();
+  if (week) q.set("week", week);
+  if (type) q.set("type", type);
+  const qs = q.toString();
+  return getJSON<{ leaderboard: { student: string; score: number; type: string; week: any }[] }>(
+    `/api/submissions/leaderboard${qs ? `?${qs}` : ""}`);
+};
+
 // ── 協定連線自測 / 戰情版 ───────────────────────────────
 export interface DiagRow {
   device?: string; ok: boolean; value?: number;

@@ -85,6 +85,7 @@ def build():
     config = {
         "public_host": os.getenv("PUBLIC_HOST", "127.0.0.1"),
         "teacher_token": os.getenv("TEACHER_TOKEN", ""),
+        "course_file": os.getenv("COURSE_FILE", "scenarios/course_weeks.yaml"),  # 每週情境定義
     }
     app = create_app(world, historian, modbus, config, opcua=opcua, mqtt=mqtt,
                      multiport=multiport, control=control, state=state)

@@ -3,6 +3,7 @@ import {
   Park, Company, Catalog, CatalogDevice, DeviceSnapshot, TelemetryMsg, Ticket, PredScoreRow,
   getPark, getCatalog, getTickets, getPredictionScores, claimCompany, STATUS_COLOR_CSS,
 } from "../api";
+import SubmissionForm from "../student/SubmissionForm";
 
 /**
  * 🚀 任務中心 / 開始這裡 —— 學生的落地頁。
@@ -293,6 +294,17 @@ export default function OnboardingView({
               到「學生面」認領一間有明顯退化的機台公司(CNC / 空壓機 / 機械手臂 / 半導體腔體),這裡就會長出你的預測器範例。
             </p>
           )}
+        </>
+      )}
+
+      {/* 繳交作業(自動批改) */}
+      {myCompany && me && (
+        <>
+          <h3 style={{ marginTop: 22 }}>📤 繳交作業(自動批改)</h3>
+          <p className="hint" style={{ margin: "0 0 4px" }}>
+            算好就送上來,平台立刻用正解(ground-truth)自動批改給分。統計類作業會對照老師當週釋出情境的「資料窗」。
+          </p>
+          <SubmissionForm student={me} deviceIds={myCompany.device_ids || []} catalog={catalog} />
         </>
       )}
 

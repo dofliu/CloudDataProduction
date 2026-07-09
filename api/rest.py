@@ -206,7 +206,7 @@ def create_app(
             "name": "CloudDataProduction",
             "phase": "P0",
             "synthetic_data": True,
-            "endpoints": ["/api/health", "/api/park", "/api/catalog", "/api/devices/{id}", "/api/history"],
+            "endpoints": ["/api/health", "/api/park", "/api/catalog", "/api/devices/{id}", "/api/history", "/api/orders"],
         }
 
     @app.get("/api/health")
@@ -279,6 +279,21 @@ def create_app(
         if t is None:
             raise HTTPException(404, f"無此工單:{ticket_id}")
         return t
+
+    # ── MES 工單(學生面公開唯讀;Phase 1)──────────────────
+    @app.get("/api/orders")
+    def list_orders(company: Optional[str] = None, device: Optional[str] = None,
+                    status: Optional[str] = None):
+        """公司的生產工單:設備因工單而運轉,無單則待機(不磨損)。
+        參數 company / device / status 皆可選,用於過濾。"""
+        return {
+            "enabled": world.mes.enabled,
+            "orders": world.mes.list_orders(company=company, device=device, status=status),
+        }
+
+    @app.get("/api/orders/summary")
+    def orders_summary(company: Optional[str] = None):
+        return world.mes.summary(company=company)
 
     @app.get("/api/scores")
     def get_scores():

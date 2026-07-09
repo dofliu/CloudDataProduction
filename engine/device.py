@@ -203,6 +203,12 @@ class Device:
         self.state: str = "idle"
         self._fault_latched: bool = False
         self._sim_t: float = 0.0
+        # MES(Phase 1):有工單才開工。mes_enabled 由 MES 於建構時對 producer 設備設 True;
+        # 未受 MES 管的設備 has_work 恆 True → 行為與導入前完全一致(零回歸)。
+        self.mes_enabled: bool = False
+        self.has_work: bool = True          # 此刻手上有沒有工單(MES 每 tick 指派)
+        self.mes_order: Optional[dict] = None   # 當前工單精簡視圖(供 snapshot / 前端看板)
+        self._last_op: dict = {}            # 上一 tick 實際運轉點(MES 據此累積產量)
         # 故障注入(老師面):感測器故障層 + 待生效注入佇列 + 故障起始時刻(ground-truth)
         self.sensor_faults: Dict[str, SensorFault] = {}
         self._pending_injections: List[dict] = []
@@ -327,7 +333,10 @@ class Device:
     def step(self, dt_sim: float) -> None:
         # sim_t 由 world 在呼叫前注入(見 world.step / set_sim_t),duty cycle 需要絕對時間
         self._apply_pending_injections()
-        op = self.duty.operating_point(self._sim_t)
+        op = self.duty.operating_point(self._sim_t)   # 班表:工廠這時段開不開工
+        # MES 疊加(Phase 1):開工時段內、但手上沒工單 → 待機(不轉不磨)。班表關的時段本就已閒置。
+        if self.mes_enabled and op["running"] and not self.has_work:
+            op = {"running": False, "load": 0.0, "load_nom": op["load_nom"], "speed_factor": 0.0}
         if not self.coil("run_enable"):     # 教師線圈停機:覆寫運轉點為閒置(stress 歸 0)
             op = {"running": False, "load": 0.0, "load_nom": op["load_nom"], "speed_factor": 0.0}
         # 有狀態物理先跑一次(tag drivers 之後才讀其結果)
@@ -351,6 +360,7 @@ class Device:
         self._update_state(op)
         self._accumulate_oee(dt_sim, op)
         self._update_derived_points()   # 狀態/量測底定後,更新衍生 DI/IR 值
+        self._last_op = op              # 供 MES 判定本 tick 是否實際運轉(累積產量)
 
     def _accumulate_oee(self, dt_sim: float, op: dict) -> None:
         """OEE 累積:故障算停機;運轉算可用時間並加權 perf/qual;待機(off-shift)不計入。"""
@@ -484,6 +494,7 @@ class Device:
             "input_regs": {p.name: p.value for p in self.input_registers},
             "coils": {c.name: bool(c.value) for c in self.command_coils},
             "setpoints": {s.name: s.value for s in self.setpoints},
+            "order": self.mes_order if self.mes_enabled else None,   # 當前工單(MES;非 producer 為 None)
         }
 
     def ground_truth(self) -> dict:

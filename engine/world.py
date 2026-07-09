@@ -17,6 +17,7 @@ import yaml
 
 from .clock import SimClock
 from .device import Device
+from .mes import MES
 from .templates import get_builder
 from .templates._common import default_seed
 
@@ -43,6 +44,10 @@ class World:
 
         self.devices: Dict[str, Device] = {}
         self._build_devices()
+
+        # MES(Phase 1):工單驅動設備運轉。疊在班表之上,只管離散製造設備。
+        # 狀態只存在引擎(鐵則)—— 工單狀態全在這裡,adapters / API / 前端只讀。
+        self.mes = MES(self, park.get("mes"))
 
         self._subscribers: List[Subscriber] = []
         self._event_subscribers: List[Subscriber] = []
@@ -113,6 +118,7 @@ class World:
             built.append(did)
 
         self.park.setdefault("companies", []).append(company_cfg)
+        self.mes.register_company(company_cfg)   # 新公司的 producer 設備即時納入 MES(有工單才跑)
         return {
             "company": cid, "name": company_cfg.get("name"), "devices": built,
             "note": "已即時加入:引擎/2D世界/WS/目錄/工單,以及原生協定"
@@ -133,7 +139,10 @@ class World:
         sim_t = self.clock.now()
         for device in self.devices.values():
             device.set_sim_t(sim_t)
+        self.mes.assign(sim_t)              # 設備 step 前:指派當前工單、設 has_work
+        for device in self.devices.values():
             device.step(dt_sim)
+        self.mes.advance(dt_sim, sim_t)     # 設備 step 後:依實際運轉累積產量、完工換單、補 backlog
         self._pending_events = self._detect_events(sim_t)
         snapshot = self._make_snapshot()
         self._last_snapshot = snapshot

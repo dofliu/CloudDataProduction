@@ -65,6 +65,8 @@ class SubmissionStore:
             "stats": self._grade_stats,
             "oee": self._grade_oee,
             "anomaly": self._grade_anomaly,
+            "aggregate": self._grade_aggregate,
+            "events": self._grade_events,
         }.get(stype)
         if grader is None:
             raise ValueError(f"未知的作業型別:{stype}(可用:connect/stats/oee/anomaly)")
@@ -175,6 +177,57 @@ class SubmissionStore:
                 "feedback": f"命中 {tp}、誤報 {fp}、漏報 {fn}(候選 {len(candidates)} 台,F1={f1:.2f})"
                             + (" ✓" if score >= 60 else " ✗ 用多訊號趨勢再確認")}
 
+    async def _grade_aggregate(self, payload: dict) -> dict:
+        """W7 時序聚合:交某 tag 在「某小時(hour-of-day 0..23)」的平均,對照 historian 依時間重取樣的真值。"""
+        device = payload.get("device")
+        tag = payload.get("tag")
+        value = payload.get("value")
+        hour = payload.get("hour")
+        if device is None or tag is None or value is None or hour is None:
+            raise ValueError("aggregate 需要 device / tag / hour(0..23)/ value")
+        try:
+            hour = int(hour)
+        except (TypeError, ValueError):
+            raise ValueError("hour 需為 0..23 的整數")
+        t_from, t_to = self._window(payload)
+        rows = await self.historian.query(device, tag, t_from, t_to, limit=200000)
+        vals = [r["value"] for r in rows
+                if r.get("value") is not None and int((r.get("sim_t", 0) % 86400) / 3600) == hour]
+        if len(vals) < 3:
+            return {"score": 0.0, "passed": False,
+                    "feedback": f"該時間窗內第 {hour} 時的資料點不足(<3);確認資料窗與是否用 sim_t 依 hour-of-day 分組。"}
+        truth = mean(vals)
+        tol = self._tol(payload)
+        score, rel = _score_rel(float(value), float(truth), tol)
+        return {"score": score, "passed": score >= 60,
+                "feedback": f"第 {hour} 時平均:你算 {float(value):.4f},參考 {truth:.4f}"
+                            f"(n={len(vals)},相對誤差 {rel*100:.1f}%)"
+                            + (" ✓" if score >= 60 else " ✗ 檢查 hour-of-day 分組(sim_t%86400)與聚合")}
+
+    async def _grade_events(self, payload: dict) -> dict:
+        """W10 事件流:交本週該設備「完工工單數」,對照 MES 實際完工紀錄(訂閱事件計數的驗證)。"""
+        device = payload.get("device")
+        value = payload.get("value")
+        if device is None or value is None:
+            raise ValueError("events 需要 device / value(metric 預設 orders_done)")
+        try:
+            guess = int(value)
+        except (TypeError, ValueError):
+            raise ValueError("value 需為整數(事件計數)")
+        start_sim = getattr(self.course, "window_start_sim", None) or 0.0
+        done = getattr(self.world.mes, "done", {}).get(device, [])
+        truth = sum(1 for o in done if (o.done_t is not None and o.done_t >= start_sim))
+        diff = abs(guess - truth)
+        if diff == 0:
+            score = 100.0
+        elif diff <= 1:
+            score = 75.0
+        else:
+            score, _ = _score_rel(float(guess), float(truth), max(self._tol(payload), 0.15))
+        return {"score": score, "passed": score >= 60,
+                "feedback": f"完工工單數:你數 {guess},實際 {truth}(自當週資料窗起算,差 {diff})"
+                            + (" ✓" if score >= 60 else " ✗ 訂閱 /ws/events 或輪詢 /api/orders 計 done")}
+
     # ── 輔助 ────────────────────────────────────────────────
     def _window(self, payload: dict) -> tuple[Optional[float], Optional[float]]:
         """作業資料窗(wall 秒)。優先用 payload 明確給的 from/to;否則用當週資料窗起點到現在。"""
@@ -222,3 +275,31 @@ class SubmissionStore:
                 best[s["student"]] = s
         rows = sorted(best.values(), key=lambda r: r["score"], reverse=True)
         return [{"student": r["student"], "score": r["score"], "type": r["type"], "week": r.get("week")} for r in rows]
+
+    def gradebook(self, week=None, type: Optional[str] = None) -> List[dict]:
+        """成績冊(期中/期末評分骨架):每位學生每項作業(type+week)取最佳分,彙整平均。
+        自動批改的部分即這裡;期末專題的人工 rubric 由老師另計後併入。"""
+        best: Dict[tuple, float] = {}
+        for s in self.submissions:
+            if week is not None and str(s.get("week")) != str(week):
+                continue
+            if type and s["type"] != type:
+                continue
+            key = (s["student"], s["type"], str(s.get("week")))
+            best[key] = max(best.get(key, -1.0), float(s["score"]))
+        per: Dict[str, dict] = {}
+        for (student, typ, wk), sc in best.items():
+            p = per.setdefault(student, {"student": student, "assignments": [], "sum": 0.0})
+            p["assignments"].append({"type": typ, "week": None if wk == "None" else wk, "score": sc})
+            p["sum"] += sc
+        rows = []
+        for p in per.values():
+            n = len(p["assignments"])
+            rows.append({
+                "student": p["student"],
+                "assignments": sorted(p["assignments"], key=lambda a: (str(a["week"]), a["type"])),
+                "count": n,
+                "avg": round(p["sum"] / n, 1) if n else 0.0,
+            })
+        rows.sort(key=lambda r: r["avg"], reverse=True)
+        return rows

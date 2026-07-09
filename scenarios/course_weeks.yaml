@@ -46,6 +46,11 @@ course:
       faults: keep               # 沿用上週,讓學生對同一批資料做時序處理
       order_density: normal
 
+    - week: 10
+      title: "即時串流與事件"
+      faults: keep               # 沿用,讓學生訂閱事件、計 done 工單數
+      order_density: high        # 多投單 → 更多完工事件可數
+
     - week: 8
       title: "感測器資料品質"
       order_density: normal

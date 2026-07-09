@@ -131,6 +131,10 @@ class MES:
         self._managed: Dict[str, str] = {}             # device_id → company_id(僅 producer)
         self._products: Dict[str, List[str]] = {}      # company_id → 產品名清單
         self._seq: Dict[str, int] = {}                 # company_id → 工單流水號
+        # 稼動率(order_density):1.0=班內滿載;<1 則工單間插入待機空檔(不轉不磨),
+        # 讓「訂單密度」真的改變資料(待機比例↑、OEE 可用率↓)。預設 1.0 → 零回歸。
+        self.utilization: float = 1.0
+        self._idle_until: Dict[str, float] = {}        # device_id → 空檔結束的 sim_t
 
         if self.enabled:
             self._build()
@@ -215,7 +219,8 @@ class MES:
                 continue
             q = self.queues.get(did) or []
             active = q[0] if q else None
-            device.has_work = active is not None       # 有單就允許開工;是否真的在跑看班表
+            in_gap = self.utilization < 1.0 and sim_t < self._idle_until.get(did, 0.0)
+            device.has_work = (active is not None) and not in_gap   # 有單且不在空檔才允許開工
             device.mes_order = active.brief() if active is not None else None
 
     # ── 每 tick:推進生產 ────────────────────────────────────
@@ -242,9 +247,18 @@ class MES:
                     q.pop(0)
                     self.done[did].append(head)
                     self.done[did] = self.done[did][-8:]
+                    if self.utilization < 1.0:      # 完工後插入待機空檔,讓長期稼動率≈utilization
+                        runtime = head.qty * head.cycle_s
+                        gap = runtime * (1.0 - self.utilization) / max(self.utilization, 0.05)
+                        gap *= 0.6 + 0.8 * float(self._rng.random())   # 抖動,避免同步
+                        self._idle_until[did] = sim_t + gap
             self._refill(did, sim_t)
             # 更新設備上的當前工單視圖(供 telemetry snapshot / 前端看板)
             device.mes_order = q[0].brief() if q else None
+
+    def set_utilization(self, value: float) -> None:
+        """設定稼動率(教師課程情境用)。1.0=滿載,越低待機空檔越多。"""
+        self.utilization = float(min(1.0, max(0.05, value)))
 
     # ── 視圖(API 只讀)──────────────────────────────────────
     def list_orders(self, company: Optional[str] = None, device: Optional[str] = None,

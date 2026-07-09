@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import {
   Park, TelemetryMsg, HealthGT, Ticket, ScoreRow, PredScoreRow, ScenarioScript, ScenarioStatus,
+  CourseWeek, CourseStatus,
   setTeacherToken, getTeacherToken, setClock,
   injectFault, resetDevice, getHealth, getTickets, ackTicket, resolveTicket, getScores, getPredictionScores,
   getScenarios, runScenario, stopScenario, createFactory, resetSession,
+  getCourseWeeks, getCourseStatus, applyCourseWeek,
 } from "../api";
 
 const FAULT_TYPES = [
@@ -30,6 +32,8 @@ export default function TeacherView({
   const [scenStatus, setScenStatus] = useState<ScenarioStatus | null>(null);
   const [scenName, setScenName] = useState("disaster_day");
   const [factoryDesc, setFactoryDesc] = useState("建一間有 3 台機械手臂的公司");
+  const [courseWeeks, setCourseWeeks] = useState<CourseWeek[]>([]);
+  const [courseStatus, setCourseStatus] = useState<CourseStatus | null>(null);
 
   const deviceIds = telemetry ? Object.keys(telemetry.devices) : [];
   const isSensor = ftype.startsWith("sensor_");
@@ -48,11 +52,25 @@ export default function TeacherView({
       try { setScores((await getScores()).ranking); } catch { /* */ }
       try { setPredScores((await getPredictionScores()).ranking); } catch { /* */ }
       try { const s = await getScenarios(); setScripts(s.scripts); setScenStatus(s.status); } catch { /* */ }
+      try { setCourseStatus(await getCourseStatus()); } catch { /* */ }
     };
     tick();
     const id = setInterval(tick, 2000);
     return () => clearInterval(id);
   }, [dev]);
+
+  useEffect(() => { getCourseWeeks().then((r) => setCourseWeeks(r.weeks)).catch(() => {}); }, []);
+
+  const doApplyWeek = async (n: number) => {
+    try {
+      const r = await applyCourseWeek(n);
+      setMsg(`📅 已套用第 ${r.applied_week} 週「${r.title}」— 異常 ${r.faults === "injected" ? `注入 ${r.injected.length} 台` : r.faults} · 稼動率 ${r.utilization}`);
+      setCourseStatus(await getCourseStatus());
+    } catch (e: any) {
+      const hint = String(e.message).includes("401") ? "先填 dev-teacher-token 並儲存" : "";
+      setMsg(`套用失敗:${e.message} ${hint}`);
+    }
+  };
 
   const saveToken = () => { setTeacherToken(token); setMsg("已儲存 teacher token"); };
 
@@ -130,6 +148,32 @@ export default function TeacherView({
       <div style={{ display: "flex", gap: 18, alignItems: "flex-start" }}>
         {/* 左:actions */}
         <div style={{ flex: 1, minWidth: 0, display: "grid", gap: 14 }}>
+          <div className="card">
+            <div className="card-title">📅 課程情境(每週釋出)</div>
+            <div className="hint" style={{ margin: "0 0 8px" }}>
+              一鍵套用當週條件(設異常 / 訂單密度,並記錄「這週的資料窗」給學生作業比對)。
+              目前:{courseStatus?.current_week != null
+                ? <b style={{ color: "var(--accent)" }}>第 {courseStatus.current_week} 週「{courseStatus.title}」· 稼動率 {courseStatus.utilization}</b>
+                : <span className="muted">尚未套用(自由運轉)</span>}
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {courseWeeks.length === 0 && <span className="muted" style={{ fontSize: 12 }}>(讀不到 scenarios/course_weeks.yaml)</span>}
+              {courseWeeks.map((w) => {
+                const active = courseStatus?.current_week === w.week;
+                return (
+                  <button key={w.week} className="btn ghost" onClick={() => doApplyWeek(w.week)}
+                    title={`異常:${w.faults} · 密度:${w.order_density ?? "—"}`}
+                    style={active ? { background: "#14304d", borderColor: "var(--accent)", color: "var(--accent)" } : {}}>
+                    第{w.week}週 · {w.title}
+                    <span style={{ marginLeft: 6, fontSize: 10, color: w.faults === "injected" ? "var(--fault)" : w.faults === "clear" ? "var(--ok)" : "var(--dim)" }}>
+                      {w.faults === "injected" ? "●異常" : w.faults === "clear" ? "○正常" : "—沿用"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="card">
             <div className="card-title">🏭 建廠(自然語言)</div>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>

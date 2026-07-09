@@ -337,6 +337,9 @@ class Device:
         # MES 疊加(Phase 1):開工時段內、但手上沒工單 → 待機(不轉不磨)。班表關的時段本就已閒置。
         if self.mes_enabled and op["running"] and not self.has_work:
             op = {"running": False, "load": 0.0, "load_nom": op["load_nom"], "speed_factor": 0.0}
+        # 排程要它產出 = 班內 × 有工單 × 非稼動空檔(與 run_enable 無關)。OEE 可用率的分母基準:
+        # 「排程內卻沒產出」(故障 / 教師鎖停中的故障)才算可用率損失。
+        scheduled = bool(op["running"])
         if not self.coil("run_enable"):     # 教師線圈停機:覆寫運轉點為閒置(stress 歸 0)
             op = {"running": False, "load": 0.0, "load_nom": op["load_nom"], "speed_factor": 0.0}
         # 有狀態物理先跑一次(tag drivers 之後才讀其結果)
@@ -358,29 +361,29 @@ class Device:
                 tag.value = sf.apply(tag.value, self._sim_t, dt_sim)
 
         self._update_state(op)
-        self._accumulate_oee(dt_sim, op)
+        self._accumulate_oee(dt_sim, op, scheduled)
         self._update_derived_points()   # 狀態/量測底定後,更新衍生 DI/IR 值
         self._last_op = op              # 供 MES 判定本 tick 是否實際運轉(累積產量)
 
-    def _accumulate_oee(self, dt_sim: float, op: dict) -> None:
+    def _accumulate_oee(self, dt_sim: float, op: dict, scheduled: bool) -> None:
         """OEE 對排程重算(MES Phase 2):只在「排程要它產出」的時間計入 planned。
 
-        排程 = op["running"](班內 × 有工單 × 已啟用 × 非稼動空檔;見 device.step / mes.assign)。
-        其中:故障停線 → down(可用率損失)、正常運轉 → run(並時間加權 perf/qual)。
-        班外 / 週末 / 無工單 / 稼動空檔 / 教師停機 屬 **no-demand**:不計入 planned、不罰可用率
-        —— 可用率因此對「排程生產時間」而非全時計算,且**故障只在排程內才算停機**
-        (先前不論班內外一律算停機,會低估夜間 / 週末壞掉設備的可用率)。"""
-        if dt_sim <= 0.0:
+        scheduled = 班內 × 有工單 × 非稼動空檔(與 run_enable 無關;見 device.step)。分類:
+          - 排程內故障停線 → down(可用率損失,**即使被教師 run_enable 鎖停** —— 機器壞了就是壞了)。
+          - 排程內正常產出(run_enable on、無故障)→ run(並時間加權 perf/qual)。
+          - 排程內健康但教師停機(run_enable off、無故障)→ 視為計畫性停機,不計入。
+        班外 / 週末 / 無工單 / 稼動空檔 屬 **no-demand**:不計入 planned、不罰可用率。
+        故障只在排程內才算停機(先前不論班內外一律算停機,會低估夜間 / 週末壞掉設備的可用率)。"""
+        if dt_sim <= 0.0 or not scheduled:   # 無排程(no-demand / 班外 / 空檔)→ 不計入
             return
-        if not op.get("running"):            # 無排程(no-demand / 班外 / 停機空檔)→ 不計入
-            return
-        if self._fault_latched:              # 排程內故障停線 → 可用率損失
+        if self._fault_latched:              # 排程內故障停線 → 可用率損失(不管 run_enable)
             self._oee_down += dt_sim
-        else:                                # 排程內正常產出
+        elif op["running"]:                  # 排程內正常產出
             self._oee_run += dt_sim
             perf, qual = self.oee_fn(op, self.components) if self.oee_fn else (1.0, 1.0)
             self._oee_perf_acc += float(perf) * dt_sim
             self._oee_qual_acc += float(qual) * dt_sim
+        # else: 排程內健康但停機(run_enable off)→ 計畫性停機,不計入 planned
 
     def oee(self) -> dict:
         """OEE = 可用率 × 表現 × 良率(都從 ground-truth 累積,老師面)。

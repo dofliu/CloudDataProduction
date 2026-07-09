@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { CourseStatus } from "../api";
 
 /**
  * ▶ 範例示範 —— 一台 CNC 的完整處置迴圈,全程模擬、不碰後端。
@@ -139,7 +140,7 @@ const DIAG: { key: string; label: string; correct?: boolean; note: string }[] = 
 
 type View = "start" | "world" | "student" | "catalog" | "diag" | "oee" | "teacher";
 
-export default function DemoPlayground({ onClose, onNav }: { onClose: () => void; onNav: (v: View) => void }) {
+export default function DemoPlayground({ onClose, onNav, courseStatus }: { onClose: () => void; onNav: (v: View) => void; courseStatus?: CourseStatus | null }) {
   const [sim, setSim] = useState<Sim>(FRESH);
   const simRef = useRef(sim);
   simRef.current = sim;
@@ -192,6 +193,12 @@ export default function DemoPlayground({ onClose, onNav }: { onClose: () => void
               認領 → 運轉 → 故障 → 分析 → 診斷根因 → 排除復機 · <span style={{ color: "var(--pred)" }}>全程模擬,不影響真實園區</span>
             </div>
           </div>
+          {courseStatus?.current_week != null && (
+            <span style={{ marginLeft: "auto", marginRight: 12, alignSelf: "center", fontSize: 12, color: "var(--accent)",
+                           background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 12, padding: "3px 10px" }}>
+              📅 本學期目前第 {courseStatus.current_week} 週{courseStatus.title ? ` · ${courseStatus.title}` : ""}
+            </span>
+          )}
           <button className="btn ghost" style={{ padding: "5px 12px" }} onClick={onClose}>✕ 關閉(Esc)</button>
         </div>
 

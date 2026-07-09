@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Catalog, CatalogSetpoint, DeviceSnapshot, EventMsg, Park, TelemetryMsg,
-  getCatalog, getPark, subscribe, STATUS_COLOR_CSS, getTeacherToken, resetDevice, setCoil, setSetpoint,
+  Catalog, CatalogSetpoint, DeviceSnapshot, EventMsg, Park, TelemetryMsg, CourseStatus,
+  getCatalog, getPark, getCourseStatus, subscribe, STATUS_COLOR_CSS, getTeacherToken, resetDevice, setCoil, setSetpoint,
 } from "./api";
 import WorldView from "./world/WorldView";
 import CatalogView from "./catalog/CatalogView";
@@ -39,11 +39,20 @@ export default function App() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
   const [demoOpen, setDemoOpen] = useState(false);
+  const [courseStatus, setCourseStatus] = useState<CourseStatus | null>(null);
   const telemetryRef = useRef<TelemetryMsg | null>(null);
 
   // 首次進站自動開一次新手導覽(看過就不再打擾;頂欄「🎮 導覽」可重播)。
   useEffect(() => {
     if (!localStorage.getItem("tour_seen_v1")) setTourOpen(true);
+  }, []);
+
+  // 課程當前週次(導覽 / 範例 / 任務中心顯示「本週」提示,把教學情境接上)。
+  useEffect(() => {
+    const tick = () => getCourseStatus().then(setCourseStatus).catch(() => {});
+    tick();
+    const id = setInterval(tick, 5000);
+    return () => clearInterval(id);
   }, []);
 
   useEffect(() => {
@@ -105,8 +114,8 @@ export default function App() {
       </header>
 
       {helpOpen && <GlossaryOverlay onClose={() => setHelpOpen(false)} />}
-      {tourOpen && <TourOverlay onNav={setView} onClose={() => setTourOpen(false)} onStartDemo={() => setDemoOpen(true)} />}
-      {demoOpen && <DemoPlayground onClose={() => setDemoOpen(false)} onNav={setView} />}
+      {tourOpen && <TourOverlay onNav={setView} onClose={() => setTourOpen(false)} onStartDemo={() => setDemoOpen(true)} courseStatus={courseStatus} />}
+      {demoOpen && <DemoPlayground onClose={() => setDemoOpen(false)} onNav={setView} courseStatus={courseStatus} />}
 
       <div className="main">
         {!park ? (
@@ -123,7 +132,7 @@ export default function App() {
           </div>
         ) : view === "start" ? (
           <OnboardingView park={park} telemetry={telemetry} catalog={catalog} onNav={setView}
-                          onOpenTour={() => setTourOpen(true)} onOpenDemo={() => setDemoOpen(true)} />
+                          onOpenTour={() => setTourOpen(true)} onOpenDemo={() => setDemoOpen(true)} courseStatus={courseStatus} />
         ) : view === "world" ? (
           <>
             <div className="stage">

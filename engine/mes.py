@@ -132,7 +132,9 @@ class MES:
         self._products: Dict[str, List[str]] = {}      # company_id → 產品名清單
         self._seq: Dict[str, int] = {}                 # company_id → 工單流水號
         # 稼動率(order_density):1.0=班內滿載;<1 則工單間插入待機空檔(不轉不磨),
-        # 讓「訂單密度」真的改變資料(待機比例↑、OEE 可用率↓)。預設 1.0 → 零回歸。
+        # 讓「訂單密度」真的改變資料(待機比例↑、產出↓、退化↓)。空檔屬 no-demand,
+        # 對排程算的可用率不罰(它降的是負荷/產出,不是可用率;見 device._accumulate_oee)。
+        # 預設 1.0 → 零回歸。
         self.utilization: float = 1.0
         self._idle_until: Dict[str, float] = {}        # device_id → 空檔結束的 sim_t
 

@@ -1,0 +1,22 @@
+# Cloudflare Tunnel 設定範本 —— 讓校外學生用瀏覽器連進園區(HTTP + WebSocket),無需公開 IP。
+#
+# 一條 tunnel 對到 :8077 就同時涵蓋:世界 / 目錄 / 儀表板(前端)+ /api + /ws。
+# 前提:後端以 WEB_DIST=web/dist 啟動(同源提供前端),見 docs/部署_對外連線.md。
+#
+# 使用:
+#   1. cloudflared tunnel login
+#   2. cloudflared tunnel create clouddata        # 產生 <TUNNEL_ID> 與憑證 json
+#   3. 把下面 <TUNNEL_ID> / credentials-file / hostname 換成你的
+#   4. cloudflared tunnel route dns clouddata clouddata.example.com
+#   5. cloudflared tunnel --config deploy/cloudflared/config.yml run
+#      (Windows 常駐:cloudflared service install --config ...\config.yml)
+
+tunnel: <TUNNEL_ID>
+credentials-file: C:\Users\<YOU>\.cloudflared\<TUNNEL_ID>.json
+
+ingress:
+  # 學生瀏覽器入口:同一 hostname 提供前端 + API + WebSocket(WS 走 cloudflared 沒問題)
+  - hostname: clouddata.example.com
+    service: http://127.0.0.1:8077
+  # 其餘一律 404(不要把後端其他埠暴露到公網)
+  - service: http_status:404

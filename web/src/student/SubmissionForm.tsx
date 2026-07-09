@@ -7,12 +7,14 @@ import { Catalog, SubmissionResult, postSubmission, getSubmissions, getCourseSta
  * 目的是讓沒有電腦教室、人多無助教的課,作業能即時自動回饋與計分。
  */
 
-type SubType = "connect" | "stats" | "oee" | "anomaly";
+type SubType = "connect" | "stats" | "aggregate" | "anomaly" | "events" | "oee";
 const TYPES: { key: SubType; label: string; hint: string }[] = [
   { key: "connect", label: "連線讀值 · W2", hint: "交某設備某 tag 的即時讀值,驗證你連對了。" },
   { key: "stats", label: "敘述統計 · W4/期中", hint: "交一段時間某 tag 的統計(mean/std),對照當週資料窗真值。" },
-  { key: "oee", label: "OEE 指標 · W11", hint: "交你算出的 OEE / 可用率 / 表現 / 良率,對照平台累積值。" },
   { key: "anomaly", label: "異常判斷 · W6", hint: "勾出你判斷為異常的設備,對照本週實際被動手腳的設備(F1)。" },
+  { key: "aggregate", label: "時序聚合 · W7", hint: "交某 tag 在某小時(0–23)的平均,對照依 hour-of-day 重取樣的真值。" },
+  { key: "events", label: "事件流 · W10", hint: "交本週該設備的完工工單數(訂閱事件 / 計 done),對照 MES 實際完工數。" },
+  { key: "oee", label: "OEE 指標 · W11", hint: "交你算出的 OEE / 可用率 / 表現 / 良率,對照平台累積值。" },
 ];
 
 export default function SubmissionForm({
@@ -23,6 +25,7 @@ export default function SubmissionForm({
   const [tag, setTag] = useState("");
   const [metric, setMetric] = useState("mean");
   const [metricOee, setMetricOee] = useState("oee");
+  const [hour, setHour] = useState("14");
   const [value, setValue] = useState("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [week, setWeek] = useState<string>("");
@@ -53,9 +56,10 @@ export default function SubmissionForm({
         payload.devices = [...picked];
       } else {
         payload.device = device;
-        if (type === "connect" || type === "stats") payload.tag = tag;
+        if (type === "connect" || type === "stats" || type === "aggregate") payload.tag = tag;
         if (type === "stats") payload.metric = metric;
         if (type === "oee") payload.metric = metricOee;
+        if (type === "aggregate") payload.hour = Number(hour);
         const num = parseFloat(value);
         if (Number.isNaN(num)) { setErr("請輸入數字結果"); setBusy(false); return; }
         payload.value = num;
@@ -93,12 +97,16 @@ export default function SubmissionForm({
           </F>
         )}
 
-        {(type === "connect" || type === "stats") && (
+        {(type === "connect" || type === "stats" || type === "aggregate") && (
           <F label="tag">
             <select className="inp" value={tag} onChange={(e) => setTag(e.target.value)}>
               {tags.map((t) => <option key={t}>{t}</option>)}
             </select>
           </F>
+        )}
+
+        {type === "aggregate" && (
+          <F label="小時 0–23"><input className="inp mono" value={hour} onChange={(e) => setHour(e.target.value)} style={{ width: 56 }} /></F>
         )}
 
         {type === "stats" && (

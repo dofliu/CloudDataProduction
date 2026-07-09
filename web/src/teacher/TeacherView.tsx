@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import {
   Park, TelemetryMsg, HealthGT, Ticket, ScoreRow, PredScoreRow, ScenarioScript, ScenarioStatus,
-  CourseWeek, CourseStatus,
+  CourseWeek, CourseStatus, GradebookRow,
   setTeacherToken, getTeacherToken, setClock,
   injectFault, resetDevice, getHealth, getTickets, ackTicket, resolveTicket, getScores, getPredictionScores,
   getScenarios, runScenario, stopScenario, createFactory, resetSession,
-  getCourseWeeks, getCourseStatus, applyCourseWeek,
+  getCourseWeeks, getCourseStatus, applyCourseWeek, getGradebook,
 } from "../api";
 
 const FAULT_TYPES = [
@@ -34,6 +34,7 @@ export default function TeacherView({
   const [factoryDesc, setFactoryDesc] = useState("建一間有 3 台機械手臂的公司");
   const [courseWeeks, setCourseWeeks] = useState<CourseWeek[]>([]);
   const [courseStatus, setCourseStatus] = useState<CourseStatus | null>(null);
+  const [gradebook, setGradebook] = useState<GradebookRow[]>([]);
 
   const deviceIds = telemetry ? Object.keys(telemetry.devices) : [];
   const isSensor = ftype.startsWith("sensor_");
@@ -53,6 +54,7 @@ export default function TeacherView({
       try { setPredScores((await getPredictionScores()).ranking); } catch { /* */ }
       try { const s = await getScenarios(); setScripts(s.scripts); setScenStatus(s.status); } catch { /* */ }
       try { setCourseStatus(await getCourseStatus()); } catch { /* */ }
+      try { setGradebook((await getGradebook()).gradebook); } catch { /* */ }
     };
     tick();
     const id = setInterval(tick, 2000);
@@ -273,6 +275,16 @@ export default function TeacherView({
                 <span key="h" style={{ color: "var(--ok)" }}>{s.hits}</span>,
                 <span key="f" style={{ color: "var(--fault)" }}>{s.false_alarms}</span>,
                 s.avg_lead_time_h ?? "—", <b key="b">{s.score}</b>])} empty="尚無預測(student_kit p3 上傳)" />
+          </div>
+
+          <div className="card" style={{ padding: "12px 14px" }}>
+            <div className="card-title">📗 作業成績冊(自動批改)</div>
+            <MiniTable head={["#", "學生", "作業數", "平均"]}
+              rows={gradebook.slice(0, 12).map((g, i) => [
+                String(i + 1), g.student, g.count,
+                <b key="b" style={{ color: g.avg >= 60 ? "var(--ok)" : "var(--warn)" }}>{g.avg}</b>,
+              ])} empty="尚無繳交(學生任務中心可繳交作業)" />
+            <div className="hint" style={{ margin: "6px 0 0" }}>每項作業取最佳分彙整平均;期末專題人工 rubric 另計後併入。</div>
           </div>
 
           <div className="card" style={{ borderColor: "#4a2620", background: "#160f10" }}>

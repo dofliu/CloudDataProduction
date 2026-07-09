@@ -205,6 +205,17 @@ export const getSubmissions = (student?: string, week?: string, type?: string) =
   const qs = q.toString();
   return getJSON<{ submissions: SubmissionResult[] }>(`/api/submissions${qs ? `?${qs}` : ""}`);
 };
+export interface GradebookRow {
+  student: string; count: number; avg: number;
+  assignments: { type: string; week: string | null; score: number }[];
+}
+export const getGradebook = (week?: string, type?: string) => {
+  const q = new URLSearchParams();
+  if (week) q.set("week", week);
+  if (type) q.set("type", type);
+  const qs = q.toString();
+  return getJSON<{ gradebook: GradebookRow[] }>(`/api/submissions/gradebook${qs ? `?${qs}` : ""}`);
+};
 export const getSubmissionsLeaderboard = (week?: string, type?: string) => {
   const q = new URLSearchParams();
   if (week) q.set("week", week);

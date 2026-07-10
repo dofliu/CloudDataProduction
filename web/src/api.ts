@@ -137,8 +137,17 @@ export async function logout() {
   setTeacherToken("");
 }
 export const listUsers = () => getJSON<{ users: UserRow[] }>("/api/auth/users");
-export const createUsers = (users: { username: string; password: string; role?: string }[]) =>
-  post("/api/auth/users", { users }) as Promise<{ created: string[]; skipped: string[] }>;
+export const createUsers = (users: { username: string; password: string; role?: string }[], role?: string) =>
+  post("/api/auth/users", { users, role }) as Promise<{ created: string[]; skipped: string[] }>;
+
+export interface StudentOverviewRow {
+  student: string; has_account: boolean;
+  company: { id: string; name: string; devices: number } | null;
+  submissions: number; assignments_done: number; avg_score: number | null;
+  tickets_open: number; tickets_resolved: number;
+  predictions: number; pred_hits: number;
+}
+export const getStudentsOverview = () => getJSON<{ students: StudentOverviewRow[] }>("/api/students/overview");
 export const resetUserPassword = (username: string, password: string) =>
   post(`/api/auth/users/${encodeURIComponent(username)}/password`, { password });
 export const deleteUser = (username: string) =>

@@ -7,6 +7,7 @@ import {
   getScenarios, runScenario, stopScenario, createFactory, resetSession,
   getCourseWeeks, getCourseStatus, applyCourseWeek, getGradebook,
   UserRow, listUsers, createUsers, resetUserPassword, deleteUser,
+  StudentOverviewRow, getStudentsOverview,
 } from "../api";
 
 const FAULT_TYPES = [
@@ -38,6 +39,8 @@ export default function TeacherView({
   const [gradebook, setGradebook] = useState<GradebookRow[]>([]);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [roster, setRoster] = useState("s001, pw001\ns002, pw002");
+  const [newRole, setNewRole] = useState<"student" | "teacher">("student");
+  const [overview, setOverview] = useState<StudentOverviewRow[]>([]);
 
   const deviceIds = telemetry ? Object.keys(telemetry.devices) : [];
   const isSensor = ftype.startsWith("sensor_");
@@ -59,6 +62,7 @@ export default function TeacherView({
       try { setCourseStatus(await getCourseStatus()); } catch { /* */ }
       try { setGradebook((await getGradebook()).gradebook); } catch { /* */ }
       try { setUsers((await listUsers()).users); } catch { /* 未登入教師會 401 */ }
+      try { setOverview((await getStudentsOverview()).students); } catch { /* */ }
     };
     tick();
     const id = setInterval(tick, 2000);
@@ -85,8 +89,8 @@ export default function TeacherView({
     }).filter((u) => u.username);
     if (!list.length) { setMsg("名冊是空的(一行一個:帳號, 密碼)"); return; }
     try {
-      const r = await createUsers(list);
-      setMsg(`✅ 已建立 ${r.created.length} 個帳號${r.skipped.length ? `,略過 ${r.skipped.length}(已存在/格式錯)` : ""}`);
+      const r = await createUsers(list, newRole);
+      setMsg(`✅ 已建立 ${r.created.length} 個${newRole === "teacher" ? "教師" : "學生"}帳號${r.skipped.length ? `,略過 ${r.skipped.length}(已存在/格式錯)` : ""}`);
       setUsers((await listUsers()).users);
     } catch (e: any) {
       const hint = String(e.message).includes("401") ? "先填 dev-teacher-token / 教師帳號登入" : "";
@@ -206,14 +210,24 @@ export default function TeacherView({
           </div>
 
           <div className="card">
-            <div className="card-title">👥 學生帳號(名冊)</div>
+            <div className="card-title">👥 帳號管理(名冊)</div>
             <div className="hint" style={{ margin: "0 0 8px" }}>
-              一行一個「帳號, 密碼」批次建立(密碼省略則同帳號)。學生用帳密登入,只看得到任務中心 / 目錄 / 學生面,且只能改自己認領公司的設備。
+              一行一個「帳號, 密碼」批次建立(密碼省略則同帳號)。學生用帳密登入,只看得到任務中心 / 目錄 / 學生面,且只能改自己認領公司的設備;教師帳號可進控制台。
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+              <span className="muted" style={{ fontSize: 11.5 }}>建立角色:</span>
+              {(["student", "teacher"] as const).map((r) => (
+                <button key={r} className={`chip${newRole === r ? " on" : ""}`} style={{ cursor: "pointer" }} onClick={() => setNewRole(r)}>
+                  {r === "student" ? "🎓 學生" : "🧑‍🏫 教師"}
+                </button>
+              ))}
             </div>
             <div style={{ display: "flex", gap: 10, alignItems: "flex-start", flexWrap: "wrap" }}>
               <textarea className="inp mono" value={roster} onChange={(e) => setRoster(e.target.value)}
                         rows={4} style={{ flex: 1, minWidth: 220, resize: "vertical", fontSize: 12 }} placeholder={"s001, pw001\ns002, pw002"} />
-              <button className="btn" style={{ background: "var(--ok)", color: "#08121e" }} onClick={doCreateRoster}>＋ 建立帳號</button>
+              <button className="btn" style={{ background: "var(--ok)", color: "#08121e" }} onClick={doCreateRoster}>
+                ＋ 建立{newRole === "teacher" ? "教師" : "學生"}
+              </button>
             </div>
             {users.length > 0 && (
               <div style={{ marginTop: 10 }}>
@@ -332,6 +346,25 @@ export default function TeacherView({
                 <span key="h" style={{ color: "var(--ok)" }}>{s.hits}</span>,
                 <span key="f" style={{ color: "var(--fault)" }}>{s.false_alarms}</span>,
                 s.avg_lead_time_h ?? "—", <b key="b">{s.score}</b>])} empty="尚無預測(student_kit p3 上傳)" />
+          </div>
+
+          <div className="card" style={{ padding: "12px 14px" }}>
+            <div className="card-title">📋 學生進度總覽</div>
+            <MiniTable head={["學生", "認領", "作業", "工單", "預測"]}
+              rows={overview.slice(0, 30).map((s) => [
+                <span key="u" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  {s.has_account ? "" : <span title="無帳號(legacy)" style={{ color: "var(--dim)" }}>·</span>}{s.student}
+                </span>,
+                s.company ? <span key="c" title={`${s.company.devices} 台`}>{s.company.name}</span> : <span key="c" className="muted">—</span>,
+                s.assignments_done > 0
+                  ? <span key="a"><b style={{ color: (s.avg_score ?? 0) >= 60 ? "var(--ok)" : "var(--warn)" }}>{s.avg_score}</b> <span className="muted">({s.assignments_done})</span></span>
+                  : <span key="a" className="muted">—</span>,
+                (s.tickets_open + s.tickets_resolved) > 0
+                  ? <span key="t"><span style={{ color: s.tickets_open ? "var(--fault)" : "var(--muted)" }}>{s.tickets_open}</span>/<span style={{ color: "var(--ok)" }}>{s.tickets_resolved}</span></span>
+                  : <span key="t" className="muted">—</span>,
+                s.predictions > 0 ? <span key="p"><span style={{ color: "var(--ok)" }}>{s.pred_hits}</span>/{s.predictions}</span> : <span key="p" className="muted">—</span>,
+              ])} empty="尚無學生資料(建立帳號後,學生登入即出現)" />
+            <div className="hint" style={{ margin: "6px 0 0" }}>作業=平均分(完成項數) · 工單=開/結 · 預測=命中/送出。</div>
           </div>
 
           <div className="card" style={{ padding: "12px 14px" }}>

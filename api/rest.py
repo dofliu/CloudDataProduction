@@ -296,6 +296,41 @@ def create_app(
     def auth_delete_user(username: str):
         return {"deleted": auth.delete_user(username)}
 
+    @app.get("/api/students/overview", dependencies=[Depends(require_teacher)])
+    def students_overview():
+        """教師面:每位學生的進度總覽(認領 / 作業 / 工單 / 預測),一次組好。"""
+        gb = {r["student"]: r for r in submissions.gradebook()}
+        pred = {r["student"]: r for r in predictions.scores().get("ranking", [])}
+        comp_by_owner = {}
+        for c in world.park.get("companies", []):
+            if c.get("owner"):
+                comp_by_owner[c["owner"]] = c
+        # 名單 = 學生帳號 ∪ 有認領 / 繳交 / 預測足跡者(涵蓋 legacy 免帳號資料)
+        names = {u["username"] for u in auth.list_users() if u["role"] == "student"}
+        names |= set(comp_by_owner) | set(gb) | set(pred)
+        accounts = {u["username"] for u in auth.list_users()}
+        rows = []
+        for name in sorted(names):
+            c = comp_by_owner.get(name)
+            subs = submissions.list(student=name)
+            tk = tickets.list(owner=name)
+            g = gb.get(name)
+            p = pred.get(name)
+            rows.append({
+                "student": name,
+                "has_account": name in accounts,
+                "company": {"id": c["id"], "name": c.get("name"),
+                            "devices": len(c.get("devices", []) or [])} if c else None,
+                "submissions": len(subs),
+                "assignments_done": g["count"] if g else 0,
+                "avg_score": g["avg"] if g else None,
+                "tickets_open": sum(1 for t in tk if t["status"] in ("open", "acked")),
+                "tickets_resolved": sum(1 for t in tk if t["status"] == "resolved"),
+                "predictions": p["predictions"] if p else 0,
+                "pred_hits": p["hits"] if p else 0,
+            })
+        return {"students": rows}
+
     # ── 公開學生面 ─────────────────────────────────────────
     # 註:根路徑 "/" 保留給前端靜態檔(設 WEB_DIST 時);此為 API 資訊索引。
     @app.get("/api")

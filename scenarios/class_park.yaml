@@ -1,0 +1,546 @@
+# 課堂場景(60+ 人可各認一間公司,期中前個人作業)。
+# ⚠ 全為合成(synthetic)教學資料,非任何真實公司產線;公司名為教學代號。
+# 每間至少 1 台 producer(會生產/退化),部分配 1 台公用設備。協定定址由引擎自動配。
+park:
+  name: "智慧工業區 · 課堂版(64 廠)"
+  sim:
+    tick_hz: 2
+    time_multiplier: 120
+    broadcast_interval_s: 5
+  mes: {enabled: true}
+  protocol_mode: channel_mux
+  ports: {modbus: 6020, opcua: 6041, mqtt: 6083}
+
+  companies:
+    - id: c01
+      name: "教學廠 01"
+      industry: machine_tool
+      product: "CNC 加工中心"
+      intro: "課堂教學用合成廠(#01);主力 CNC 加工中心。"
+      devices:
+        - {id: d001, template: cnc_machining_center}
+
+    - id: c02
+      name: "教學廠 02"
+      industry: machine_tool
+      product: "CNC 車銑複合"
+      intro: "課堂教學用合成廠(#02);主力 CNC 車銑複合。"
+      devices:
+        - {id: d002, template: cnc_machining_center}
+
+    - id: c03
+      name: "教學廠 03"
+      industry: plastics
+      product: "塑膠射出成型機"
+      intro: "課堂教學用合成廠(#03);主力 塑膠射出成型機。"
+      devices:
+        - {id: d003, template: injection_molding}
+        - {id: d004, template: energy_meter}
+
+    - id: c04
+      name: "教學廠 04"
+      industry: motion_robotics
+      product: "六軸機械手臂"
+      intro: "課堂教學用合成廠(#04);主力 六軸機械手臂。"
+      devices:
+        - {id: d005, template: robot_arm_6axis}
+
+    - id: c05
+      name: "教學廠 05"
+      industry: metal_forming
+      product: "沖壓機"
+      intro: "課堂教學用合成廠(#05);主力 沖壓機。"
+      devices:
+        - {id: d006, template: stamping_press}
+
+    - id: c06
+      name: "教學廠 06"
+      industry: heat_treat
+      product: "熱處理爐"
+      intro: "課堂教學用合成廠(#06);主力 熱處理爐。"
+      devices:
+        - {id: d007, template: heat_treat_furnace}
+        - {id: d008, template: agv_mobile_robot}
+
+    - id: c07
+      name: "教學廠 07"
+      industry: semiconductor
+      product: "半導體製程腔體"
+      intro: "課堂教學用合成廠(#07);主力 半導體製程腔體。"
+      devices:
+        - {id: d009, template: semi_process_chamber}
+
+    - id: c08
+      name: "教學廠 08"
+      industry: machine_tool
+      product: "CNC 加工中心"
+      intro: "課堂教學用合成廠(#08);主力 CNC 加工中心。"
+      devices:
+        - {id: d010, template: cnc_machining_center}
+
+    - id: c09
+      name: "教學廠 09"
+      industry: machine_tool
+      product: "CNC 車銑複合"
+      intro: "課堂教學用合成廠(#09);主力 CNC 車銑複合。"
+      devices:
+        - {id: d011, template: cnc_machining_center}
+        - {id: d012, template: air_compressor}
+
+    - id: c10
+      name: "教學廠 10"
+      industry: plastics
+      product: "塑膠射出成型機"
+      intro: "課堂教學用合成廠(#10);主力 塑膠射出成型機。"
+      devices:
+        - {id: d013, template: injection_molding}
+
+    - id: c11
+      name: "教學廠 11"
+      industry: motion_robotics
+      product: "六軸機械手臂"
+      intro: "課堂教學用合成廠(#11);主力 六軸機械手臂。"
+      devices:
+        - {id: d014, template: robot_arm_6axis}
+
+    - id: c12
+      name: "教學廠 12"
+      industry: metal_forming
+      product: "沖壓機"
+      intro: "課堂教學用合成廠(#12);主力 沖壓機。"
+      devices:
+        - {id: d015, template: stamping_press}
+        - {id: d016, template: energy_meter}
+
+    - id: c13
+      name: "教學廠 13"
+      industry: heat_treat
+      product: "熱處理爐"
+      intro: "課堂教學用合成廠(#13);主力 熱處理爐。"
+      devices:
+        - {id: d017, template: heat_treat_furnace}
+
+    - id: c14
+      name: "教學廠 14"
+      industry: semiconductor
+      product: "半導體製程腔體"
+      intro: "課堂教學用合成廠(#14);主力 半導體製程腔體。"
+      devices:
+        - {id: d018, template: semi_process_chamber}
+
+    - id: c15
+      name: "教學廠 15"
+      industry: machine_tool
+      product: "CNC 加工中心"
+      intro: "課堂教學用合成廠(#15);主力 CNC 加工中心。"
+      devices:
+        - {id: d019, template: cnc_machining_center}
+        - {id: d020, template: agv_mobile_robot}
+
+    - id: c16
+      name: "教學廠 16"
+      industry: machine_tool
+      product: "CNC 車銑複合"
+      intro: "課堂教學用合成廠(#16);主力 CNC 車銑複合。"
+      devices:
+        - {id: d021, template: cnc_machining_center}
+
+    - id: c17
+      name: "教學廠 17"
+      industry: plastics
+      product: "塑膠射出成型機"
+      intro: "課堂教學用合成廠(#17);主力 塑膠射出成型機。"
+      devices:
+        - {id: d022, template: injection_molding}
+
+    - id: c18
+      name: "教學廠 18"
+      industry: motion_robotics
+      product: "六軸機械手臂"
+      intro: "課堂教學用合成廠(#18);主力 六軸機械手臂。"
+      devices:
+        - {id: d023, template: robot_arm_6axis}
+        - {id: d024, template: air_compressor}
+
+    - id: c19
+      name: "教學廠 19"
+      industry: metal_forming
+      product: "沖壓機"
+      intro: "課堂教學用合成廠(#19);主力 沖壓機。"
+      devices:
+        - {id: d025, template: stamping_press}
+
+    - id: c20
+      name: "教學廠 20"
+      industry: heat_treat
+      product: "熱處理爐"
+      intro: "課堂教學用合成廠(#20);主力 熱處理爐。"
+      devices:
+        - {id: d026, template: heat_treat_furnace}
+
+    - id: c21
+      name: "教學廠 21"
+      industry: semiconductor
+      product: "半導體製程腔體"
+      intro: "課堂教學用合成廠(#21);主力 半導體製程腔體。"
+      devices:
+        - {id: d027, template: semi_process_chamber}
+        - {id: d028, template: energy_meter}
+
+    - id: c22
+      name: "教學廠 22"
+      industry: machine_tool
+      product: "CNC 加工中心"
+      intro: "課堂教學用合成廠(#22);主力 CNC 加工中心。"
+      devices:
+        - {id: d029, template: cnc_machining_center}
+
+    - id: c23
+      name: "教學廠 23"
+      industry: machine_tool
+      product: "CNC 車銑複合"
+      intro: "課堂教學用合成廠(#23);主力 CNC 車銑複合。"
+      devices:
+        - {id: d030, template: cnc_machining_center}
+
+    - id: c24
+      name: "教學廠 24"
+      industry: plastics
+      product: "塑膠射出成型機"
+      intro: "課堂教學用合成廠(#24);主力 塑膠射出成型機。"
+      devices:
+        - {id: d031, template: injection_molding}
+        - {id: d032, template: agv_mobile_robot}
+
+    - id: c25
+      name: "教學廠 25"
+      industry: motion_robotics
+      product: "六軸機械手臂"
+      intro: "課堂教學用合成廠(#25);主力 六軸機械手臂。"
+      devices:
+        - {id: d033, template: robot_arm_6axis}
+
+    - id: c26
+      name: "教學廠 26"
+      industry: metal_forming
+      product: "沖壓機"
+      intro: "課堂教學用合成廠(#26);主力 沖壓機。"
+      devices:
+        - {id: d034, template: stamping_press}
+
+    - id: c27
+      name: "教學廠 27"
+      industry: heat_treat
+      product: "熱處理爐"
+      intro: "課堂教學用合成廠(#27);主力 熱處理爐。"
+      devices:
+        - {id: d035, template: heat_treat_furnace}
+        - {id: d036, template: air_compressor}
+
+    - id: c28
+      name: "教學廠 28"
+      industry: semiconductor
+      product: "半導體製程腔體"
+      intro: "課堂教學用合成廠(#28);主力 半導體製程腔體。"
+      devices:
+        - {id: d037, template: semi_process_chamber}
+
+    - id: c29
+      name: "教學廠 29"
+      industry: machine_tool
+      product: "CNC 加工中心"
+      intro: "課堂教學用合成廠(#29);主力 CNC 加工中心。"
+      devices:
+        - {id: d038, template: cnc_machining_center}
+
+    - id: c30
+      name: "教學廠 30"
+      industry: machine_tool
+      product: "CNC 車銑複合"
+      intro: "課堂教學用合成廠(#30);主力 CNC 車銑複合。"
+      devices:
+        - {id: d039, template: cnc_machining_center}
+        - {id: d040, template: energy_meter}
+
+    - id: c31
+      name: "教學廠 31"
+      industry: plastics
+      product: "塑膠射出成型機"
+      intro: "課堂教學用合成廠(#31);主力 塑膠射出成型機。"
+      devices:
+        - {id: d041, template: injection_molding}
+
+    - id: c32
+      name: "教學廠 32"
+      industry: motion_robotics
+      product: "六軸機械手臂"
+      intro: "課堂教學用合成廠(#32);主力 六軸機械手臂。"
+      devices:
+        - {id: d042, template: robot_arm_6axis}
+
+    - id: c33
+      name: "教學廠 33"
+      industry: metal_forming
+      product: "沖壓機"
+      intro: "課堂教學用合成廠(#33);主力 沖壓機。"
+      devices:
+        - {id: d043, template: stamping_press}
+        - {id: d044, template: agv_mobile_robot}
+
+    - id: c34
+      name: "教學廠 34"
+      industry: heat_treat
+      product: "熱處理爐"
+      intro: "課堂教學用合成廠(#34);主力 熱處理爐。"
+      devices:
+        - {id: d045, template: heat_treat_furnace}
+
+    - id: c35
+      name: "教學廠 35"
+      industry: semiconductor
+      product: "半導體製程腔體"
+      intro: "課堂教學用合成廠(#35);主力 半導體製程腔體。"
+      devices:
+        - {id: d046, template: semi_process_chamber}
+
+    - id: c36
+      name: "教學廠 36"
+      industry: machine_tool
+      product: "CNC 加工中心"
+      intro: "課堂教學用合成廠(#36);主力 CNC 加工中心。"
+      devices:
+        - {id: d047, template: cnc_machining_center}
+        - {id: d048, template: air_compressor}
+
+    - id: c37
+      name: "教學廠 37"
+      industry: machine_tool
+      product: "CNC 車銑複合"
+      intro: "課堂教學用合成廠(#37);主力 CNC 車銑複合。"
+      devices:
+        - {id: d049, template: cnc_machining_center}
+
+    - id: c38
+      name: "教學廠 38"
+      industry: plastics
+      product: "塑膠射出成型機"
+      intro: "課堂教學用合成廠(#38);主力 塑膠射出成型機。"
+      devices:
+        - {id: d050, template: injection_molding}
+
+    - id: c39
+      name: "教學廠 39"
+      industry: motion_robotics
+      product: "六軸機械手臂"
+      intro: "課堂教學用合成廠(#39);主力 六軸機械手臂。"
+      devices:
+        - {id: d051, template: robot_arm_6axis}
+        - {id: d052, template: energy_meter}
+
+    - id: c40
+      name: "教學廠 40"
+      industry: metal_forming
+      product: "沖壓機"
+      intro: "課堂教學用合成廠(#40);主力 沖壓機。"
+      devices:
+        - {id: d053, template: stamping_press}
+
+    - id: c41
+      name: "教學廠 41"
+      industry: heat_treat
+      product: "熱處理爐"
+      intro: "課堂教學用合成廠(#41);主力 熱處理爐。"
+      devices:
+        - {id: d054, template: heat_treat_furnace}
+
+    - id: c42
+      name: "教學廠 42"
+      industry: semiconductor
+      product: "半導體製程腔體"
+      intro: "課堂教學用合成廠(#42);主力 半導體製程腔體。"
+      devices:
+        - {id: d055, template: semi_process_chamber}
+        - {id: d056, template: agv_mobile_robot}
+
+    - id: c43
+      name: "教學廠 43"
+      industry: machine_tool
+      product: "CNC 加工中心"
+      intro: "課堂教學用合成廠(#43);主力 CNC 加工中心。"
+      devices:
+        - {id: d057, template: cnc_machining_center}
+
+    - id: c44
+      name: "教學廠 44"
+      industry: machine_tool
+      product: "CNC 車銑複合"
+      intro: "課堂教學用合成廠(#44);主力 CNC 車銑複合。"
+      devices:
+        - {id: d058, template: cnc_machining_center}
+
+    - id: c45
+      name: "教學廠 45"
+      industry: plastics
+      product: "塑膠射出成型機"
+      intro: "課堂教學用合成廠(#45);主力 塑膠射出成型機。"
+      devices:
+        - {id: d059, template: injection_molding}
+        - {id: d060, template: air_compressor}
+
+    - id: c46
+      name: "教學廠 46"
+      industry: motion_robotics
+      product: "六軸機械手臂"
+      intro: "課堂教學用合成廠(#46);主力 六軸機械手臂。"
+      devices:
+        - {id: d061, template: robot_arm_6axis}
+
+    - id: c47
+      name: "教學廠 47"
+      industry: metal_forming
+      product: "沖壓機"
+      intro: "課堂教學用合成廠(#47);主力 沖壓機。"
+      devices:
+        - {id: d062, template: stamping_press}
+
+    - id: c48
+      name: "教學廠 48"
+      industry: heat_treat
+      product: "熱處理爐"
+      intro: "課堂教學用合成廠(#48);主力 熱處理爐。"
+      devices:
+        - {id: d063, template: heat_treat_furnace}
+        - {id: d064, template: energy_meter}
+
+    - id: c49
+      name: "教學廠 49"
+      industry: semiconductor
+      product: "半導體製程腔體"
+      intro: "課堂教學用合成廠(#49);主力 半導體製程腔體。"
+      devices:
+        - {id: d065, template: semi_process_chamber}
+
+    - id: c50
+      name: "教學廠 50"
+      industry: machine_tool
+      product: "CNC 加工中心"
+      intro: "課堂教學用合成廠(#50);主力 CNC 加工中心。"
+      devices:
+        - {id: d066, template: cnc_machining_center}
+
+    - id: c51
+      name: "教學廠 51"
+      industry: machine_tool
+      product: "CNC 車銑複合"
+      intro: "課堂教學用合成廠(#51);主力 CNC 車銑複合。"
+      devices:
+        - {id: d067, template: cnc_machining_center}
+        - {id: d068, template: agv_mobile_robot}
+
+    - id: c52
+      name: "教學廠 52"
+      industry: plastics
+      product: "塑膠射出成型機"
+      intro: "課堂教學用合成廠(#52);主力 塑膠射出成型機。"
+      devices:
+        - {id: d069, template: injection_molding}
+
+    - id: c53
+      name: "教學廠 53"
+      industry: motion_robotics
+      product: "六軸機械手臂"
+      intro: "課堂教學用合成廠(#53);主力 六軸機械手臂。"
+      devices:
+        - {id: d070, template: robot_arm_6axis}
+
+    - id: c54
+      name: "教學廠 54"
+      industry: metal_forming
+      product: "沖壓機"
+      intro: "課堂教學用合成廠(#54);主力 沖壓機。"
+      devices:
+        - {id: d071, template: stamping_press}
+        - {id: d072, template: air_compressor}
+
+    - id: c55
+      name: "教學廠 55"
+      industry: heat_treat
+      product: "熱處理爐"
+      intro: "課堂教學用合成廠(#55);主力 熱處理爐。"
+      devices:
+        - {id: d073, template: heat_treat_furnace}
+
+    - id: c56
+      name: "教學廠 56"
+      industry: semiconductor
+      product: "半導體製程腔體"
+      intro: "課堂教學用合成廠(#56);主力 半導體製程腔體。"
+      devices:
+        - {id: d074, template: semi_process_chamber}
+
+    - id: c57
+      name: "教學廠 57"
+      industry: machine_tool
+      product: "CNC 加工中心"
+      intro: "課堂教學用合成廠(#57);主力 CNC 加工中心。"
+      devices:
+        - {id: d075, template: cnc_machining_center}
+        - {id: d076, template: energy_meter}
+
+    - id: c58
+      name: "教學廠 58"
+      industry: machine_tool
+      product: "CNC 車銑複合"
+      intro: "課堂教學用合成廠(#58);主力 CNC 車銑複合。"
+      devices:
+        - {id: d077, template: cnc_machining_center}
+
+    - id: c59
+      name: "教學廠 59"
+      industry: plastics
+      product: "塑膠射出成型機"
+      intro: "課堂教學用合成廠(#59);主力 塑膠射出成型機。"
+      devices:
+        - {id: d078, template: injection_molding}
+
+    - id: c60
+      name: "教學廠 60"
+      industry: motion_robotics
+      product: "六軸機械手臂"
+      intro: "課堂教學用合成廠(#60);主力 六軸機械手臂。"
+      devices:
+        - {id: d079, template: robot_arm_6axis}
+        - {id: d080, template: agv_mobile_robot}
+
+    - id: c61
+      name: "教學廠 61"
+      industry: metal_forming
+      product: "沖壓機"
+      intro: "課堂教學用合成廠(#61);主力 沖壓機。"
+      devices:
+        - {id: d081, template: stamping_press}
+
+    - id: c62
+      name: "教學廠 62"
+      industry: heat_treat
+      product: "熱處理爐"
+      intro: "課堂教學用合成廠(#62);主力 熱處理爐。"
+      devices:
+        - {id: d082, template: heat_treat_furnace}
+
+    - id: c63
+      name: "教學廠 63"
+      industry: semiconductor
+      product: "半導體製程腔體"
+      intro: "課堂教學用合成廠(#63);主力 半導體製程腔體。"
+      devices:
+        - {id: d083, template: semi_process_chamber}
+        - {id: d084, template: air_compressor}
+
+    - id: c64
+      name: "教學廠 64"
+      industry: machine_tool
+      product: "CNC 加工中心"
+      intro: "課堂教學用合成廠(#64);主力 CNC 加工中心。"
+      devices:
+        - {id: d085, template: cnc_machining_center}

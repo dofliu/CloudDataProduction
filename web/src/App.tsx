@@ -13,8 +13,12 @@ import OnboardingView from "./onboarding/OnboardingView";
 import GlossaryOverlay from "./help/GlossaryOverlay";
 import TourOverlay from "./tour/TourOverlay";
 import DemoPlayground from "./demo/DemoPlayground";
+import LoginView from "./auth/LoginView";
+import { Session, getSession, setSession, getAuthStatus, getMe, logout as apiLogout } from "./api";
 
 const WARN_STATES = new Set(["alarm", "tool_change", "blocked", "warning"]);
+// 學生登入後看不到的分頁(戰情版 / 教師控制台)。
+const STUDENT_HIDDEN = new Set(["diag", "teacher"]);
 // 關鍵訊號的參考門檻(側欄門檻條上色用;非硬性告警)
 const SIGNAL_THRESH: Record<string, number> = {
   vibration_rms: 6, spindle_current: 12, motor_current: 30, vacuum_pump_current: 12, element_current: 170,
@@ -40,7 +44,26 @@ export default function App() {
   const [tourOpen, setTourOpen] = useState(false);
   const [demoOpen, setDemoOpen] = useState(false);
   const [courseStatus, setCourseStatus] = useState<CourseStatus | null>(null);
+  const [authRequired, setAuthRequired] = useState(false);
+  const [me, setMe] = useState<Session | null>(getSession());
+  const [authReady, setAuthReady] = useState(false);
   const telemetryRef = useRef<TelemetryMsg | null>(null);
+
+  // 身分:查是否啟用驗證;若有 session 先驗一次(角色可能變動 / token 失效)。
+  useEffect(() => {
+    getAuthStatus().then((s) => setAuthRequired(s.auth_required)).catch(() => {}).finally(() => {});
+    const s = getSession();
+    if (s) {
+      getMe().then((u) => {
+        const next: Session = { token: s.token, username: u.username === "__admin__" ? "管理員" : u.username, role: u.role };
+        setSession(next); setMe(next); localStorage.setItem("student_id", next.username);
+      }).catch(() => { setSession(null); setMe(null); }).finally(() => setAuthReady(true));
+    } else { setAuthReady(true); }
+  }, []);
+
+  const onAuthed = (s: Session) => { setMe(s); localStorage.setItem("student_id", s.username); };
+  const doLogout = () => { apiLogout(); setMe(null); setView("start"); };
+  const isTeacherRole = me?.role === "teacher";
 
   // 首次進站自動開一次新手導覽(看過就不再打擾;頂欄「🎮 導覽」可重播)。
   useEffect(() => {
@@ -88,6 +111,17 @@ export default function App() {
     else nOk++;
   }
 
+  // 依角色過濾分頁:學生看不到戰情版 / 教師控制台。
+  const visibleTabs = TABS.filter(([k]) => !(me?.role === "student" && STUDENT_HIDDEN.has(k)));
+  useEffect(() => {
+    if (me?.role === "student" && STUDENT_HIDDEN.has(view)) setView("start");
+  }, [me, view]);
+
+  // 啟用身分驗證且尚未登入 → 擋在登入頁。
+  if (authReady && authRequired && !me) {
+    return <LoginView parkName={park?.name ?? "智慧工業區"} onAuthed={onAuthed} />;
+  }
+
   return (
     <div className="app">
       <header className="topbar">
@@ -95,7 +129,7 @@ export default function App() {
         <h1>{park?.name ?? "勤益智慧工業區"}</h1>
         <span className="synthetic">合成數據 SYNTHETIC</span>
         <nav className="nav" style={{ marginLeft: 8 }} data-tour="nav">
-          {TABS.map(([k, label]) => (
+          {visibleTabs.map(([k, label]) => (
             <button key={k} data-tour={`tab-${k}`} className={view === k ? "active" : ""} onClick={() => setView(k as typeof view)}>{label}</button>
           ))}
         </nav>
@@ -111,6 +145,12 @@ export default function App() {
         <button className="btn ghost" style={{ padding: "5px 11px" }} onClick={() => setDemoOpen(true)} title="看一個完整的故障處置範例(全程模擬)">▶ 範例</button>
         <button className="btn ghost" style={{ padding: "5px 11px" }} onClick={() => setTourOpen(true)} title="重新播放新手導覽">🎮 導覽</button>
         <button className="btn ghost" style={{ padding: "5px 11px" }} data-tour="help" onClick={() => setHelpOpen(true)} title="名詞速查(Modbus / OEE / RUL …)">❓ 名詞</button>
+        {me && (
+          <span className="pill" style={{ gap: 8, color: isTeacherRole ? "var(--warn)" : "var(--ok)" }}>
+            {isTeacherRole ? "🧑‍🏫" : "🎓"} {me.username}
+            <button className="btn ghost" style={{ padding: "2px 8px", fontSize: 11 }} onClick={doLogout} title="登出">登出</button>
+          </span>
+        )}
       </header>
 
       {helpOpen && <GlossaryOverlay onClose={() => setHelpOpen(false)} />}
@@ -132,7 +172,8 @@ export default function App() {
           </div>
         ) : view === "start" ? (
           <OnboardingView park={park} telemetry={telemetry} catalog={catalog} onNav={setView}
-                          onOpenTour={() => setTourOpen(true)} onOpenDemo={() => setDemoOpen(true)} courseStatus={courseStatus} />
+                          onOpenTour={() => setTourOpen(true)} onOpenDemo={() => setDemoOpen(true)} courseStatus={courseStatus}
+                          lockedIdentity={me?.role === "student" ? me.username : undefined} />
         ) : view === "world" ? (
           <>
             <div className="stage">

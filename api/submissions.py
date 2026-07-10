@@ -18,6 +18,19 @@ from statistics import mean, pstdev
 from typing import Dict, List, Optional
 
 
+def _pearson(a: List[float], b: List[float]) -> Optional[float]:
+    n = len(a)
+    if n < 2:
+        return None
+    ma, mb = sum(a) / n, sum(b) / n
+    va = sum((x - ma) ** 2 for x in a)
+    vb = sum((y - mb) ** 2 for y in b)
+    if va <= 1e-12 or vb <= 1e-12:
+        return None
+    cov = sum((a[i] - ma) * (b[i] - mb) for i in range(n))
+    return cov / (va ** 0.5 * vb ** 0.5)
+
+
 def _score_rel(value: float, truth: float, tol: float) -> tuple[float, float]:
     """回傳 (score 0..100, rel_err)。以相對誤差對容差分段給分。"""
     denom = abs(truth) if abs(truth) > 1e-9 else 1.0
@@ -67,6 +80,9 @@ class SubmissionStore:
             "anomaly": self._grade_anomaly,
             "aggregate": self._grade_aggregate,
             "events": self._grade_events,
+            "correlation": self._grade_correlation,
+            "rul": self._grade_rul,
+            "root_cause": self._grade_root_cause,
         }.get(stype)
         if grader is None:
             raise ValueError(f"未知的作業型別:{stype}(可用:connect/stats/oee/anomaly)")
@@ -227,6 +243,79 @@ class SubmissionStore:
         return {"score": score, "passed": score >= 60,
                 "feedback": f"完工工單數:你數 {guess},實際 {truth}(自當週資料窗起算,差 {diff})"
                             + (" ✓" if score >= 60 else " ✗ 訂閱 /ws/events 或輪詢 /api/orders 計 done")}
+
+    # ── 進階題(挑戰) ──────────────────────────────────────
+    async def _grade_correlation(self, payload: dict) -> dict:
+        """挑戰:交兩個 tag 在資料窗內的皮爾森相關係數 r,對照 historian 真值。
+        需自己撈兩條序列、對齊、算相關 —— 遠比單一統計難。r 可由公開資料推得,故回饋顯示真值。"""
+        device = payload.get("device")
+        tag_a = payload.get("tag_a") or payload.get("tag")
+        tag_b = payload.get("tag_b")
+        value = payload.get("value")
+        if not (device and tag_a and tag_b and value is not None):
+            raise ValueError("correlation 需要 device / tag_a / tag_b / value")
+        t_from, t_to = self._window(payload)
+        ra = await self.historian.query(device, tag_a, t_from, t_to, limit=200000)
+        rb = await self.historian.query(device, tag_b, t_from, t_to, limit=200000)
+        a = [r["value"] for r in ra if r.get("value") is not None]
+        b = [r["value"] for r in rb if r.get("value") is not None]
+        n = min(len(a), len(b))
+        if n < 10:
+            return {"score": 0.0, "passed": False, "feedback": "兩個 tag 在資料窗內的共同樣本不足(<10);確認 tag 名稱與資料窗。"}
+        r = _pearson(a[:n], b[:n])
+        if r is None:
+            return {"score": 0.0, "passed": False, "feedback": "訊號變異不足,相關係數未定義;換一段有變化的資料窗。"}
+        tol = float(payload.get("tolerance", 0.15))    # 相關係數用絕對容差
+        err = abs(float(value) - r)
+        score = 100.0 if err <= tol else (round(100.0 * (2 * tol - err) / tol, 1) if err <= 2 * tol else 0.0)
+        return {"score": score, "passed": score >= 60,
+                "feedback": f"{tag_a} ~ {tag_b} 相關 r={r:.3f}(你算 {float(value):.3f},差 {err:.3f},容差 ±{tol})"
+                            + (" ✓" if score >= 60 else " ✗ 檢查兩序列是否對齊、是否用同一資料窗")}
+
+    async def _grade_rul(self, payload: dict) -> dict:
+        """挑戰:估計某設備「距離故障還有幾小時」(RUL),對照隱藏 ground-truth。
+        **不透露正解**(那是隱藏健康狀態,洩漏會破壞預測遊戲),只回饋在容差內與否 + 方向。"""
+        device = payload.get("device")
+        value = payload.get("value")
+        if device is None or value is None:
+            raise ValueError("rul 需要 device / value(估計:距故障還有幾小時)")
+        dev = self.world.devices.get(device)
+        if dev is None:
+            return {"score": 0.0, "passed": False, "feedback": f"查無設備 {device}"}
+        rul = dev.ground_truth().get("rul_sim_s")
+        if rul is None:
+            return {"score": 0.0, "passed": False,
+                    "feedback": "此設備目前待機或未退化,RUL 未定義;挑一台運轉中且正在退化的設備。"}
+        truth_h = rul / 3600.0
+        tol = max(self._tol(payload), 0.25)            # RUL 本就難,容差放寬
+        score, _ = _score_rel(float(value), truth_h, tol)
+        passed = score >= 60
+        direction = "估計偏高" if float(value) > truth_h * (1 + tol) else "估計偏低" if float(value) < truth_h * (1 - tol) else "很接近"
+        return {"score": score, "passed": passed,
+                "feedback": f"你估距故障 {float(value):.1f} h — "
+                            + ("在容差內 ✓" if passed else f"{direction}(正解不公開:RUL 是隱藏狀態,請靠退化趨勢估)")}
+
+    async def _grade_root_cause(self, payload: dict) -> dict:
+        """挑戰:判斷某設備的異常是「感測器故障(sensor)」還是「設備故障(equipment)」。
+        對照 ground-truth;不透露細節,只回饋對錯 + 判準提示。"""
+        device = payload.get("device")
+        cause = str(payload.get("cause", "")).strip().lower()
+        if device is None or cause not in ("sensor", "equipment"):
+            raise ValueError("root_cause 需要 device / cause(sensor 或 equipment)")
+        dev = self.world.devices.get(device)
+        if dev is None:
+            return {"score": 0.0, "passed": False, "feedback": f"查無設備 {device}"}
+        gt = dev.ground_truth()
+        has_sensor = bool(gt.get("is_sensor_fault"))
+        injected = gt.get("injected") or []
+        has_equip = (gt.get("fault_onset_sim_t") is not None) or any(i.get("kind") == "equipment" for i in injected)
+        if not has_sensor and not has_equip:
+            return {"score": 0.0, "passed": False,
+                    "feedback": "此設備目前無異常;先用多訊號趨勢找出被動過手腳的設備,再判斷根因。"}
+        correct = (cause == "sensor" and has_sensor) or (cause == "equipment" and has_equip)
+        return {"score": 100.0 if correct else 0.0, "passed": correct,
+                "feedback": "✓ 根因判斷正確" if correct else
+                            "✗ 再想:感測器故障=讀值脫鉤真實但健康度不掉;設備故障=多訊號一致惡化、健康度真的退化"}
 
     # ── 輔助 ────────────────────────────────────────────────
     def _window(self, payload: dict) -> tuple[Optional[float], Optional[float]]:

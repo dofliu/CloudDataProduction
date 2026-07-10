@@ -7,14 +7,18 @@ import { Catalog, SubmissionResult, postSubmission, getSubmissions, getCourseSta
  * 目的是讓沒有電腦教室、人多無助教的課,作業能即時自動回饋與計分。
  */
 
-type SubType = "connect" | "stats" | "aggregate" | "anomaly" | "events" | "oee";
-const TYPES: { key: SubType; label: string; hint: string }[] = [
-  { key: "connect", label: "連線讀值 · W2", hint: "交某設備某 tag 的即時讀值,驗證你連對了。" },
-  { key: "stats", label: "敘述統計 · W4/期中", hint: "交一段時間某 tag 的統計(mean/std),對照當週資料窗真值。" },
-  { key: "anomaly", label: "異常判斷 · W6", hint: "勾出你判斷為異常的設備,對照本週實際被動手腳的設備(F1)。" },
-  { key: "aggregate", label: "時序聚合 · W7", hint: "交某 tag 在某小時(0–23)的平均,對照依 hour-of-day 重取樣的真值。" },
-  { key: "events", label: "事件流 · W10", hint: "交本週該設備的完工工單數(訂閱事件 / 計 done),對照 MES 實際完工數。" },
-  { key: "oee", label: "OEE 指標 · W11", hint: "交你算出的 OEE / 可用率 / 表現 / 良率,對照平台累積值。" },
+type SubType = "connect" | "stats" | "aggregate" | "anomaly" | "events" | "oee" | "correlation" | "rul" | "root_cause";
+type Tier = "基礎" | "進階";
+const TYPES: { key: SubType; label: string; tier: Tier; hint: string }[] = [
+  { key: "connect", label: "連線讀值 · W2", tier: "基礎", hint: "交某設備某 tag 的即時讀值,驗證你連對了。" },
+  { key: "stats", label: "敘述統計 · W4/期中", tier: "基礎", hint: "交一段時間某 tag 的統計(mean/std),對照當週資料窗真值。" },
+  { key: "anomaly", label: "異常判斷 · W6", tier: "基礎", hint: "勾出你判斷為異常的設備,對照本週實際被動手腳的設備(F1)。" },
+  { key: "events", label: "事件流 · W10", tier: "基礎", hint: "交本週該設備的完工工單數(訂閱事件 / 計 done),對照 MES 實際完工數。" },
+  { key: "aggregate", label: "時序聚合 · W7", tier: "進階", hint: "交某 tag 在某小時(0–23)的平均,對照依 hour-of-day 重取樣的真值。" },
+  { key: "oee", label: "OEE 指標 · W11", tier: "進階", hint: "交你算出的 OEE / 可用率 / 表現 / 良率,對照平台累積值。" },
+  { key: "correlation", label: "訊號相關 · W8", tier: "進階", hint: "交兩個 tag 的皮爾森相關係數 r;要自己撈兩條序列、對齊、算相關。" },
+  { key: "rul", label: "剩餘壽命 RUL · W14", tier: "進階", hint: "估計某設備距故障還有幾小時;正解不公開(隱藏狀態),靠退化趨勢推。" },
+  { key: "root_cause", label: "根因判斷 · W8", tier: "進階", hint: "判斷某設備異常是「感測器故障」還是「設備故障」。" },
 ];
 
 export default function SubmissionForm({
@@ -26,6 +30,8 @@ export default function SubmissionForm({
   const [metric, setMetric] = useState("mean");
   const [metricOee, setMetricOee] = useState("oee");
   const [hour, setHour] = useState("14");
+  const [tagB, setTagB] = useState("");
+  const [cause, setCause] = useState<"sensor" | "equipment">("equipment");
   const [value, setValue] = useState("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [week, setWeek] = useState<string>("");
@@ -54,9 +60,13 @@ export default function SubmissionForm({
       if (week) payload.week = Number(week);
       if (type === "anomaly") {
         payload.devices = [...picked];
+      } else if (type === "root_cause") {
+        payload.device = device;
+        payload.cause = cause;
       } else {
         payload.device = device;
-        if (type === "connect" || type === "stats" || type === "aggregate") payload.tag = tag;
+        if (type === "connect" || type === "stats" || type === "aggregate" || type === "correlation") payload.tag = tag;
+        if (type === "correlation") { payload.tag_a = tag; payload.tag_b = tagB; }
         if (type === "stats") payload.metric = metric;
         if (type === "oee") payload.metric = metricOee;
         if (type === "aggregate") payload.hour = Number(hour);
@@ -80,7 +90,12 @@ export default function SubmissionForm({
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
         {TYPES.map((t) => (
           <button key={t.key} className={`chip${type === t.key ? " on" : ""}`} onClick={() => { setType(t.key); setResult(null); setErr(""); }}
-                  style={{ cursor: "pointer", fontSize: 12 }}>{t.label}</button>
+                  style={{ cursor: "pointer", fontSize: 12, display: "inline-flex", alignItems: "center", gap: 5 }}>
+            {t.label}
+            <span style={{ fontSize: 9.5, padding: "0 5px", borderRadius: 8, fontWeight: 700,
+                           color: t.tier === "進階" ? "#f0883c" : "#8a94a6",
+                           background: t.tier === "進階" ? "rgba(240,136,60,.14)" : "var(--panel-2)" }}>{t.tier}</span>
+          </button>
         ))}
       </div>
       <div className="hint" style={{ margin: "0 0 10px" }}>{active.hint}</div>
@@ -97,10 +112,28 @@ export default function SubmissionForm({
           </F>
         )}
 
-        {(type === "connect" || type === "stats" || type === "aggregate") && (
-          <F label="tag">
+        {(type === "connect" || type === "stats" || type === "aggregate" || type === "correlation") && (
+          <F label={type === "correlation" ? "tag A" : "tag"}>
             <select className="inp" value={tag} onChange={(e) => setTag(e.target.value)}>
               {tags.map((t) => <option key={t}>{t}</option>)}
+            </select>
+          </F>
+        )}
+
+        {type === "correlation" && (
+          <F label="tag B">
+            <select className="inp" value={tagB} onChange={(e) => setTagB(e.target.value)}>
+              <option value="">— 選另一個 —</option>
+              {tags.map((t) => <option key={t}>{t}</option>)}
+            </select>
+          </F>
+        )}
+
+        {type === "root_cause" && (
+          <F label="根因">
+            <select className="inp" value={cause} onChange={(e) => setCause(e.target.value as "sensor" | "equipment")}>
+              <option value="equipment">設備故障(健康度退化)</option>
+              <option value="sensor">感測器故障(讀值脫鉤)</option>
             </select>
           </F>
         )}
@@ -126,8 +159,9 @@ export default function SubmissionForm({
           </F>
         )}
 
-        {type !== "anomaly" && (
-          <F label="你算出的值"><input className="inp mono" value={value} onChange={(e) => setValue(e.target.value)} placeholder="數字" style={{ width: 110 }} /></F>
+        {type !== "anomaly" && type !== "root_cause" && (
+          <F label={type === "correlation" ? "相關 r (−1~1)" : type === "rul" ? "估計 (小時)" : "你算出的值"}>
+            <input className="inp mono" value={value} onChange={(e) => setValue(e.target.value)} placeholder="數字" style={{ width: 110 }} /></F>
         )}
 
         <button className="btn primary" onClick={submit} disabled={busy || (type === "anomaly" && picked.size === 0 && false)}>

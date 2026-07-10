@@ -7,7 +7,7 @@ import {
   getScenarios, runScenario, stopScenario, createFactory, resetSession,
   getCourseWeeks, getCourseStatus, applyCourseWeek, getGradebook,
   UserRow, listUsers, createUsers, resetUserPassword, deleteUser,
-  StudentOverviewRow, getStudentsOverview,
+  StudentOverviewRow, getStudentsOverview, StudentDetail, getStudentDetail,
 } from "../api";
 
 const FAULT_TYPES = [
@@ -41,6 +41,7 @@ export default function TeacherView({
   const [roster, setRoster] = useState("s001, pw001\ns002, pw002");
   const [newRole, setNewRole] = useState<"student" | "teacher">("student");
   const [overview, setOverview] = useState<StudentOverviewRow[]>([]);
+  const [detail, setDetail] = useState<StudentDetail | null>(null);
 
   const deviceIds = telemetry ? Object.keys(telemetry.devices) : [];
   const isSensor = ftype.startsWith("sensor_");
@@ -105,6 +106,20 @@ export default function TeacherView({
   const doDeleteUser = async (u: string) => {
     if (!window.confirm(`刪除帳號「${u}」?其登入將立即失效。`)) return;
     try { await deleteUser(u); setUsers((await listUsers()).users); setMsg(`已刪除 ${u}`); } catch (e: any) { setMsg(`刪除失敗:${e.message}`); }
+  };
+  const openDetail = async (u: string) => {
+    try { setDetail(await getStudentDetail(u)); } catch (e: any) { setMsg(`讀取細項失敗:${e.message}`); }
+  };
+  const exportCsv = () => {
+    const head = ["學生", "有帳號", "認領公司", "作業完成", "平均分", "工單開", "工單結", "預測送", "預測命中"];
+    const rows = overview.map((s) => [s.student, s.has_account ? "是" : "否", s.company?.name ?? "",
+      s.assignments_done, s.avg_score ?? "", s.tickets_open, s.tickets_resolved, s.predictions, s.pred_hits]);
+    const csv = [head, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });   // BOM:Excel 正確顯示中文
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = "學生成績總覽.csv"; a.click();
+    URL.revokeObjectURL(a.href);
+    setMsg(`已匯出 ${overview.length} 位學生成績 CSV`);
   };
 
   const saveToken = () => { setTeacherToken(token); setMsg("已儲存 teacher token"); };
@@ -349,12 +364,17 @@ export default function TeacherView({
           </div>
 
           <div className="card" style={{ padding: "12px 14px" }}>
-            <div className="card-title">📋 學生進度總覽</div>
+            <div className="card-title" style={{ justifyContent: "space-between" }}>
+              <span>📋 學生進度總覽</span>
+              <button className="btn ghost" style={{ padding: "3px 10px", fontSize: 11 }} onClick={exportCsv} disabled={!overview.length}>⬇ 匯出 CSV</button>
+            </div>
             <MiniTable head={["學生", "認領", "作業", "工單", "預測"]}
-              rows={overview.slice(0, 30).map((s) => [
-                <span key="u" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              rows={overview.slice(0, 40).map((s) => [
+                <button key="u" onClick={() => openDetail(s.student)} title="看細項"
+                        style={{ background: "none", border: "none", padding: 0, color: "var(--accent)", cursor: "pointer",
+                                 fontFamily: "var(--font-mono)", fontSize: 11.5, display: "flex", alignItems: "center", gap: 4 }}>
                   {s.has_account ? "" : <span title="無帳號(legacy)" style={{ color: "var(--dim)" }}>·</span>}{s.student}
-                </span>,
+                </button>,
                 s.company ? <span key="c" title={`${s.company.devices} 台`}>{s.company.name}</span> : <span key="c" className="muted">—</span>,
                 s.assignments_done > 0
                   ? <span key="a"><b style={{ color: (s.avg_score ?? 0) >= 60 ? "var(--ok)" : "var(--warn)" }}>{s.avg_score}</b> <span className="muted">({s.assignments_done})</span></span>
@@ -384,9 +404,63 @@ export default function TeacherView({
           </div>
         </div>
       </div>
+
+      {detail && <StudentDetailModal detail={detail} onClose={() => setDetail(null)} />}
     </div>
   );
 }
+
+function StudentDetailModal({ detail, onClose }: { detail: StudentDetail; onClose: () => void }) {
+  const g: Record<string, SubmissionRow> = {};   // 每項作業取最佳分
+  for (const s of detail.submissions) {
+    const k = `${s.type}·W${s.week ?? "-"}`;
+    if (!g[k] || s.score > g[k].score) g[k] = { key: k, score: s.score, passed: s.passed, feedback: s.feedback };
+  }
+  const assignments = Object.values(g).sort((a, b) => a.key.localeCompare(b.key));
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(4,8,14,0.66)", zIndex: 1100,
+                  display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "6vh 16px", overflowY: "auto" }}>
+      <div onClick={(e) => e.stopPropagation()} className="card float" style={{ width: "min(620px,100%)", padding: "18px 20px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+          <h2 style={{ margin: 0, fontSize: 17 }}>🎓 {detail.student}</h2>
+          <button className="btn ghost" style={{ padding: "4px 12px" }} onClick={onClose}>✕ 關閉</button>
+        </div>
+        <div className="hint" style={{ margin: "0 0 12px" }}>
+          認領:{detail.company ? <b style={{ color: "var(--accent)" }}>{detail.company.name}（{detail.company.device_ids.length} 台）</b> : "未認領"}
+        </div>
+
+        <div className="sec-label" style={{ marginTop: 0 }}>作業(每項最佳分) · {assignments.length}</div>
+        {assignments.length ? (
+          <div style={{ display: "grid", gap: 4, marginBottom: 12 }}>
+            {assignments.map((a) => (
+              <div key={a.key} style={{ display: "flex", gap: 8, alignItems: "baseline", fontSize: 12.5 }}>
+                <span className="mono" style={{ width: 130, flex: "0 0 130px" }}>{a.key}</span>
+                <b style={{ color: a.passed ? "var(--ok)" : "var(--warn)", width: 42 }}>{a.score}</b>
+                <span className="hint" style={{ margin: 0, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.feedback}</span>
+              </div>
+            ))}
+          </div>
+        ) : <div className="hint" style={{ margin: "0 0 12px" }}>尚無繳交</div>}
+
+        <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+          <div>
+            <div className="sec-label" style={{ marginTop: 0 }}>工單 · {detail.tickets.length}</div>
+            {detail.tickets.length ? detail.tickets.slice(0, 8).map((t) => (
+              <div key={t.id} style={{ fontSize: 12 }} className="mono">{t.device} · <span style={{ color: t.status === "resolved" ? "var(--ok)" : "var(--fault)" }}>{t.status}</span></div>
+            )) : <div className="hint" style={{ margin: 0 }}>—</div>}
+          </div>
+          <div>
+            <div className="sec-label" style={{ marginTop: 0 }}>預測 · {detail.predictions.length}</div>
+            {detail.predictions.length ? detail.predictions.slice(0, 8).map((p: any, i: number) => (
+              <div key={i} style={{ fontSize: 12 }} className="mono">{p.device} · <span style={{ color: p.status === "hit" ? "var(--ok)" : p.status === "false" ? "var(--fault)" : "var(--muted)" }}>{p.status}</span></div>
+            )) : <div className="hint" style={{ margin: 0 }}>—</div>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+interface SubmissionRow { key: string; score: number; passed: boolean; feedback: string; }
 
 function Field({ label, children }: { label: string; children: any }) {
   return <div><div className="muted" style={{ fontSize: 10.5, marginBottom: 3 }}>{label}</div>{children}</div>;

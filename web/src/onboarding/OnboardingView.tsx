@@ -25,12 +25,13 @@ const SIGNATURE_PREF = [
 ];
 
 export default function OnboardingView({
-  park, telemetry, catalog, onNav, onOpenTour, onOpenDemo, courseStatus,
+  park, telemetry, catalog, onNav, onOpenTour, onOpenDemo, courseStatus, lockedIdentity,
 }: {
   park: Park; telemetry: TelemetryMsg | null; catalog: Catalog | null; onNav: (v: View) => void;
   onOpenTour?: () => void; onOpenDemo?: () => void; courseStatus?: CourseStatus | null;
+  lockedIdentity?: string;
 }) {
-  const [me, setMe] = useState(localStorage.getItem("student_id") || "");
+  const [me, setMe] = useState(lockedIdentity || localStorage.getItem("student_id") || "");
   const [meInput, setMeInput] = useState(me);
   const [companies, setCompanies] = useState<Company[]>(park.companies);
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -144,12 +145,17 @@ export default function OnboardingView({
 
       {/* 身分 */}
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
-        <span className="hint" style={{ margin: 0 }}>我的學生 id:</span>
-        <input value={meInput} onChange={(e) => setMeInput(e.target.value)} placeholder="例:S001 / kiwi"
-               onKeyDown={(e) => e.key === "Enter" && saveMe()}
-               style={inp} />
-        <button onClick={saveMe} style={btn("#5b9bd5")}>設定</button>
-        {me && <span style={{ color: "#37d67a", fontWeight: 600 }}>目前:{me}</span>}
+        {lockedIdentity ? (
+          <span className="hint" style={{ margin: 0 }}>登入為 <b style={{ color: "#37d67a" }}>{lockedIdentity}</b>(課堂計分、認領、繳交都用這個帳號)</span>
+        ) : (
+          <>
+            <span className="hint" style={{ margin: 0 }}>我的學生 id:</span>
+            <input value={meInput} onChange={(e) => setMeInput(e.target.value)} placeholder="例:S001 / kiwi"
+                   onKeyDown={(e) => e.key === "Enter" && saveMe()} style={inp} />
+            <button onClick={saveMe} style={btn("#5b9bd5")}>設定</button>
+            {me && <span style={{ color: "#37d67a", fontWeight: 600 }}>目前:{me}</span>}
+          </>
+        )}
         {msg && <span className="hint" style={{ margin: 0, color: "#5b9bd5" }}>· {msg}</span>}
       </div>
 
@@ -322,7 +328,7 @@ export default function OnboardingView({
         <NavCard emoji="🗺️" title="2D 世界" desc="俯瞰園區、點公司進廠內、看設備即時燈號與數值。" onClick={() => onNav("world")} />
         <NavCard emoji="📖" title="設備目錄" desc="每台設備每個點位的協定規格書 —— 你的接線圖。" onClick={() => onNav("catalog")} />
         <NavCard emoji="🎫" title="學生面(工單 / 榜)" desc="認領、處置工單、看故障管理 / 預測 / OEE 競賽榜。" onClick={() => onNav("student")} />
-        <NavCard emoji="📡" title="戰情版" desc="三協定連線自測,對照你自己工具讀到的值。" onClick={() => onNav("diag")} />
+        {!lockedIdentity && <NavCard emoji="📡" title="戰情版" desc="三協定連線自測,對照你自己工具讀到的值。" onClick={() => onNav("diag")} />}
         <NavCard emoji="📊" title="OEE 榜" desc="設備總效率排名:可用率 × 表現 × 良率。" onClick={() => onNav("oee")} />
       </div>
 

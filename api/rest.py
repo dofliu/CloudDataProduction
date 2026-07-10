@@ -9,13 +9,14 @@ from __future__ import annotations
 import asyncio
 import os
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from adapters.modbus_server import ModbusAdapter
+from .auth import AuthStore
 from engine.course import CourseManager
 from engine.world import World
 from historian.writer import Historian
@@ -55,7 +56,27 @@ class FaultRequest(BaseModel):
 
 
 class ClaimRequest(BaseModel):
-    student_id: str
+    student_id: Optional[str] = None      # 登入後由 session 推定;教師可代為指派
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class UserSpec(BaseModel):
+    username: str
+    password: str
+    role: Optional[str] = None
+
+
+class BulkUsersRequest(BaseModel):
+    users: List[UserSpec] = []
+    role: Optional[str] = None            # 預設角色(student)
+
+
+class PasswordRequest(BaseModel):
+    password: str
 
 
 class FactoryRequest(BaseModel):
@@ -94,13 +115,6 @@ def create_app(
     public_host = config.get("public_host", "127.0.0.1")
     teacher_token = config.get("teacher_token", "")
 
-    def require_teacher(authorization: str = Header(None)):
-        """教師面 auth:需 Authorization: Bearer <teacher_token>。未設 token 則開放(dev)。"""
-        if not teacher_token:
-            return
-        if authorization != f"Bearer {teacher_token}":
-            raise HTTPException(401, "教師面端點需要有效的 teacher token")
-
     # WebSocket 即時面連線管理器(telemetry / events 兩通道)
     telemetry_mgr = ConnectionManager("telemetry")
     events_mgr = ConnectionManager("events")
@@ -113,6 +127,36 @@ def create_app(
         for _c in world.park.get("companies", []):
             if _c.get("id") in _saved_owners:
                 _c["owner"] = _saved_owners[_c["id"]]
+
+    # ── 身分層:帳號 / 登入 / 角色 ────────────────────────────
+    auth = AuthStore(persist=state)
+
+    def _bearer(authorization: Optional[str]) -> Optional[str]:
+        if authorization and authorization.startswith("Bearer "):
+            return authorization[7:]
+        return None
+
+    def auth_active() -> bool:
+        """是否已啟用身分驗證(設了 teacher_token 或建了任何帳號)。未啟用 → dev 開放。"""
+        return bool(teacher_token) or auth.has_users()
+
+    def current_user(authorization: Optional[str]) -> Optional[dict]:
+        """解出目前使用者:{username, role} 或 None。teacher_token 視為管理員(teacher)。"""
+        tok = _bearer(authorization)
+        if not tok:
+            return None
+        if teacher_token and tok == teacher_token:
+            return {"username": "__admin__", "role": "teacher"}
+        return auth.user_for_token(tok)
+
+    def require_teacher(authorization: str = Header(None)):
+        """教師面 auth:teacher 角色 session 或 teacher_token。完全未啟用身分驗證時(dev)放行。"""
+        u = current_user(authorization)
+        if u and u["role"] == "teacher":
+            return
+        if not auth_active():
+            return
+        raise HTTPException(401, "需要教師身分(請以教師帳號或管理員 token 登入)")
 
     # 工單 + 評分(工單訂閱故障事件自動開單)
     tickets = TicketStore(world, persist=state)
@@ -205,6 +249,52 @@ def create_app(
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # ── 身分驗證(登入 / 帳號)──────────────────────────────
+    @app.get("/api/auth/status")
+    def auth_status():
+        """前端據此決定是否顯示登入頁。auth_required=False 時為 dev 開放模式。"""
+        return {"auth_required": auth_active(), "has_users": auth.has_users()}
+
+    @app.post("/api/auth/login")
+    def auth_login(req: LoginRequest):
+        r = auth.login(req.username, req.password)
+        if r is None:
+            raise HTTPException(401, "帳號或密碼錯誤")
+        return r
+
+    @app.post("/api/auth/logout")
+    def auth_logout(authorization: str = Header(None)):
+        auth.logout(_bearer(authorization))
+        return {"ok": True}
+
+    @app.get("/api/auth/me")
+    def auth_me(authorization: str = Header(None)):
+        u = current_user(authorization)
+        if u is None:
+            raise HTTPException(401, "未登入")
+        return u
+
+    @app.get("/api/auth/users", dependencies=[Depends(require_teacher)])
+    def auth_list_users():
+        return {"users": auth.list_users()}
+
+    @app.post("/api/auth/users", dependencies=[Depends(require_teacher)])
+    def auth_create_users(req: BulkUsersRequest):
+        """教師批次建立帳號(名冊制)。role 預設 student。"""
+        specs = [u.model_dump() for u in req.users]
+        return auth.bulk_create(specs, default_role=req.role or "student")
+
+    @app.post("/api/auth/users/{username}/password", dependencies=[Depends(require_teacher)])
+    def auth_reset_password(username: str, req: PasswordRequest):
+        try:
+            return auth.set_password(username, req.password)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+    @app.delete("/api/auth/users/{username}", dependencies=[Depends(require_teacher)])
+    def auth_delete_user(username: str):
+        return {"deleted": auth.delete_user(username)}
 
     # ── 公開學生面 ─────────────────────────────────────────
     # 註:根路徑 "/" 保留給前端靜態檔(設 WEB_DIST 時);此為 API 資訊索引。
@@ -366,31 +456,76 @@ def create_app(
     def prediction_scores():
         return predictions.scores()
 
-    # 學生可寫設定點(公開,受控範圍):唯一開放學生寫的控制面;後端夾限保護。
+    def _company_owner(company_id: Optional[str]) -> Optional[str]:
+        for c in world.park.get("companies", []):
+            if c.get("id") == company_id:
+                return c.get("owner")
+        return None
+
+    # 學生可寫設定點(受控範圍):唯一開放學生寫的控制面;後端夾限 + 認領授權。
     @app.post("/api/devices/{device_id}/setpoint")
-    def write_setpoint(device_id: str, req: SetpointRequest):
+    def write_setpoint(device_id: str, req: SetpointRequest, authorization: str = Header(None)):
         device = world.devices.get(device_id)
         if device is None:
             raise HTTPException(404, f"無此設備:{device_id}")
+        # 授權:學生只能改自己認領公司的設備(教師不限;dev 未啟用身分驗證時放行)
+        user = current_user(authorization)
+        if user and user["role"] == "teacher":
+            pass
+        elif user and user["role"] == "student":
+            if _company_owner(device.company_id) != user["username"]:
+                raise HTTPException(403, "只能修改你認領公司的設備")
+        elif auth_active():
+            raise HTTPException(401, "請先登入")
         result = device.set_setpoint(req.name, req.value)
         if not result.get("ok"):
             raise HTTPException(400, result.get("error", "設定點寫入失敗"))
         return result
 
-    # 學生認領公司(公開)
+    # 學生認領公司:綁登入身分;一人一廠;不能搶別人已認領的。
     def _save_owners():
         if state is not None:
             owners = {c["id"]: c["owner"] for c in world.park.get("companies", []) if c.get("owner")}
             state.save("owners", owners)
 
     @app.post("/api/companies/{company_id}/claim")
-    def claim_company(company_id: str, req: ClaimRequest):
-        for c in world.park.get("companies", []):
-            if c.get("id") == company_id:
-                c["owner"] = req.student_id or None
-                _save_owners()                       # 認領寫穿,進程重啟不歸零
-                return {"company": company_id, "owner": c["owner"]}
-        raise HTTPException(404, f"無此公司:{company_id}")
+    def claim_company(company_id: str, req: ClaimRequest, authorization: str = Header(None)):
+        user = current_user(authorization)
+        target = next((c for c in world.park.get("companies", []) if c.get("id") == company_id), None)
+        if target is None:
+            raise HTTPException(404, f"無此公司:{company_id}")
+        if user and user["role"] == "student":
+            owner_name = user["username"]                 # 身分由 session 決定,忽略 body
+            if target.get("owner") and target["owner"] != owner_name:
+                raise HTTPException(409, "這間公司已被其他人認領")
+            others = [c for c in world.park.get("companies", [])
+                      if c.get("owner") == owner_name and c.get("id") != company_id]
+            if others:
+                raise HTTPException(409, f"你已認領「{others[0].get('name')}」(一人一廠);請先釋放再認領")
+        elif user and user["role"] == "teacher":
+            owner_name = req.student_id or None            # 教師可代為指派 / 清除
+        elif auth_active():
+            raise HTTPException(401, "請先登入")
+        else:
+            owner_name = req.student_id or None            # dev 開放
+        target["owner"] = owner_name
+        _save_owners()
+        return {"company": company_id, "owner": target["owner"]}
+
+    @app.post("/api/companies/{company_id}/release")
+    def release_company(company_id: str, authorization: str = Header(None)):
+        """釋放認領(學生只能釋放自己的;教師任意)。"""
+        user = current_user(authorization)
+        target = next((c for c in world.park.get("companies", []) if c.get("id") == company_id), None)
+        if target is None:
+            raise HTTPException(404, f"無此公司:{company_id}")
+        if user and user["role"] == "student" and target.get("owner") != user["username"]:
+            raise HTTPException(403, "只能釋放你自己認領的公司")
+        if auth_active() and not user:
+            raise HTTPException(401, "請先登入")
+        target["owner"] = None
+        _save_owners()
+        return {"company": company_id, "owner": None}
 
     # ── 教師面(需 teacher token)──────────────────────────
     @app.get("/api/devices/{device_id}/health", dependencies=[Depends(require_teacher)])

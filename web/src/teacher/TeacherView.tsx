@@ -6,6 +6,7 @@ import {
   injectFault, resetDevice, getHealth, getTickets, ackTicket, resolveTicket, getScores, getPredictionScores,
   getScenarios, runScenario, stopScenario, createFactory, resetSession,
   getCourseWeeks, getCourseStatus, applyCourseWeek, getGradebook,
+  UserRow, listUsers, createUsers, resetUserPassword, deleteUser,
 } from "../api";
 
 const FAULT_TYPES = [
@@ -35,6 +36,8 @@ export default function TeacherView({
   const [courseWeeks, setCourseWeeks] = useState<CourseWeek[]>([]);
   const [courseStatus, setCourseStatus] = useState<CourseStatus | null>(null);
   const [gradebook, setGradebook] = useState<GradebookRow[]>([]);
+  const [users, setUsers] = useState<UserRow[]>([]);
+  const [roster, setRoster] = useState("s001, pw001\ns002, pw002");
 
   const deviceIds = telemetry ? Object.keys(telemetry.devices) : [];
   const isSensor = ftype.startsWith("sensor_");
@@ -55,6 +58,7 @@ export default function TeacherView({
       try { const s = await getScenarios(); setScripts(s.scripts); setScenStatus(s.status); } catch { /* */ }
       try { setCourseStatus(await getCourseStatus()); } catch { /* */ }
       try { setGradebook((await getGradebook()).gradebook); } catch { /* */ }
+      try { setUsers((await listUsers()).users); } catch { /* 未登入教師會 401 */ }
     };
     tick();
     const id = setInterval(tick, 2000);
@@ -72,6 +76,31 @@ export default function TeacherView({
       const hint = String(e.message).includes("401") ? "先填 dev-teacher-token 並儲存" : "";
       setMsg(`套用失敗:${e.message} ${hint}`);
     }
+  };
+
+  const doCreateRoster = async () => {
+    const list = roster.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => {
+      const p = l.split(/[,\s]+/);
+      return { username: p[0], password: p[1] || p[0] };
+    }).filter((u) => u.username);
+    if (!list.length) { setMsg("名冊是空的(一行一個:帳號, 密碼)"); return; }
+    try {
+      const r = await createUsers(list);
+      setMsg(`✅ 已建立 ${r.created.length} 個帳號${r.skipped.length ? `,略過 ${r.skipped.length}(已存在/格式錯)` : ""}`);
+      setUsers((await listUsers()).users);
+    } catch (e: any) {
+      const hint = String(e.message).includes("401") ? "先填 dev-teacher-token / 教師帳號登入" : "";
+      setMsg(`建帳號失敗:${e.message} ${hint}`);
+    }
+  };
+  const doResetPw = async (u: string) => {
+    const pw = window.prompt(`重設「${u}」的新密碼:`);
+    if (!pw) return;
+    try { await resetUserPassword(u, pw); setMsg(`已重設 ${u} 密碼`); } catch (e: any) { setMsg(`重設失敗:${e.message}`); }
+  };
+  const doDeleteUser = async (u: string) => {
+    if (!window.confirm(`刪除帳號「${u}」?其登入將立即失效。`)) return;
+    try { await deleteUser(u); setUsers((await listUsers()).users); setMsg(`已刪除 ${u}`); } catch (e: any) { setMsg(`刪除失敗:${e.message}`); }
   };
 
   const saveToken = () => { setTeacherToken(token); setMsg("已儲存 teacher token"); };
@@ -174,6 +203,34 @@ export default function TeacherView({
                 );
               })}
             </div>
+          </div>
+
+          <div className="card">
+            <div className="card-title">👥 學生帳號(名冊)</div>
+            <div className="hint" style={{ margin: "0 0 8px" }}>
+              一行一個「帳號, 密碼」批次建立(密碼省略則同帳號)。學生用帳密登入,只看得到任務中心 / 目錄 / 學生面,且只能改自己認領公司的設備。
+            </div>
+            <div style={{ display: "flex", gap: 10, alignItems: "flex-start", flexWrap: "wrap" }}>
+              <textarea className="inp mono" value={roster} onChange={(e) => setRoster(e.target.value)}
+                        rows={4} style={{ flex: 1, minWidth: 220, resize: "vertical", fontSize: 12 }} placeholder={"s001, pw001\ns002, pw002"} />
+              <button className="btn" style={{ background: "var(--ok)", color: "#08121e" }} onClick={doCreateRoster}>＋ 建立帳號</button>
+            </div>
+            {users.length > 0 && (
+              <div style={{ marginTop: 10 }}>
+                <div className="sec-label" style={{ marginTop: 0 }}>已建帳號 · {users.length}</div>
+                <div style={{ maxHeight: 132, overflowY: "auto", display: "grid", gap: 3 }}>
+                  {users.map((u) => (
+                    <div key={u.username} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+                      <span className="mono" style={{ flex: 1 }}>{u.username}</span>
+                      <span className="pill" style={{ fontSize: 10, padding: "1px 7px",
+                            color: u.role === "teacher" ? "var(--warn)" : "var(--text-2)" }}>{u.role}</span>
+                      <button className="btn ghost" style={{ padding: "1px 7px", fontSize: 11 }} onClick={() => doResetPw(u.username)}>改密碼</button>
+                      <button className="btn ghost" style={{ padding: "1px 7px", fontSize: 11, color: "var(--fault)" }} onClick={() => doDeleteUser(u.username)}>刪</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="card">

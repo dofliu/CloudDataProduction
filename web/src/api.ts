@@ -71,7 +71,7 @@ export interface Catalog {
 }
 
 export async function getJSON<T>(path: string): Promise<T> {
-  const r = await fetch(path);
+  const r = await fetch(path, { headers: authHeaders() });
   if (!r.ok) throw new Error(`${path} -> ${r.status}`);
   return r.json();
 }
@@ -79,27 +79,71 @@ export async function getJSON<T>(path: string): Promise<T> {
 export const getPark = () => getJSON<Park>("/api/park");
 export const getCatalog = () => getJSON<Catalog>("/api/catalog");
 
-// ── 教師 token(教師面端點需帶)──────────────────────────
-let teacherToken = localStorage.getItem("teacher_token") || "";
-export function setTeacherToken(t: string) {
-  teacherToken = t;
-  localStorage.setItem("teacher_token", t);
+// ── 身分:登入 session token,或教師 token(管理員 bootstrap)──────
+export interface Session { token: string | null; username: string; role: string; }
+let session: Session | null = (() => {
+  try { return JSON.parse(localStorage.getItem("session") || "null"); } catch { return null; }
+})();
+export function getSession(): Session | null { return session; }
+export function setSession(s: Session | null) {
+  session = s;
+  if (s) localStorage.setItem("session", JSON.stringify(s));
+  else localStorage.removeItem("session");
 }
+let teacherToken = localStorage.getItem("teacher_token") || "";
+export function setTeacherToken(t: string) { teacherToken = t; localStorage.setItem("teacher_token", t); }
 export function getTeacherToken() { return teacherToken; }
+function bearer(): string | null { return (session && session.token) || teacherToken || null; }
 function authHeaders(): Record<string, string> {
   const h: Record<string, string> = { "Content-Type": "application/json" };
-  if (teacherToken) h["Authorization"] = `Bearer ${teacherToken}`;
+  const b = bearer();
+  if (b) h["Authorization"] = `Bearer ${b}`;
   return h;
 }
-async function post(path: string, body?: any, auth = false) {
+// 一律帶身分標頭(公開端點會忽略;受保護端點才用)。第三參數保留相容,已不再需要。
+async function post(path: string, body?: any, _auth = false) {
   const r = await fetch(path, {
     method: "POST",
-    headers: auth ? authHeaders() : { "Content-Type": "application/json" },
+    headers: authHeaders(),
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   if (!r.ok) throw new Error(`${path} -> ${r.status}`);
   return r.json().catch(() => ({}));
 }
+
+// ── 登入 / 帳號 API ─────────────────────────────────────────
+export interface AuthStatus { auth_required: boolean; has_users: boolean; }
+export interface UserRow { username: string; role: string; created: number | null; }
+export const getAuthStatus = () => getJSON<AuthStatus>("/api/auth/status");
+export const getMe = () => getJSON<{ username: string; role: string }>("/api/auth/me");
+export async function login(username: string, password: string): Promise<Session> {
+  const r = await post("/api/auth/login", { username, password });
+  const s: Session = { token: r.token, username: r.username, role: r.role };
+  setSession(s);
+  return s;
+}
+export async function loginWithToken(token: string): Promise<Session> {   // 教師 / 管理員 token
+  setTeacherToken(token);
+  try {
+    const me = await getMe();
+    const s: Session = { token: null, username: me.username === "__admin__" ? "管理員" : me.username, role: me.role };
+    setSession(s);
+    return s;
+  } catch (e) { setTeacherToken(""); throw e; }
+}
+export async function logout() {
+  try { await post("/api/auth/logout"); } catch { /* */ }
+  setSession(null);
+  setTeacherToken("");
+}
+export const listUsers = () => getJSON<{ users: UserRow[] }>("/api/auth/users");
+export const createUsers = (users: { username: string; password: string; role?: string }[]) =>
+  post("/api/auth/users", { users }) as Promise<{ created: string[]; skipped: string[] }>;
+export const resetUserPassword = (username: string, password: string) =>
+  post(`/api/auth/users/${encodeURIComponent(username)}/password`, { password });
+export const deleteUser = (username: string) =>
+  fetch(`/api/auth/users/${encodeURIComponent(username)}`, { method: "DELETE", headers: authHeaders() }).then((r) => r.json());
+export const releaseCompany = (companyId: string) => post(`/api/companies/${companyId}/release`);
 
 // 模擬時鐘(教師面)
 export const setClock = (body: { multiplier?: number; paused?: boolean }) =>

@@ -9,6 +9,7 @@ import {
   UserRow, listUsers, createUsers, resetUserPassword, deleteUser,
   StudentOverviewRow, getStudentsOverview, StudentDetail, getStudentDetail,
 } from "../api";
+import ClassroomTeacherPanel from "./ClassroomTeacherPanel";
 
 const FAULT_TYPES = [
   "gradual", "sudden", "intermittent", "cascading",
@@ -223,6 +224,8 @@ export default function TeacherView({
               })}
             </div>
           </div>
+
+          <ClassroomTeacherPanel onMsg={setMsg} />
 
           <div className="card">
             <div className="card-title">👥 帳號管理(名冊)</div>

@@ -109,12 +109,10 @@ class SubmissionStore:
         except (TypeError, ValueError):
             return self.course.default_tolerance
 
-    # ── 繳交 ────────────────────────────────────────────────
-    async def submit(self, payload: dict) -> dict:
+    # ── 純批改(不記錄):供課堂練習等重用同一套誠實 ground-truth 批改 ──
+    async def grade(self, payload: dict) -> dict:
+        """依 type 分派 grader 並回 {score, passed, feedback};**不寫入繳交紀錄**。"""
         stype = str(payload.get("type", "")).strip()
-        student = str(payload.get("student") or payload.get("student_id") or "").strip()
-        if not student:
-            raise ValueError("缺少 student")
         grader = {
             "connect": self._grade_connect,
             "stats": self._grade_stats,
@@ -130,8 +128,15 @@ class SubmissionStore:
         }.get(stype)
         if grader is None:
             raise ValueError(f"未知的作業型別:{stype}(可用:connect/stats/oee/anomaly)")
+        return await grader(payload)   # {score, passed, feedback, detail?}
 
-        result = await grader(payload)   # {score, passed, feedback, detail?}
+    # ── 繳交 ────────────────────────────────────────────────
+    async def submit(self, payload: dict) -> dict:
+        stype = str(payload.get("type", "")).strip()
+        student = str(payload.get("student") or payload.get("student_id") or "").strip()
+        if not student:
+            raise ValueError("缺少 student")
+        result = await self.grade(payload)   # {score, passed, feedback, detail?}
         self._seq += 1
         rec = {
             "id": f"SUB-{self._seq:05d}",

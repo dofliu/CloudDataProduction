@@ -9,6 +9,7 @@ import TeacherView from "./teacher/TeacherView";
 import DiagnosticsView from "./diagnostics/DiagnosticsView";
 import OeeView from "./oee/OeeView";
 import StudentView from "./student/StudentView";
+import ClassroomView from "./classroom/ClassroomView";
 import OnboardingView from "./onboarding/OnboardingView";
 import GlossaryOverlay from "./help/GlossaryOverlay";
 import TourOverlay from "./tour/TourOverlay";
@@ -26,7 +27,7 @@ const SIGNAL_THRESH: Record<string, number> = {
   particle_count: 30, burr_rate: 8, temp_uniformity: 30, oxygen_ppm: 150,
 };
 const TABS: [string, string][] = [
-  ["start", "🚀 開始"], ["world", "2D 世界"], ["student", "學生面"],
+  ["start", "🚀 開始"], ["world", "2D 世界"], ["student", "學生面"], ["classroom", "📣 課堂練習"],
   ["catalog", "設備目錄"], ["diag", "戰情版"], ["oee", "OEE 榜"], ["teacher", "教師控制台"],
 ];
 
@@ -35,7 +36,7 @@ export default function App() {
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [telemetry, setTelemetry] = useState<TelemetryMsg | null>(null);
   const [events, setEvents] = useState<EventMsg[]>([]);
-  const [view, setView] = useState<"start" | "world" | "student" | "catalog" | "teacher" | "diag" | "oee">("start");
+  const [view, setView] = useState<"start" | "world" | "student" | "classroom" | "catalog" | "teacher" | "diag" | "oee">("start");
   const [selected, setSelected] = useState<string | null>(null);
   const [predicted, setPredicted] = useState<Set<string>>(new Set());
   const [resetMsg, setResetMsg] = useState("");
@@ -190,6 +191,8 @@ export default function App() {
           </>
         ) : view === "student" ? (
           <StudentView park={park} telemetry={telemetry} />
+        ) : view === "classroom" ? (
+          <ClassroomView />
         ) : view === "catalog" ? (
           <CatalogView catalog={catalog} telemetry={telemetry} />
         ) : view === "diag" ? (

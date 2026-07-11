@@ -86,6 +86,7 @@ def build():
         "public_host": os.getenv("PUBLIC_HOST", "127.0.0.1"),
         "teacher_token": os.getenv("TEACHER_TOKEN", ""),
         "course_file": os.getenv("COURSE_FILE", "scenarios/course_weeks.yaml"),  # 每週情境定義
+        "classroom_file": os.getenv("CLASSROOM_FILE", "scenarios/classroom_exercises.yaml"),  # 課堂即時練習庫
         "web_dist": os.getenv("WEB_DIST", ""),   # 設為 web/dist 則同源提供前端(單一 Cloudflare Tunnel 對外)
     }
     app = create_app(world, historian, modbus, config, opcua=opcua, mqtt=mqtt,

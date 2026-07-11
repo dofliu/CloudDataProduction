@@ -253,6 +253,41 @@ export const applyCourseWeek = (n: number) =>
     applied_week: number; title: string; faults: string; injected: any[]; order_density: string | null; utilization: number;
   }>;
 
+// ── 課堂即時練習 ────────────────────────────────────────────
+export interface ClassroomQuestion {
+  id: string; tier: "simple" | "complex"; prompt: string;
+  type: "choice" | "numeric"; choices?: string[]; unit?: string; hint?: string;
+}
+export interface ClassroomExercise {
+  id: string; title: string; difficulty: string; brief?: string;
+  questions: number; setup?: Record<string, any>;
+}
+export interface ClassroomActive {
+  exercise: string; title: string; brief?: string; difficulty?: string;
+  target: string; launched_wall: number; questions: ClassroomQuestion[];
+}
+export interface ClassroomAnswerResult {
+  correct: boolean; passed: boolean; score: number; feedback: string; explain?: string;
+}
+export interface ClassroomBoardRow {
+  question: string; prompt: string; tier: string; students: number;
+  correct: number; rate: number | null; avg: number | null; dist: Record<string, number>;
+}
+export const getClassroomExercises = () =>
+  getJSON<{ name: string; exercises: ClassroomExercise[] }>("/api/classroom/exercises");
+export const getClassroomActive = () => getJSON<{ active: ClassroomActive | null }>("/api/classroom/active");
+export const answerClassroom = (exercise: string, question: string, student: string, answer: any) =>
+  post("/api/classroom/answer", { exercise, question, student, answer }) as Promise<ClassroomAnswerResult>;
+export const launchClassroom = (exerciseId: string) =>
+  post(`/api/classroom/exercises/${exerciseId}/launch`, undefined, true) as Promise<{ target: string; applied: Record<string, any> }>;
+export const stopClassroom = (reset = true) =>
+  post("/api/classroom/stop", { reset }, true) as Promise<{ stopped: boolean; target: string | null; reset: boolean }>;
+export const getClassroomBoard = (exercise?: string) =>
+  getJSON<{ exercise: string; title: string; questions: ClassroomBoardRow[] }>(
+    `/api/classroom/board${exercise ? `?exercise=${encodeURIComponent(exercise)}` : ""}`);
+export const getClassroomGradebook = () =>
+  getJSON<{ gradebook: { student: string; answered: number; avg: number }[] }>("/api/classroom/gradebook");
+
 // 作業繳交(學生面公開):type = connect / stats / oee / anomaly
 export interface SubmissionResult {
   id: string; student: string; week: number | string | null; type: string;

@@ -1,0 +1,202 @@
+# 課堂即時練習庫（比回家作業輕、課堂上做）
+#
+# 每個 exercise = 一種「情境」：教師一鍵佈題 → 平台對某台設備套用指定狀況 →
+# 學生用手機觀察 → 回答問題（即時批改、計入平時成績）。
+#
+# 題目分兩層：
+#   tier: simple  —— 看/選就能答（觀察狀態、讀即時值、直覺判斷）
+#   tier: complex —— 要算或分析（統計、相關、趨勢、根因），不是看了就知道
+#
+# 批改重用既有誠實批改器（api/submissions.py），對 ground-truth 容差計分：
+#   grade.kind = static      學生答案需等於 answer（選擇題/概念題）
+#              = target      正解 = 本次佈題實際套到的那台設備 id（「哪台被動手腳」）
+#              = submission   委派 submissions grader（type=stats/oee/correlation/...），
+#                             device 自動填佈題設備、資料窗自動用「佈題以來」，
+#                             學生答案填進 value_field（預設 value）。
+#
+# setup.condition：healthy（修回健康）/ equipment（設備退化）/ sensor（感測器故障）。
+# 目標設備 target=auto 時挑一台運轉中的 producer（CNC/成型/機械手臂/沖壓/爐/腔體）。
+
+classroom:
+  name: 課堂即時練習
+  default_tolerance: 0.15
+
+  exercises:
+    # ── EX1：讀懂一台健康機（暖身） ─────────────────────────
+    - id: warmup_healthy
+      title: 讀懂一台健康機
+      difficulty: basic
+      brief: 這台機是健康的、正在生產。先花一分鐘觀察它的狀態與即時值。
+      setup: { target: auto, condition: healthy, order_density: high }
+      questions:
+        - id: q1
+          tier: simple
+          prompt: 這台機現在的運轉狀態是？（看設備狀態燈）
+          type: choice
+          choices: [running, idle, fault]
+          grade: { kind: static, answer: running }
+          hint: 有工單且在上班時段就會 running。
+          explain: 健康 + 有單 + 上班 → running（綠燈）。
+        - id: q2
+          tier: simple
+          prompt: 讀出這台 spindle_speed 現在的即時值（rpm，取整數即可）。
+          type: numeric
+          unit: rpm
+          grade: { kind: submission, type: connect, tag: spindle_speed }
+          hint: 用 Modbus/OPC-UA/MQTT 讀，或看設備即時面板。
+          explain: 即時值會小幅抖動，抓當下讀到的值即可。
+        - id: q3
+          tier: complex
+          prompt: 佈題以來，這台 vibration_rms 的平均值約為多少？
+          type: numeric
+          unit: mm/s
+          grade: { kind: submission, type: stats, tag: vibration_rms, metric: mean }
+          hint: 撈這段時間的歷史，自己算平均（給平台跑一分鐘再算比較穩）。
+          explain: 健康機振動平穩，平均落在低檔且變異小。
+
+    # ── EX2：感測器問題，還是設備真的壞了？（判讀重點題） ────
+    - id: sensor_vs_equipment
+      title: 感測器問題，還是設備壞了？
+      difficulty: advanced
+      brief: 這台機被動了手腳——但機器本身不一定壞。觀察後判斷「異常的根因」。
+      setup: { target: auto, condition: sensor, fault_type: sensor_drift, tag: spindle_temp, severity: 0.9 }
+      questions:
+        - id: q1
+          tier: simple
+          prompt: 這台機的運轉狀態燈還是綠的（running）嗎？
+          type: choice
+          choices: [running, fault]
+          grade: { kind: static, answer: running }
+          hint: 感測器讀值怪怪的，不代表機器停了。
+          explain: 感測器故障是「讀值脫鉤真實」，機器健康度沒掉，照常 running。
+        - id: q2
+          tier: complex
+          prompt: 綜合判斷，這台的異常比較像「感測器故障」還是「設備退化」？
+          type: choice
+          choices: [sensor, equipment]
+          grade: { kind: submission, type: root_cause, value_field: cause }
+          hint: 比對多個訊號：只有一個讀值脫序、其他都正常 → 偏感測器。
+          explain: 感測器故障＝單一讀值脫鉤、健康度不掉；設備故障＝多訊號一致惡化。
+        - id: q3
+          tier: complex
+          prompt: 被動手腳的 spindle_temp，佈題以來的平均值約為多少？
+          type: numeric
+          unit: degC
+          grade: { kind: submission, type: stats, tag: spindle_temp, metric: mean }
+          hint: 算 spindle_temp 的平均，感受它被漂移拉偏了。
+          explain: 漂移讓這個讀值的平均偏離健康基準，但其他訊號仍正常。
+
+    # ── EX3：設備真的在退化 ─────────────────────────────────
+    - id: real_degradation
+      title: 設備真的在退化
+      difficulty: advanced
+      brief: 這台機的主元件正在退化。看資料怎麼「一致地」變壞。
+      setup: { target: auto, condition: equipment, fault_type: gradual, severity: 1.0, order_density: high }
+      questions:
+        - id: q1
+          tier: simple
+          prompt: 跟健康機相比，這台的 vibration_rms 偏高、偏低、還是差不多？
+          type: choice
+          choices: [偏高, 偏低, 差不多]
+          grade: { kind: static, answer: 偏高 }
+          hint: 退化常伴隨振動變大。
+          explain: 軸承/主元件退化 → 振動升高，是最典型的徵兆。
+        - id: q2
+          tier: complex
+          prompt: 這台 vibration_rms 的趨勢斜率（每小時變化量）約為多少？
+          type: numeric
+          unit: /h
+          grade: { kind: submission, type: slope, tag: vibration_rms }
+          hint: 對 sim 小時做最小平方法擬合；退化中斜率為正。
+          explain: 退化讓振動持續上升 → 正斜率；斜率越大惡化越快。
+        - id: q3
+          tier: complex
+          prompt: 這台的異常根因是「感測器故障」還是「設備退化」？
+          type: choice
+          choices: [sensor, equipment]
+          grade: { kind: submission, type: root_cause, value_field: cause }
+          hint: 多訊號一起變壞、健康度真的下降 → 設備。
+          explain: 這題是 EX2 的對照：多訊號一致惡化 = 真設備故障。
+
+    # ── EX4：生產 KPI 與 OEE ────────────────────────────────
+    - id: oee_basics
+      title: 這台機的 OEE 是多少？
+      difficulty: basic
+      brief: 用一台正常生產的機，認識設備綜合效率（OEE）。
+      setup: { target: auto, condition: healthy, order_density: normal }
+      questions:
+        - id: q1
+          tier: simple
+          prompt: OEE（設備綜合效率）等於哪三項相乘？
+          type: choice
+          choices: ["可用率 × 表現 × 良率", "產量 × 良率 × 工時", "轉速 × 負載 × 溫度"]
+          grade: { kind: static, answer: "可用率 × 表現 × 良率" }
+          hint: Availability × Performance × Quality。
+          explain: OEE = Availability(可用率) × Performance(表現) × Quality(良率)。
+        - id: q2
+          tier: complex
+          prompt: 這台目前的可用率（availability）約為多少？（0~1）
+          type: numeric
+          grade: { kind: submission, type: oee, metric: availability }
+          hint: 可用率＝排程生產時間內真正在跑的比例。
+          explain: 待機（無單）不算在排程時間裡，故正常機可用率偏高。
+        - id: q3
+          tier: complex
+          prompt: 這台目前的 OEE 約為多少？（0~1）
+          type: numeric
+          grade: { kind: submission, type: oee, metric: oee }
+          hint: 三項相乘；跟 /api/oee 對帳。
+          explain: OEE 綜合了可用率、表現、良率，是產線健康的單一指標。
+
+    # ── EX5：兩個訊號有關係嗎？（相關） ─────────────────────
+    - id: correlation
+      title: 兩個訊號有關係嗎？
+      difficulty: advanced
+      brief: 主軸負載高的時候，電流會怎樣？用相關係數驗證你的直覺。
+      setup: { target: auto, condition: healthy, order_density: high }
+      questions:
+        - id: q1
+          tier: simple
+          prompt: 直覺上，spindle_load 變高時 spindle_current 會？
+          type: choice
+          choices: [跟著變高, 跟著變低, 沒關係]
+          grade: { kind: static, answer: 跟著變高 }
+          hint: 負載越大，馬達越吃電。
+          explain: 負載與電流通常正相關——出力越大耗流越高。
+        - id: q2
+          tier: complex
+          prompt: spindle_load 與 spindle_current 的皮爾森相關 r 約為多少？（-1~1）
+          type: numeric
+          grade: { kind: submission, type: correlation, tag_a: spindle_load, tag_b: spindle_current }
+          hint: 撈兩條序列、對齊、算 r；正相關會接近 +1。
+          explain: 正相關 → r 明顯為正；越接近 +1 關係越強。
+        - id: q3
+          tier: complex
+          prompt: vibration_rms 與 spindle_temp 的相關 r 約為多少？（-1~1）
+          type: numeric
+          grade: { kind: submission, type: correlation, tag_a: vibration_rms, tag_b: spindle_temp }
+          hint: 這兩者關係通常較弱，看看 r 是不是接近 0。
+          explain: 弱相關 → r 接近 0；別把「同時存在」當成「有因果」。
+
+    # ── EX6：抓出越界的樣本（計數） ─────────────────────────
+    - id: threshold_count
+      title: 有幾筆超過門檻？
+      difficulty: basic
+      brief: 練「過濾 + 計數」——資料分析最基本的一步。
+      setup: { target: auto, condition: equipment, fault_type: gradual, severity: 0.9, order_density: high }
+      questions:
+        - id: q1
+          tier: simple
+          prompt: 你覺得這台機此刻「比較可能」處於哪種狀況？
+          type: choice
+          choices: [健康平穩, 正在惡化]
+          grade: { kind: static, answer: 正在惡化 }
+          hint: 看 vibration_rms 有沒有往上爬。
+          explain: 這題設定了漸進退化，振動會逐步升高。
+        - id: q2
+          tier: complex
+          prompt: 佈題以來，vibration_rms 超過 3.0 的樣本共有幾筆？
+          type: numeric
+          grade: { kind: submission, type: count_over, tag: vibration_rms, threshold: 3.0 }
+          hint: 撈這段歷史，數出 value > 3.0 的點數。
+          explain: 過濾＋計數是異常偵測的雛形；門檻設多少會影響命中與誤報。

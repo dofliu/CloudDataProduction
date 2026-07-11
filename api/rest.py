@@ -22,6 +22,7 @@ from engine.world import World
 from historian.writer import Historian
 from .catalog import build_catalog
 from .submissions import SubmissionStore
+from .classroom import ClassroomManager
 from .diagnostics import run_diagnostics
 from .oee import OeeEngine
 from .predictions import PredictionStore
@@ -90,6 +91,18 @@ class PredictionRequest(BaseModel):
     predicted_fault: str = "fault"
     eta_sim_s: Optional[float] = None
     confidence: float = 1.0
+
+
+class ClassroomAnswerRequest(BaseModel):
+    """課堂練習作答:匿名以座號/學號,answer 可為數字或選項字串。"""
+    exercise: str
+    question: str
+    student: str
+    answer: object = None
+
+
+class ClassroomStopRequest(BaseModel):
+    reset: bool = True          # 收題時是否把設備修回健康
 
 
 class SessionResetRequest(BaseModel):
@@ -176,6 +189,10 @@ def create_app(
     # 課程情境(教師手動套用每週條件)+ 作業自動比對(對 ground-truth 計分)
     course = CourseManager(world, path=config.get("course_file", "scenarios/course_weeks.yaml"))
     submissions = SubmissionStore(world, historian, course, persist=state)
+    # 課堂即時練習(重用 submissions 的誠實批改;佈題只呼叫既有引擎介面)
+    classroom = ClassroomManager(world, submissions,
+                                 path=config.get("classroom_file", "scenarios/classroom_exercises.yaml"),
+                                 persist=state)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -479,6 +496,52 @@ def create_app(
             return course.apply_week(n)
         except KeyError as e:
             raise HTTPException(404, str(e))
+
+    # ── 課堂即時練習(列表/目前佈題/作答=公開;佈題/收題/看板=教師)──
+    @app.get("/api/classroom/exercises")
+    def classroom_exercises():
+        return {"name": classroom.name, "exercises": classroom.list_exercises()}
+
+    @app.get("/api/classroom/exercises/{exercise_id}")
+    def classroom_exercise(exercise_id: str):
+        try:
+            return classroom.get_exercise(exercise_id)
+        except KeyError as e:
+            raise HTTPException(404, str(e))
+
+    @app.get("/api/classroom/active")
+    def classroom_active():
+        return classroom.active_view()
+
+    @app.post("/api/classroom/answer")
+    async def classroom_answer(req: ClassroomAnswerRequest):
+        try:
+            return await classroom.answer(req.exercise, req.question, req.student, req.answer)
+        except KeyError as e:
+            raise HTTPException(404, str(e))
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+    @app.post("/api/classroom/exercises/{exercise_id}/launch", dependencies=[Depends(require_teacher)])
+    def classroom_launch(exercise_id: str):
+        try:
+            return classroom.launch(exercise_id)
+        except KeyError as e:
+            raise HTTPException(404, str(e))
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+    @app.post("/api/classroom/stop", dependencies=[Depends(require_teacher)])
+    def classroom_stop(req: ClassroomStopRequest):
+        return classroom.stop(reset=req.reset)
+
+    @app.get("/api/classroom/board", dependencies=[Depends(require_teacher)])
+    def classroom_board(exercise: Optional[str] = None):
+        return classroom.board(exercise)
+
+    @app.get("/api/classroom/gradebook", dependencies=[Depends(require_teacher)])
+    def classroom_gradebook():
+        return {"gradebook": classroom.gradebook()}
 
     @app.get("/api/scores")
     def get_scores():

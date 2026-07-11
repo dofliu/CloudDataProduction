@@ -1,18 +1,21 @@
 import { useEffect, useState } from "react";
 import {
-  ClassroomExercise, ClassroomBoardRow,
+  ClassroomExercise, ClassroomBoardRow, ClassroomActive,
   getClassroomExercises, getClassroomActive, launchClassroom, stopClassroom,
   getClassroomBoard, getClassroomGradebook,
 } from "../api";
+import ClassroomProjection from "../classroom/ClassroomProjection";
 
-// 教師面「課堂即時練習」控制台:瀏覽/佈題/收題 + 即時看板(全班答對率)+ 平時成績。
+// 教師面「課堂即時練習」控制台:瀏覽/佈題/收題 + 即時看板(答對率長條/分佈)+ 投影模式 + 平時成績。
 export default function ClassroomTeacherPanel({ onMsg }: { onMsg: (m: string) => void }) {
   const [exercises, setExercises] = useState<ClassroomExercise[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [target, setTarget] = useState<string | null>(null);
+  const [active, setActive] = useState<ClassroomActive | null>(null);
   const [board, setBoard] = useState<ClassroomBoardRow[]>([]);
   const [grades, setGrades] = useState<{ student: string; answered: number; avg: number }[]>([]);
   const [showGrades, setShowGrades] = useState(false);
+  const [project, setProject] = useState(false);
+  const activeId = active?.exercise ?? null;
+  const target = active?.target ?? null;
 
   useEffect(() => { getClassroomExercises().then((r) => setExercises(r.exercises)).catch(() => {}); }, []);
 
@@ -20,8 +23,7 @@ export default function ClassroomTeacherPanel({ onMsg }: { onMsg: (m: string) =>
     const tick = async () => {
       try {
         const a = (await getClassroomActive()).active;
-        setActiveId(a?.exercise ?? null);
-        setTarget(a?.target ?? null);
+        setActive(a);
         if (a) setBoard((await getClassroomBoard()).questions);
         else setBoard([]);
       } catch { /* 未設教師 token 時 board 會 401 */ }
@@ -76,32 +78,52 @@ export default function ClassroomTeacherPanel({ onMsg }: { onMsg: (m: string) =>
       {activeId ? (
         <div style={{ marginTop: 10 }}>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <span className="pill" style={{ color: "var(--accent)" }}>進行中:{activeId} · 設備 <b className="mono">{target}</b></span>
+            <span className="pill" style={{ color: "var(--accent)" }}>進行中:{active?.title ?? activeId} · 設備 <b className="mono">{target}</b></span>
+            <button className="btn primary" style={{ padding: "5px 12px" }} onClick={() => setProject(true)}>🔎 投影模式</button>
             <button className="btn" style={{ padding: "5px 12px", background: "var(--warn)", color: "#08121e" }} onClick={() => stop(true)}>收題 + 修復設備</button>
             <button className="btn ghost" style={{ padding: "5px 12px" }} onClick={() => stop(false)}>收題(保留狀態)</button>
           </div>
 
-          <table className="taglist" style={{ marginTop: 8 }}><tbody>
-            <tr style={{ color: "var(--text-2)" }}>
-              <td style={{ fontSize: 11 }}>題</td><td style={{ fontSize: 11 }}>作答</td>
-              <td style={{ fontSize: 11 }}>答對率</td><td style={{ fontSize: 11 }}>平均</td><td style={{ fontSize: 11 }}>分佈</td>
-            </tr>
+          <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
             {board.map((q) => (
-              <tr key={q.question}>
-                <td className="name" title={q.prompt}>
-                  {q.question} <span style={{ fontSize: 10, color: q.tier === "complex" ? "var(--pred)" : "var(--dim)" }}>{q.tier === "complex" ? "算" : "看"}</span>
-                </td>
-                <td className="val">{q.students}</td>
-                <td className="val" style={{ color: q.rate != null && q.rate >= 0.6 ? "var(--ok)" : q.rate != null ? "var(--warn)" : "var(--dim)" }}>
-                  {q.rate != null ? `${Math.round(q.rate * 100)}%` : "—"}
-                </td>
-                <td className="val">{q.avg != null ? q.avg : "—"}</td>
-                <td className="val" style={{ fontSize: 11 }}>
-                  {Object.keys(q.dist).length ? Object.entries(q.dist).map(([k, n]) => `${k}:${n}`).join("  ") : "—"}
-                </td>
-              </tr>
+              <div key={q.question} className="card" style={{ padding: "8px 12px", background: "var(--panel-3)" }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+                  <span style={{ fontWeight: 600, fontSize: 12.5 }} title={q.prompt}>
+                    {q.question} <span style={{ fontSize: 10, color: q.tier === "complex" ? "var(--pred)" : "var(--dim)" }}>{q.tier === "complex" ? "算" : "看"}</span>
+                  </span>
+                  <span className="muted mono" style={{ fontSize: 11 }}>{q.prompt.slice(0, 28)}{q.prompt.length > 28 ? "…" : ""}</span>
+                  <span style={{ flex: 1 }} />
+                  <span className="muted" style={{ fontSize: 11 }}>{q.students} 人作答</span>
+                </div>
+                {/* 答對率長條 */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                  <div style={{ flex: 1, height: 10, borderRadius: 6, background: "#0d141d", overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${q.rate != null ? Math.round(q.rate * 100) : 0}%`,
+                                  background: q.rate != null && q.rate >= 0.6 ? "var(--ok)" : "var(--warn)", transition: "width .3s" }} />
+                  </div>
+                  <span className="mono" style={{ fontSize: 12, width: 42, textAlign: "right",
+                                color: q.rate != null && q.rate >= 0.6 ? "var(--ok)" : q.rate != null ? "var(--warn)" : "var(--dim)" }}>
+                    {q.rate != null ? `${Math.round(q.rate * 100)}%` : "—"}
+                  </span>
+                </div>
+                {/* 選項分佈 mini bars */}
+                {Object.keys(q.dist).length > 0 && (
+                  <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                    {Object.entries(q.dist).map(([k, n]) => {
+                      const pct = q.students ? Math.round((n / q.students) * 100) : 0;
+                      return (
+                        <span key={k} style={{ position: "relative", overflow: "hidden", border: "1px solid var(--line)", borderRadius: 6,
+                                               padding: "2px 8px", fontSize: 11, background: "#0d141d" }}>
+                          <span style={{ position: "absolute", inset: 0, width: `${pct}%`, background: "rgba(76,156,232,.22)" }} />
+                          <span style={{ position: "relative" }} className="mono">{k}: {n}</span>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             ))}
-          </tbody></table>
+          </div>
         </div>
       ) : (
         <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>目前沒有進行中的練習。點上面任一題即佈題。</div>
@@ -120,6 +142,8 @@ export default function ClassroomTeacherPanel({ onMsg }: { onMsg: (m: string) =>
           </tbody></table>
         )}
       </div>
+
+      {project && active && <ClassroomProjection active={active} board={board} onClose={() => setProject(false)} />}
     </div>
   );
 }

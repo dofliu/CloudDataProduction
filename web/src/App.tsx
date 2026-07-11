@@ -127,8 +127,8 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div className="logo">勤</div>
-        <h1>{park?.name ?? "勤益智慧工業區"}</h1>
-        <span className="synthetic">合成數據 SYNTHETIC</span>
+        <h1 title={park?.name ?? "勤益智慧工業區"}>{park?.name ?? "勤益智慧工業區"}</h1>
+        <span className="synthetic" title="平台資料皆為合成數據,非真實場域量測">合成數據 SYNTHETIC</span>
         <nav className="nav" style={{ marginLeft: 8 }} data-tour="nav">
           {visibleTabs.map(([k, label]) => (
             <button key={k} data-tour={`tab-${k}`} className={view === k ? "active" : ""} onClick={() => setView(k as typeof view)}>{label}</button>

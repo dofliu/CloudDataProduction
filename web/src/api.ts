@@ -148,6 +148,16 @@ export interface StudentOverviewRow {
   predictions: number; pred_hits: number;
 }
 export const getStudentsOverview = () => getJSON<{ students: StudentOverviewRow[] }>("/api/students/overview");
+
+export interface StudentDetail {
+  student: string;
+  company: { id: string; name: string; device_ids: string[] } | null;
+  submissions: SubmissionResult[];
+  tickets: Ticket[];
+  predictions: any[];
+}
+export const getStudentDetail = (username: string) =>
+  getJSON<StudentDetail>(`/api/students/${encodeURIComponent(username)}`);
 export const resetUserPassword = (username: string, password: string) =>
   post(`/api/auth/users/${encodeURIComponent(username)}/password`, { password });
 export const deleteUser = (username: string) =>

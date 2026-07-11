@@ -7,18 +7,21 @@ import { Catalog, SubmissionResult, postSubmission, getSubmissions, getCourseSta
  * 目的是讓沒有電腦教室、人多無助教的課,作業能即時自動回饋與計分。
  */
 
-type SubType = "connect" | "stats" | "aggregate" | "anomaly" | "events" | "oee" | "correlation" | "rul" | "root_cause";
+type SubType = "connect" | "stats" | "aggregate" | "anomaly" | "events" | "oee"
+  | "correlation" | "rul" | "root_cause" | "slope" | "count_over";
 type Tier = "基礎" | "進階";
 const TYPES: { key: SubType; label: string; tier: Tier; hint: string }[] = [
   { key: "connect", label: "連線讀值 · W2", tier: "基礎", hint: "交某設備某 tag 的即時讀值,驗證你連對了。" },
-  { key: "stats", label: "敘述統計 · W4/期中", tier: "基礎", hint: "交一段時間某 tag 的統計(mean/std),對照當週資料窗真值。" },
+  { key: "stats", label: "敘述統計 · W4/期中", tier: "基礎", hint: "交某 tag 的統計(mean/std/min/max/median/p95),對照當週資料窗真值。" },
   { key: "anomaly", label: "異常判斷 · W6", tier: "基礎", hint: "勾出你判斷為異常的設備,對照本週實際被動手腳的設備(F1)。" },
+  { key: "count_over", label: "越界計數 · W6/8", tier: "基礎", hint: "資料窗內某 tag 超過門檻的樣本數;自己過濾計數。" },
   { key: "events", label: "事件流 · W10", tier: "基礎", hint: "交本週該設備的完工工單數(訂閱事件 / 計 done),對照 MES 實際完工數。" },
   { key: "aggregate", label: "時序聚合 · W7", tier: "進階", hint: "交某 tag 在某小時(0–23)的平均,對照依 hour-of-day 重取樣的真值。" },
-  { key: "oee", label: "OEE 指標 · W11", tier: "進階", hint: "交你算出的 OEE / 可用率 / 表現 / 良率,對照平台累積值。" },
+  { key: "slope", label: "趨勢斜率 · W7/13", tier: "進階", hint: "某 tag 的線性趨勢斜率(每小時變化量),用最小平方法擬合。" },
   { key: "correlation", label: "訊號相關 · W8", tier: "進階", hint: "交兩個 tag 的皮爾森相關係數 r;要自己撈兩條序列、對齊、算相關。" },
-  { key: "rul", label: "剩餘壽命 RUL · W14", tier: "進階", hint: "估計某設備距故障還有幾小時;正解不公開(隱藏狀態),靠退化趨勢推。" },
   { key: "root_cause", label: "根因判斷 · W8", tier: "進階", hint: "判斷某設備異常是「感測器故障」還是「設備故障」。" },
+  { key: "oee", label: "OEE 指標 · W11", tier: "進階", hint: "交你算出的 OEE / 可用率 / 表現 / 良率,對照平台累積值。" },
+  { key: "rul", label: "剩餘壽命 RUL · W14", tier: "進階", hint: "估計某設備距故障還有幾小時;正解不公開(隱藏狀態),靠退化趨勢推。" },
 ];
 
 export default function SubmissionForm({
@@ -30,6 +33,7 @@ export default function SubmissionForm({
   const [metric, setMetric] = useState("mean");
   const [metricOee, setMetricOee] = useState("oee");
   const [hour, setHour] = useState("14");
+  const [threshold, setThreshold] = useState("6");
   const [tagB, setTagB] = useState("");
   const [cause, setCause] = useState<"sensor" | "equipment">("equipment");
   const [value, setValue] = useState("");
@@ -65,11 +69,12 @@ export default function SubmissionForm({
         payload.cause = cause;
       } else {
         payload.device = device;
-        if (type === "connect" || type === "stats" || type === "aggregate" || type === "correlation") payload.tag = tag;
+        if (["connect", "stats", "aggregate", "correlation", "slope", "count_over"].includes(type)) payload.tag = tag;
         if (type === "correlation") { payload.tag_a = tag; payload.tag_b = tagB; }
         if (type === "stats") payload.metric = metric;
         if (type === "oee") payload.metric = metricOee;
         if (type === "aggregate") payload.hour = Number(hour);
+        if (type === "count_over") payload.threshold = Number(threshold);
         const num = parseFloat(value);
         if (Number.isNaN(num)) { setErr("請輸入數字結果"); setBusy(false); return; }
         payload.value = num;
@@ -112,7 +117,7 @@ export default function SubmissionForm({
           </F>
         )}
 
-        {(type === "connect" || type === "stats" || type === "aggregate" || type === "correlation") && (
+        {["connect", "stats", "aggregate", "correlation", "slope", "count_over"].includes(type) && (
           <F label={type === "correlation" ? "tag A" : "tag"}>
             <select className="inp" value={tag} onChange={(e) => setTag(e.target.value)}>
               {tags.map((t) => <option key={t}>{t}</option>)}
@@ -146,8 +151,14 @@ export default function SubmissionForm({
           <F label="統計量">
             <select className="inp" value={metric} onChange={(e) => setMetric(e.target.value)}>
               <option value="mean">mean 平均</option><option value="std">std 標準差</option>
+              <option value="min">min 最小</option><option value="max">max 最大</option>
+              <option value="median">median 中位</option><option value="p95">p95 95百分位</option>
             </select>
           </F>
+        )}
+
+        {type === "count_over" && (
+          <F label="門檻 >"><input className="inp mono" value={threshold} onChange={(e) => setThreshold(e.target.value)} style={{ width: 70 }} /></F>
         )}
 
         {type === "oee" && (
@@ -160,7 +171,8 @@ export default function SubmissionForm({
         )}
 
         {type !== "anomaly" && type !== "root_cause" && (
-          <F label={type === "correlation" ? "相關 r (−1~1)" : type === "rul" ? "估計 (小時)" : "你算出的值"}>
+          <F label={type === "correlation" ? "相關 r (−1~1)" : type === "rul" ? "估計 (小時)"
+                    : type === "slope" ? "斜率 /小時" : type === "count_over" ? "樣本數" : "你算出的值"}>
             <input className="inp mono" value={value} onChange={(e) => setValue(e.target.value)} placeholder="數字" style={{ width: 110 }} /></F>
         )}
 

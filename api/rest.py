@@ -331,6 +331,19 @@ def create_app(
             })
         return {"students": rows}
 
+    @app.get("/api/students/{username}", dependencies=[Depends(require_teacher)])
+    def student_detail(username: str):
+        """教師面:單一學生細項(認領公司 + 每筆繳交 / 工單 / 預測)。總覽點進來用。"""
+        company = next((c for c in world.park.get("companies", []) if c.get("owner") == username), None)
+        return {
+            "student": username,
+            "company": {"id": company["id"], "name": company.get("name"),
+                        "device_ids": [d.get("id") for d in company.get("devices", []) or []]} if company else None,
+            "submissions": submissions.list(student=username),
+            "tickets": tickets.list(owner=username),
+            "predictions": predictions.list(student=username),
+        }
+
     # ── 公開學生面 ─────────────────────────────────────────
     # 註:根路徑 "/" 保留給前端靜態檔(設 WEB_DIST 時);此為 API 資訊索引。
     @app.get("/api")

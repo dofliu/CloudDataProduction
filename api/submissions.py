@@ -14,8 +14,50 @@
 from __future__ import annotations
 
 import time
-from statistics import mean, pstdev
+from statistics import mean, median, pstdev
 from typing import Dict, List, Optional
+
+STATS_METRICS = ("mean", "std", "min", "max", "median", "p95")
+
+
+def _percentile(vals: List[float], p: float) -> float:
+    s = sorted(vals)
+    if len(s) == 1:
+        return s[0]
+    k = (len(s) - 1) * p
+    lo = int(k)
+    frac = k - lo
+    hi = min(lo + 1, len(s) - 1)
+    return s[lo] + (s[hi] - s[lo]) * frac
+
+
+def _stat(vals: List[float], metric: str) -> float:
+    if metric == "mean":
+        return mean(vals)
+    if metric == "std":
+        return pstdev(vals)
+    if metric == "min":
+        return min(vals)
+    if metric == "max":
+        return max(vals)
+    if metric == "median":
+        return median(vals)
+    if metric == "p95":
+        return _percentile(vals, 0.95)
+    raise ValueError(f"未知統計量:{metric}")
+
+
+def _lin_slope(xs: List[float], ys: List[float]) -> Optional[float]:
+    """最小平方法斜率(dy/dx)。x 變異不足回 None。"""
+    n = len(xs)
+    if n < 2:
+        return None
+    mx, my = sum(xs) / n, sum(ys) / n
+    vx = sum((x - mx) ** 2 for x in xs)
+    if vx <= 1e-12:
+        return None
+    cov = sum((xs[i] - mx) * (ys[i] - my) for i in range(n))
+    return cov / vx
 
 
 def _pearson(a: List[float], b: List[float]) -> Optional[float]:
@@ -83,6 +125,8 @@ class SubmissionStore:
             "correlation": self._grade_correlation,
             "rul": self._grade_rul,
             "root_cause": self._grade_root_cause,
+            "slope": self._grade_slope,
+            "count_over": self._grade_count,
         }.get(stype)
         if grader is None:
             raise ValueError(f"未知的作業型別:{stype}(可用:connect/stats/oee/anomaly)")
@@ -131,15 +175,15 @@ class SubmissionStore:
         value = payload.get("value")
         if device is None or tag is None or value is None:
             raise ValueError("stats 需要 device / tag / value(可選 metric=mean/std、window)")
-        if metric not in ("mean", "std"):
-            raise ValueError("metric 目前支援 mean / std")
+        if metric not in STATS_METRICS:
+            raise ValueError(f"metric 支援 {' / '.join(STATS_METRICS)}")
         t_from, t_to = self._window(payload)
         rows = await self.historian.query(device, tag, t_from, t_to, limit=100000)
         vals = [r["value"] for r in rows if r.get("value") is not None]
         if len(vals) < 5:
             return {"score": 0.0, "passed": False,
                     "feedback": "此設備/tag 在該時間窗的歷史資料不足(<5 點),無法比對;確認資料窗與 tag 名稱。"}
-        truth = mean(vals) if metric == "mean" else pstdev(vals)
+        truth = _stat(vals, metric)
         tol = self._tol(payload)
         score, rel = _score_rel(float(value), float(truth), tol)
         passed = score >= 60
@@ -316,6 +360,57 @@ class SubmissionStore:
         return {"score": 100.0 if correct else 0.0, "passed": correct,
                 "feedback": "✓ 根因判斷正確" if correct else
                             "✗ 再想:感測器故障=讀值脫鉤真實但健康度不掉;設備故障=多訊號一致惡化、健康度真的退化"}
+
+    async def _grade_slope(self, payload: dict) -> dict:
+        """進階:某 tag 在資料窗內的線性趨勢斜率(每小時變化量),least-squares 對照真值。"""
+        device = payload.get("device")
+        tag = payload.get("tag")
+        value = payload.get("value")
+        if device is None or tag is None or value is None:
+            raise ValueError("slope 需要 device / tag / value(每小時變化量)")
+        t_from, t_to = self._window(payload)
+        rows = await self.historian.query(device, tag, t_from, t_to, limit=200000)
+        pts = [(r.get("sim_t", 0) / 3600.0, r["value"]) for r in rows if r.get("value") is not None]
+        if len(pts) < 5:
+            return {"score": 0.0, "passed": False, "feedback": "資料窗內樣本不足(<5),無法擬合趨勢。"}
+        slope = _lin_slope([p[0] for p in pts], [p[1] for p in pts])
+        if slope is None:
+            return {"score": 0.0, "passed": False, "feedback": "時間變異不足,斜率未定義;換一段有時間跨度的資料窗。"}
+        tol = max(self._tol(payload), 0.25)
+        if abs(slope) < 1e-6:
+            passed = abs(float(value)) < 1e-3
+            score = 100.0 if passed else 0.0
+        else:
+            score, _ = _score_rel(float(value), float(slope), tol)
+            passed = score >= 60
+        return {"score": score, "passed": passed,
+                "feedback": f"{tag} 趨勢斜率 ≈ {slope:.4f}/h(你算 {float(value):.4f})"
+                            + (" ✓" if passed else " ✗ 用最小平方法對 sim 小時擬合;檢查單位(每小時)")}
+
+    async def _grade_count(self, payload: dict) -> dict:
+        """基礎~中:資料窗內某 tag 超過門檻的樣本數(需自己過濾計數)。"""
+        device = payload.get("device")
+        tag = payload.get("tag")
+        threshold = payload.get("threshold")
+        value = payload.get("value")
+        if device is None or tag is None or threshold is None or value is None:
+            raise ValueError("count_over 需要 device / tag / threshold / value(超過門檻的樣本數)")
+        t_from, t_to = self._window(payload)
+        rows = await self.historian.query(device, tag, t_from, t_to, limit=200000)
+        vals = [r["value"] for r in rows if r.get("value") is not None]
+        if len(vals) < 5:
+            return {"score": 0.0, "passed": False, "feedback": "資料窗內樣本不足(<5)。"}
+        truth = sum(1 for v in vals if v > float(threshold))
+        diff = abs(int(value) - truth)
+        if diff == 0:
+            score = 100.0
+        elif diff <= max(2, int(truth * 0.05)):
+            score = 75.0
+        else:
+            score, _ = _score_rel(float(value), float(truth), max(self._tol(payload), 0.15))
+        return {"score": score, "passed": score >= 60,
+                "feedback": f"{tag} > {float(threshold):g} 的樣本數 = {truth}(你數 {int(value)},共 {len(vals)} 點,差 {diff})"
+                            + (" ✓" if score >= 60 else " ✗ 確認資料窗與門檻")}
 
     # ── 輔助 ────────────────────────────────────────────────
     def _window(self, payload: dict) -> tuple[Optional[float], Optional[float]]:

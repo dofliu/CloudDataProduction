@@ -1,0 +1,6 @@
+# 純 Python 版監控台:不用 streamlit / pandas,畫面由瀏覽器原生 JS 負責。
+# 只需要「講三種工業協定」與「打平台 REST」的相依。
+requests>=2.28
+pymodbus==3.6.9
+asyncua>=1.0        # OPC-UA client(讀 Objects/<folder>/<tag>)
+paho-mqtt>=2.0      # MQTT client(訂閱 <topic_prefix>/state)

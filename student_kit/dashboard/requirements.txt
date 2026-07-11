@@ -2,3 +2,5 @@ streamlit>=1.30
 pymodbus==3.6.9
 requests>=2.28
 pandas>=2.0
+asyncua>=1.0        # OPC-UA client(即時監控可切 OPC-UA)
+paho-mqtt>=2.0      # MQTT client(即時監控可切 MQTT)

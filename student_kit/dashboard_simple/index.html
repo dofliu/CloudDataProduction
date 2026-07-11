@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>我的設備監控台 · 純 Python 版</title>
+<style>
+  :root{
+    --bg:#0e141b; --panel:#151d27; --panel2:#1b2532; --line:#26313f;
+    --fg:#e6edf3; --muted:#8a97a6; --accent:#3aa0ff; --good:#37c871; --bad:#ff5c5c; --warn:#f0b429;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",Roboto,"PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+       background:var(--bg);color:var(--fg);font-size:14px}
+  header{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:12px}
+  header h1{font-size:17px;margin:0}
+  header .sub{color:var(--muted);font-size:12px}
+  .wrap{display:flex;min-height:calc(100vh - 52px)}
+  aside{width:260px;padding:16px;border-right:1px solid var(--line);background:var(--panel)}
+  aside label{display:block;color:var(--muted);font-size:12px;margin:10px 0 4px}
+  aside input,aside select{width:100%;padding:7px 8px;background:var(--panel2);border:1px solid var(--line);
+       border-radius:6px;color:var(--fg);font-size:13px}
+  main{flex:1;padding:18px 22px;overflow:auto}
+  .tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin-bottom:16px;flex-wrap:wrap}
+  .tabs button{background:none;border:none;color:var(--muted);padding:9px 14px;cursor:pointer;
+       font-size:14px;border-bottom:2px solid transparent}
+  .tabs button.on{color:var(--fg);border-bottom-color:var(--accent)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+  button.act{background:var(--accent);border:none;color:#04101d;font-weight:600;padding:8px 14px;
+       border-radius:7px;cursor:pointer}
+  button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--fg);padding:7px 12px;
+       border-radius:7px;cursor:pointer}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+  .seg button{background:var(--panel2);border:none;color:var(--muted);padding:7px 13px;cursor:pointer;font-size:13px}
+  .seg button.on{background:var(--accent);color:#04101d;font-weight:600}
+  select.mini,input.mini{padding:6px 8px;background:var(--panel2);border:1px solid var(--line);
+       border-radius:6px;color:var(--fg);font-size:13px}
+  .metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .metric{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+  .metric .k{color:var(--muted);font-size:12px}
+  .metric .v{font-size:20px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}
+  .state{font-size:15px;font-weight:600;padding:4px 10px;border-radius:20px;display:inline-block}
+  .st-running,.st-moving{background:rgba(55,200,113,.15);color:var(--good)}
+  .st-idle{background:rgba(138,151,166,.15);color:var(--muted)}
+  .st-fault{background:rgba(255,92,92,.15);color:var(--bad)}
+  .st-unknown{background:rgba(240,180,41,.12);color:var(--warn)}
+  svg{width:100%;height:auto;display:block}
+  .axis{stroke:var(--line);stroke-width:1}
+  .grid{stroke:var(--line);stroke-width:.5;opacity:.5}
+  .lbl{fill:var(--muted);font-size:10px}
+  .err{color:var(--bad);font-size:13px;white-space:pre-wrap}
+  .ok{color:var(--good)}
+  .muted{color:var(--muted)}
+  code{background:var(--panel2);padding:1px 5px;border-radius:4px;font-size:12px}
+  .pill{font-size:11px;padding:2px 8px;border-radius:20px;border:1px solid var(--line);color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <h1>🛠️ 我的設備監控台</h1>
+  <span class="sub">雲端生產數據導論 · 純 Python 版(Modbus / OPC-UA / MQTT 三協定 · 無 Streamlit)</span>
+</header>
+<div class="wrap">
+  <aside>
+    <label>平台 API</label><input id="api" value="http://localhost:8077">
+    <label>設備主機</label><input id="host" value="localhost">
+    <label>學號</label><input id="student" value="s001">
+    <label>密碼(選填,繳交寫入才需)</label><input id="pw" type="password" placeholder="讀取 / 繳交多半免登入">
+    <label>選擇設備</label><select id="device"></select>
+    <div style="margin-top:10px"><button class="ghost" onclick="loadCatalog()">↻ 重新載入設備</button></div>
+    <div id="devmeta" class="muted" style="margin-top:10px;font-size:12px"></div>
+  </aside>
+  <main>
+    <div class="tabs" id="tabs"></div>
+    <div id="view"></div>
+  </main>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const cfg = () => "api="+encodeURIComponent($("#api").value)+"&host="+encodeURIComponent($("#host").value)
+                 +"&device="+encodeURIComponent($("#device").value);
+async function getJSON(path){ const r = await fetch(path); return r.json(); }
+async function postJSON(path, body){ const r = await fetch(path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}); return r.json(); }
+function el(html){ const d=document.createElement("div"); d.innerHTML=html.trim(); return d.firstChild; }
+function errBox(e){ return `<div class="err">⚠ ${e}</div>`; }
+
+let CATALOG = {devices:[]};
+let TAGS = [];
+let PROTOS = ["modbus","opcua","mqtt"];   // 這台設備目錄公布的協定(未來可能非三種全上)
+const PROTO_LABEL = {modbus:"Modbus", opcua:"OPC-UA", mqtt:"MQTT"};
+
+// ── 迷你 SVG 折線圖(自製,無外部函式庫)─────────────────
+function lineChart(xs, ys, {w=760,h=280,label=""}={}){
+  if(!ys || ys.length<2) return `<div class="muted">資料不足(${ys?ys.length:0} 點)</div>`;
+  const pad={l:44,r:12,t:12,b:24};
+  const xmin=Math.min(...xs), xmax=Math.max(...xs);
+  const ymin=Math.min(...ys), ymax=Math.max(...ys);
+  const yr=(ymax-ymin)||1, xr=(xmax-xmin)||1;
+  const X=x=>pad.l+(x-xmin)/xr*(w-pad.l-pad.r);
+  const Y=y=>h-pad.b-(y-ymin)/yr*(h-pad.t-pad.b);
+  let d=""; for(let i=0;i<ys.length;i++){ d+=(i?"L":"M")+X(xs[i]).toFixed(1)+" "+Y(ys[i]).toFixed(1); }
+  let grid=""; for(let g=0;g<=4;g++){ const yy=pad.t+g/4*(h-pad.t-pad.b); const val=(ymax-(ymax-ymin)*g/4);
+    grid+=`<line class="grid" x1="${pad.l}" y1="${yy}" x2="${w-pad.r}" y2="${yy}"/>`
+        + `<text class="lbl" x="4" y="${yy+3}">${val.toFixed(2)}</text>`; }
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">${grid}
+    <line class="axis" x1="${pad.l}" y1="${h-pad.b}" x2="${w-pad.r}" y2="${h-pad.b}"/>
+    <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="1.6"/>
+    <text class="lbl" x="${pad.l}" y="${h-6}">${xmin.toFixed(1)}</text>
+    <text class="lbl" x="${w-pad.r-30}" y="${h-6}">${xmax.toFixed(1)}</text>
+    <text class="lbl" x="${w/2-20}" y="${h-6}">${label}</text></svg>`;
+}
+function scatter(a,b,{w=420,h=340,xl="A",yl="B"}={}){
+  if(!a||a.length<2) return `<div class="muted">資料不足</div>`;
+  const pad={l:44,r:12,t:12,b:26};
+  const xmin=Math.min(...a),xmax=Math.max(...a),ymin=Math.min(...b),ymax=Math.max(...b);
+  const xr=(xmax-xmin)||1,yr=(ymax-ymin)||1;
+  const X=x=>pad.l+(x-xmin)/xr*(w-pad.l-pad.r), Y=y=>h-pad.b-(y-ymin)/yr*(h-pad.t-pad.b);
+  let pts=""; for(let i=0;i<a.length;i++){ pts+=`<circle cx="${X(a[i]).toFixed(1)}" cy="${Y(b[i]).toFixed(1)}" r="1.6" fill="var(--accent)" opacity=".6"/>`; }
+  return `<svg viewBox="0 0 ${w} ${h}"><line class="axis" x1="${pad.l}" y1="${h-pad.b}" x2="${w-pad.r}" y2="${h-pad.b}"/>
+    <line class="axis" x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${h-pad.b}"/>${pts}
+    <text class="lbl" x="${w/2}" y="${h-4}">${xl}</text>
+    <text class="lbl" x="8" y="${pad.t+8}">${yl}</text></svg>`;
+}
+function histogram(ys,{w=760,h=240,bins=20}={}){
+  if(!ys||ys.length<2) return "";
+  const lo=Math.min(...ys),hi=Math.max(...ys),wd=(hi-lo)/bins||1;
+  const c=new Array(bins).fill(0);
+  ys.forEach(v=>{ let k=Math.floor((v-lo)/wd); if(k>=bins)k=bins-1; if(k<0)k=0; c[k]++; });
+  const cmax=Math.max(...c)||1, pad={l:44,r:12,t:12,b:24}, bw=(w-pad.l-pad.r)/bins;
+  let bars=""; for(let i=0;i<bins;i++){ const bh=(c[i]/cmax)*(h-pad.t-pad.b);
+    bars+=`<rect x="${pad.l+i*bw+1}" y="${h-pad.b-bh}" width="${bw-2}" height="${bh}" fill="var(--accent)" opacity=".8"/>`; }
+  return `<svg viewBox="0 0 ${w} ${h}"><line class="axis" x1="${pad.l}" y1="${h-pad.b}" x2="${w-pad.r}" y2="${h-pad.b}"/>${bars}
+    <text class="lbl" x="${pad.l}" y="${h-6}">${lo.toFixed(2)}</text>
+    <text class="lbl" x="${w-pad.r-30}" y="${h-6}">${hi.toFixed(2)}</text></svg>`;
+}
+
+// ── 分頁 ─────────────────────────────────────────────────
+const TABS = [
+  {id:"live",   name:"① 即時監控"},
+  {id:"trend",  name:"② 趨勢"},
+  {id:"stat",   name:"③ 統計"},
+  {id:"ana",    name:"④ 分析"},
+  {id:"submit", name:"⑤ 繳交作業"},
+];
+let CUR = "live";
+function renderTabs(){
+  $("#tabs").innerHTML = "";
+  TABS.forEach(t=>{ const b=el(`<button class="${t.id===CUR?'on':''}">${t.name}</button>`);
+    b.onclick=()=>{ CUR=t.id; renderTabs(); renderView(); }; $("#tabs").appendChild(b); });
+}
+function tagOptions(sel){ return TAGS.map(t=>`<option ${t===sel?'selected':''}>${t}</option>`).join(""); }
+
+function renderView(){
+  const v=$("#view");
+  if(CUR==="live") return renderLive(v);
+  if(CUR==="trend") return renderTrend(v);
+  if(CUR==="stat") return renderStat(v);
+  if(CUR==="ana") return renderAna(v);
+  if(CUR==="submit") return renderSubmit(v);
+}
+
+// ① 即時監控:協定切換(Modbus / OPC-UA / MQTT)
+let PROTO="modbus", AUTO=null;
+function renderLive(v){
+  if(!PROTOS.includes(PROTO)) PROTO = PROTOS[0] || "modbus";
+  v.innerHTML = `<div class="card">
+    <div class="row" style="justify-content:space-between">
+      <div class="seg" id="proto">
+        ${PROTOS.map(p=>`<button data-p="${p}">${PROTO_LABEL[p]||p}</button>`).join("")}
+      </div>
+      <div class="row" style="margin:0">
+        <label class="muted" style="margin:0"><input type="checkbox" id="auto"> 自動更新(2 秒)</label>
+        <button class="act" onclick="pollLive()">讀取即時值</button>
+      </div>
+    </div>
+    <div id="livehead" class="row"></div>
+    <div id="livebody"><div class="muted">按「讀取即時值」以你選的協定連設備一次。</div></div>
+    <div id="livehint" class="muted" style="margin-top:10px;font-size:12px"></div>
+  </div>`;
+  v.querySelectorAll("#proto button").forEach(b=>{ if(b.dataset.p===PROTO)b.classList.add("on");
+    b.onclick=()=>{ PROTO=b.dataset.p; v.querySelectorAll("#proto button").forEach(x=>x.classList.toggle("on",x.dataset.p===PROTO)); pollLive(); }; });
+  v.querySelector("#auto").onchange=e=>{ if(AUTO){clearInterval(AUTO);AUTO=null;} if(e.target.checked){AUTO=setInterval(pollLive,2000);} };
+}
+async function pollLive(){
+  const head=$("#livehead"), body=$("#livebody"), hint=$("#livehint");
+  if(!head) return; body.innerHTML='<div class="muted">讀取中…</div>';
+  const r = await getJSON(`/data/live?${cfg()}&proto=${PROTO}`);
+  if(r.error){ body.innerHTML=errBox(r.error); return; }
+  const st=r.state||"unknown";
+  head.innerHTML = `<span class="state st-${st}">${st}</span>
+    <span class="pill">協定:${r.proto.toUpperCase()}</span>`;
+  const keys=Object.keys(r.values);
+  body.innerHTML = `<div class="metrics">`+keys.map(k=>{
+    const val=r.values[k]; const show=(typeof val==="number")?val.toFixed(2):(val==null?"—":val);
+    return `<div class="metric"><div class="k">${k} <span class="muted">${r.units[k]||""}</span></div><div class="v">${show}</div></div>`;
+  }).join("")+`</div>`;
+  const c=r.conn;
+  const where = r.proto==="modbus" ? `Modbus 埠 ${c.modbus_port} · unit_id ${c.unit_id}`
+    : r.proto==="opcua" ? `OPC-UA ${c.opcua.endpoint} · Objects/${c.opcua.node_folder}/&lt;tag&gt;`
+    : `MQTT ${c.mqtt.host}:${c.mqtt.port} · 主題 ${c.mqtt.topic}`;
+  hint.innerHTML = `這是你的 client 透過 <b>${r.proto.toUpperCase()}</b> 讀到的值。${where}`;
+}
+
+// ② 趨勢
+function renderTrend(v){
+  v.innerHTML=`<div class="card"><div class="row">
+    <select id="ttag" class="mini">${tagOptions()}</select>
+    <label class="muted">點數 <input id="tlim" class="mini" type="number" value="2000" style="width:90px"></label>
+    <button class="act" onclick="doTrend()">撈歷史畫趨勢</button></div>
+    <div id="tout"><div class="muted">用 /api/history 撈歷史(sim 小時軸)。</div></div></div>`;
+}
+async function doTrend(){
+  const tag=$("#ttag").value, lim=$("#tlim").value;
+  $("#tout").innerHTML='<div class="muted">撈取中…</div>';
+  const r=await getJSON(`/data/history?${cfg()}&tag=${tag}&limit=${lim}`);
+  if(r.error) return $("#tout").innerHTML=errBox(r.error);
+  $("#tout").innerHTML = lineChart(r.x,r.y,{label:"sim 小時"}) + `<div class="muted">共 ${r.n} 點 · ${tag}</div>`;
+}
+
+// ③ 統計
+function renderStat(v){
+  v.innerHTML=`<div class="card"><div class="row">
+    <select id="stag" class="mini">${tagOptions()}</select>
+    <button class="act" onclick="doStat()">計算統計</button></div>
+    <div id="sout"><div class="muted">mean / std / min / max / median / p95 + 分佈直方圖。</div></div></div>`;
+}
+async function doStat(){
+  const tag=$("#stag").value; $("#sout").innerHTML='<div class="muted">計算中…</div>';
+  const r=await getJSON(`/data/stats?${cfg()}&tag=${tag}`);
+  if(r.error) return $("#sout").innerHTML=errBox(r.error);
+  const d=r.stats; if(!d||!d.n) return $("#sout").innerHTML='<div class="muted">資料不足。</div>';
+  const ks=["mean","std","min","max","median","p95"];
+  $("#sout").innerHTML=`<div class="metrics">`+ks.map(k=>`<div class="metric"><div class="k">${k}</div><div class="v">${d[k].toFixed(3)}</div></div>`).join("")
+    +`</div><div class="muted" style="margin:8px 0">n=${d.n} · ${tag}</div>`+histogram(r.y);
+}
+
+// ④ 分析
+let ANA="corr";
+function renderAna(v){
+  v.innerHTML=`<div class="card">
+    <div class="seg" id="anaseg" style="margin-bottom:12px">
+      <button data-a="corr">訊號相關</button><button data-a="slope">趨勢斜率</button>
+      <button data-a="count">越界計數</button><button data-a="hod">時段平均</button></div>
+    <div id="anactl" class="row"></div><div id="anaout"></div></div>`;
+  v.querySelectorAll("#anaseg button").forEach(b=>{ if(b.dataset.a===ANA)b.classList.add("on");
+    b.onclick=()=>{ ANA=b.dataset.a; renderAna(v); }; });
+  const ctl=$("#anactl");
+  if(ANA==="corr") ctl.innerHTML=`<select id="aa" class="mini">${tagOptions()}</select>
+    <select id="ab" class="mini">${tagOptions(TAGS[1])}</select><button class="act" onclick="doAna()">算相關 r</button>`;
+  else if(ANA==="slope") ctl.innerHTML=`<select id="atag" class="mini">${tagOptions()}</select><button class="act" onclick="doAna()">擬合斜率</button>`;
+  else if(ANA==="count") ctl.innerHTML=`<select id="atag" class="mini">${tagOptions()}</select>
+    <label class="muted">門檻 &gt; <input id="athr" class="mini" type="number" value="6" style="width:80px"></label><button class="act" onclick="doAna()">計數</button>`;
+  else ctl.innerHTML=`<select id="atag" class="mini">${tagOptions()}</select>
+    <label class="muted">小時 <input id="ahr" class="mini" type="number" value="14" min="0" max="23" style="width:70px"></label><button class="act" onclick="doAna()">算時段平均</button>`;
+}
+async function doAna(){
+  let url=`/data/analyze?${cfg()}&kind=${ANA}`;
+  if(ANA==="corr") url+=`&a=${$("#aa").value}&b=${$("#ab").value}`;
+  else if(ANA==="count") url+=`&tag=${$("#atag").value}&threshold=${$("#athr").value}`;
+  else if(ANA==="hod") url+=`&tag=${$("#atag").value}&hour=${$("#ahr").value}`;
+  else url+=`&tag=${$("#atag").value}`;
+  $("#anaout").innerHTML='<div class="muted">計算中…</div>';
+  const r=await getJSON(url);
+  if(r.error) return $("#anaout").innerHTML=errBox(r.error);
+  if(r.kind==="corr") $("#anaout").innerHTML=`<div class="metric" style="max-width:220px"><div class="k">r(${$("#aa").value}, ${$("#ab").value})</div><div class="v">${r.r==null?"—":r.r.toFixed(3)}</div></div>`+scatter(r.a,r.b,{xl:$("#aa").value,yl:$("#ab").value});
+  else if(r.kind==="slope") $("#anaout").innerHTML=`<div class="metric" style="max-width:220px"><div class="k">斜率</div><div class="v">${r.slope==null?"—":r.slope.toFixed(4)} /h</div></div><div class="muted">n=${r.n}</div>`;
+  else if(r.kind==="count") $("#anaout").innerHTML=`<div class="metric" style="max-width:260px"><div class="k">&gt; ${r.threshold} 的樣本數</div><div class="v">${r.count}</div></div><div class="muted">共 ${r.n} 點</div>`;
+  else $("#anaout").innerHTML=`<div class="metric" style="max-width:260px"><div class="k">第 ${r.hour} 時平均</div><div class="v">${r.mean==null?"—":r.mean.toFixed(3)}</div></div>`;
+}
+
+// ⑤ 繳交作業
+const SUBMIT_TYPES=["connect","stats","aggregate","count_over","correlation","slope"];
+let STYPE="connect";
+function renderSubmit(v){
+  v.innerHTML=`<div class="card">
+    <div class="row"><label class="muted">週次 <input id="sweek" class="mini" value="4" style="width:70px"></label>
+      <label class="muted">型別 <select id="stype" class="mini">${SUBMIT_TYPES.map(t=>`<option ${t===STYPE?'selected':''}>${t}</option>`).join("")}</select></label></div>
+    <div id="sctl" class="row"></div>
+    <div class="row"><button class="ghost" onclick="computeVal()">自動算值並帶入</button>
+      <label class="muted">要繳交的值 <input id="sval" class="mini" style="width:160px" value="0"></label></div>
+    <button class="act" onclick="doSubmit()">📤 送出繳交</button>
+    <div id="sout" style="margin-top:12px"></div>
+    <div class="muted" style="margin-top:8px;font-size:12px">送出即由平台對 ground-truth 自動批改;分數立即回傳。</div>
+  </div>`;
+  $("#stype").onchange=e=>{ STYPE=e.target.value; renderSubmit(v); };
+  const c=$("#sctl");
+  if(STYPE==="connect") c.innerHTML=`<select id="s_tag" class="mini">${tagOptions()}</select>
+    <span class="muted">(即時值,預設用 Modbus 讀)</span>`;
+  else if(STYPE==="stats") c.innerHTML=`<select id="s_tag" class="mini">${tagOptions()}</select>
+    <select id="s_metric" class="mini">${["mean","std","min","max","median","p95"].map(m=>`<option>${m}</option>`).join("")}</select>`;
+  else if(STYPE==="aggregate") c.innerHTML=`<select id="s_tag" class="mini">${tagOptions()}</select>
+    <label class="muted">小時 <input id="s_hour" class="mini" type="number" value="14" style="width:70px"></label>`;
+  else if(STYPE==="count_over") c.innerHTML=`<select id="s_tag" class="mini">${tagOptions()}</select>
+    <label class="muted">門檻 &gt; <input id="s_thr" class="mini" type="number" value="6" style="width:80px"></label>`;
+  else if(STYPE==="correlation") c.innerHTML=`<select id="s_tag" class="mini">${tagOptions()}</select>
+    <select id="s_b" class="mini">${tagOptions(TAGS[1])}</select>`;
+  else if(STYPE==="slope") c.innerHTML=`<select id="s_tag" class="mini">${tagOptions()}</select>`;
+}
+async function computeVal(){
+  const dev=$("#device").value; let val=null;
+  if(STYPE==="connect"){ const r=await getJSON(`/data/live?${cfg()}&proto=modbus`); val=r.values?.[$("#s_tag").value]; }
+  else if(STYPE==="stats"){ const r=await getJSON(`/data/stats?${cfg()}&tag=${$("#s_tag").value}`); val=r.stats?.[$("#s_metric").value]; }
+  else if(STYPE==="aggregate"){ const r=await getJSON(`/data/analyze?${cfg()}&kind=hod&tag=${$("#s_tag").value}&hour=${$("#s_hour").value}`); val=r.mean; }
+  else if(STYPE==="count_over"){ const r=await getJSON(`/data/analyze?${cfg()}&kind=count&tag=${$("#s_tag").value}&threshold=${$("#s_thr").value}`); val=r.count; }
+  else if(STYPE==="correlation"){ const r=await getJSON(`/data/analyze?${cfg()}&kind=corr&a=${$("#s_tag").value}&b=${$("#s_b").value}`); val=r.r; }
+  else if(STYPE==="slope"){ const r=await getJSON(`/data/analyze?${cfg()}&kind=slope&tag=${$("#s_tag").value}`); val=r.slope; }
+  if(val!=null) $("#sval").value=(typeof val==="number")?val.toFixed(4):val;
+}
+async function doSubmit(){
+  const week=$("#sweek").value;
+  const payload={student:$("#student").value, type:STYPE, device:$("#device").value,
+                 value:parseFloat($("#sval").value), password:$("#pw").value||undefined};
+  if(week) payload.week = /^\d+$/.test(week)?parseInt(week):week;
+  if(STYPE==="connect"||STYPE==="stats"||STYPE==="aggregate"||STYPE==="count_over"||STYPE==="slope") payload.tag=$("#s_tag").value;
+  if(STYPE==="stats") payload.metric=$("#s_metric").value;
+  if(STYPE==="aggregate") payload.hour=parseInt($("#s_hour").value);
+  if(STYPE==="count_over") payload.threshold=parseFloat($("#s_thr").value);
+  if(STYPE==="correlation"){ payload.tag_a=$("#s_tag").value; payload.tag_b=$("#s_b").value; }
+  $("#sout").innerHTML='<div class="muted">送出中…</div>';
+  const r=await postJSON(`/data/submit?${cfg()}`, payload);
+  if(r.error) return $("#sout").innerHTML=errBox(r.error);
+  const cls=r.passed?"ok":"err";
+  $("#sout").innerHTML=`<div class="${cls}" style="font-size:15px">分數 ${r.score} · ${r.feedback||""}</div>`;
+}
+
+// ── 啟動:載入設備目錄 ───────────────────────────────────
+async function loadCatalog(){
+  $("#devmeta").textContent="載入中…";
+  const r=await getJSON(`/data/catalog?api=${encodeURIComponent($("#api").value)}`);
+  if(r.error){ $("#devmeta").innerHTML=errBox(r.error); return; }
+  CATALOG=r;
+  const sel=$("#device"); sel.innerHTML=r.devices.map(d=>`<option value="${d.id}">${d.id} · ${d.kind||""}</option>`).join("");
+  onDeviceChange();
+  $("#devmeta").innerHTML=`共 ${r.devices.length} 台 · 協定模式 <code>${r.protocol_mode}</code>`
+    + (r.synthetic?` · <span class="pill">合成數據</span>`:"");
+}
+function onDeviceChange(){
+  const d=CATALOG.devices.find(x=>x.id===$("#device").value);
+  TAGS=d?d.tags:[];
+  PROTOS=(d&&d.protocols&&d.protocols.length)?d.protocols:["modbus"];
+  renderView();
+}
+$("#device")?.addEventListener("change", onDeviceChange);
+window.addEventListener("DOMContentLoaded", ()=>{ renderTabs(); loadCatalog(); });
+</script>
+</body>
+</html>

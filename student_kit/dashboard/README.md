@@ -7,7 +7,7 @@
 
 | 分頁 | 做什麼 | 對應課程 |
 |---|---|---|
-| ① 即時監控 | 用 **Modbus** 直連讀即時值 + 狀態 + 即時折線 | 接取 / 監控 |
+| ① 即時監控 | 可切 **Modbus / OPC-UA / MQTT** 讀即時值 + 狀態 + 即時折線 | 接取 / 監控 |
 | ② 趨勢 | 用 `/api/history` 撈歷史畫趨勢 | 儲存查詢 / 視覺化 |
 | ③ 統計 | mean/std/min/max/median/p95 + 分佈 | 敘述統計 |
 | ④ 分析 | 訊號相關 r、趨勢斜率、越界計數、時段平均 | 分析 |
@@ -38,3 +38,7 @@
 - **資料誠信**:平台資料為合成(synthetic)、帶 ground-truth,繳交即自動比對計分。
 - **架構**:`client.py` 是純資料/運算層(好測、可重用);`app.py` 只負責畫面。想換成
   Flask / Dash / 純 CLI,重用 `client.py` 即可。
+- **三協定**:`client.py` 內含 `ModbusReader` / `OpcuaReader` / `MqttReader`,對外統一
+  `read_live(conn, proto, host)`;即時監控分頁可切協定,同一台設備三種協定讀出的值應一致。
+- **不想裝 Streamlit?** 看隔壁 [`../dashboard_simple`](../dashboard_simple):只用標準庫
+  `http.server` + 瀏覽器原生 JS 的同款監控台,重用同一份 `client.py`。

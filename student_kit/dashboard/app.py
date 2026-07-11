@@ -52,7 +52,10 @@ tab_live, tab_trend, tab_stat, tab_ana, tab_submit = st.tabs(
 # ── ① 即時監控:Modbus 讀 + 狀態 + 即時折線 ─────────────────
 with tab_live:
     st.subheader(f"即時監控 · {device}")
-    auto = st.checkbox("自動更新(每 2 秒)")
+    c_proto, c_auto = st.columns([2, 1])
+    proto = c_proto.radio("讀取協定", ["modbus", "opcua", "mqtt"], horizontal=True,
+                          format_func=lambda p: {"modbus": "Modbus", "opcua": "OPC-UA", "mqtt": "MQTT"}[p])
+    auto = c_auto.checkbox("自動更新(每 2 秒)")
     try:
         info = C.api_get(api, f"/api/devices/{device}")
         state = info.get("state", "—")
@@ -62,9 +65,7 @@ with tab_live:
     st.markdown(f"### 狀態:{color} `{state}`")
 
     if conn:
-        reader = C.ModbusReader(host, conn["port"])
-        vals = reader.read_device(conn)
-        reader.close()
+        vals = C.read_live(conn, proto, host)  # 同一台設備、三種協定讀出的值應一致
         # 即時數值卡
         keys = [k for k in ("vibration_rms", "spindle_temp", "spindle_current", "motor_current",
                             "particle_count", "active_power") if k in vals]
@@ -81,7 +82,7 @@ with tab_live:
         seq.append(row); del seq[:-120]
         df = pd.DataFrame(seq).set_index("t")
         st.line_chart(df, height=260)
-        st.caption("這是你的 client 透過 Modbus(FC03)即時讀到的值;每次更新追加一點。")
+        st.caption(f"這是你的 client 透過 {proto.upper()} 即時讀到的值;三種協定讀同一隱藏狀態,值應一致。")
     if auto:
         time.sleep(2)
         st.rerun()

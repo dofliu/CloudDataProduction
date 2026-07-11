@@ -18,6 +18,8 @@ export default function StudentView({ park, telemetry }: { park: Park; telemetry
   const [predScores, setPredScores] = useState<PredScoreRow[]>([]);
   const [oee, setOee] = useState<OeeRow[]>([]);
   const [msg, setMsg] = useState("");
+  const [q, setQ] = useState("");
+  const [filter, setFilter] = useState<"all" | "mine" | "free" | "fault">("all");
 
   const refresh = () => {
     getPark().then((p) => setCompanies(p.companies)).catch(() => {});
@@ -42,9 +44,30 @@ export default function StudentView({ park, telemetry }: { park: Park; telemetry
   const myTickets = me ? tickets.filter((t) => myCompanyIds.has(t.company || "")) : tickets;
   const openCount = tickets.filter((t) => t.status !== "resolved").length;
 
+  // 找公司:搜尋 + 篩選 + 排序(我的置頂、其次有故障、再依名稱),解決 64 張卡難找的問題。
+  const kw = q.trim().toLowerCase();
+  const matches = (c: Company) => {
+    const isMine = c.owner === me && !!me;
+    if (filter === "mine" && !isMine) return false;
+    if (filter === "free" && !!c.owner) return false;
+    if (filter === "fault" && !devFault(c)) return false;
+    if (kw && !(`${c.name} ${c.id} ${c.owner ?? ""} ${c.product ?? ""}`.toLowerCase().includes(kw))) return false;
+    return true;
+  };
+  const shownCompanies = companies.filter(matches).sort((a, b) => {
+    const rank = (c: Company) => ((c.owner === me && !!me) ? 0 : devFault(c) ? 1 : !c.owner ? 2 : 3);
+    return rank(a) - rank(b) || a.name.localeCompare(b.name, "zh-Hant");
+  });
+  const freeCount = companies.filter((c) => !c.owner).length;
+  const faultCount = companies.filter(devFault).length;
+  const FILTERS: [typeof filter, string, number][] = [
+    ["all", "全部", companies.length], ["mine", "我的", myCompanyIds.size],
+    ["free", "未認領", freeCount], ["fault", "有故障", faultCount],
+  ];
+
   return (
-    <div className="page" style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
+    <div className="page" style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
+      <div style={{ flex: "1 1 480px", minWidth: 0 }}>
         <h2>學生面 · 認領 → 處置工單 → 上競賽榜</h2>
 
         {/* 身分卡 */}
@@ -65,10 +88,25 @@ export default function StudentView({ park, telemetry }: { park: Park; telemetry
         </div>
         {msg && <div className="hint" style={{ color: "var(--accent)", marginTop: -8, marginBottom: 12 }}>· {msg}</div>}
 
-        {/* 公司認領 */}
-        <h3 style={{ fontSize: 15, margin: "4px 0 8px" }}>公司認領</h3>
+        {/* 公司認領:搜尋 + 篩選(64 廠好找) */}
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", margin: "4px 0 10px" }}>
+          <h3 style={{ fontSize: 15, margin: 0 }}>公司認領</h3>
+          <input className="inp" value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 搜尋公司 / 產品 / 學號"
+                 style={{ width: 200, padding: "6px 10px" }} />
+          <div className="seg" style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden" }}>
+            {FILTERS.map(([f, label, n]) => (
+              <button key={f} onClick={() => setFilter(f)}
+                style={{ background: filter === f ? "var(--accent)" : "var(--panel-3)", color: filter === f ? "#05101a" : "var(--text-2)",
+                         border: "none", padding: "6px 11px", cursor: "pointer", fontSize: 12.5, fontWeight: filter === f ? 700 : 400 }}>
+                {label} <span style={{ opacity: .7 }}>{n}</span>
+              </button>
+            ))}
+          </div>
+          <span className="muted" style={{ fontSize: 12 }}>顯示 {shownCompanies.length} 間</span>
+        </div>
         <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))" }}>
-          {companies.map((c) => {
+          {shownCompanies.length === 0 && <div className="hint" style={{ gridColumn: "1/-1" }}>沒有符合的公司,換個關鍵字或篩選。</div>}
+          {shownCompanies.map((c) => {
             const mine = c.owner === me && !!me;
             const taken = !!c.owner && !mine;
             const fault = devFault(c);
@@ -118,8 +156,8 @@ export default function StudentView({ park, telemetry }: { park: Park; telemetry
         )}
       </div>
 
-      {/* 右側競賽榜 */}
-      <div style={{ width: 400, flex: "0 0 400px", display: "grid", gap: 14 }}>
+      {/* 右側競賽榜(窄螢幕自動換到下方) */}
+      <div style={{ flex: "1 1 320px", minWidth: 300, maxWidth: 460, display: "grid", gap: 14 }}>
         <Leaderboard title="故障管理" cols={["公司", "偵測", "結案", "漏", "分數"]}
           rows={scores.map((r) => [r.name, `${r.detected}/${r.faults}`, String(r.resolved), String(r.missed), r.score.toFixed(0)])}
           mine={me ? scores.findIndex((r) => r.owner === me) : -1} />

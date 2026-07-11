@@ -201,3 +201,27 @@ input, select, textarea { font-family: var(--font-ui); }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: #1c2431; border-radius: 6px; border: 2px solid var(--panel); }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* ── 響應式:窄螢幕 / 平板 / 手機 ───────────────────────── */
+/* 頂欄:名稱不再被硬切,分頁可橫向捲動;工具按鈕縮小 */
+@media (max-width: 1100px) {
+  header.topbar { gap: 10px; padding: 0 12px; }
+  .topbar h1 { max-width: 30vw; }
+  .nav { overflow-x: auto; scrollbar-width: none; }
+  .nav::-webkit-scrollbar { display: none; }
+}
+@media (max-width: 820px) {
+  header.topbar { height: auto; min-height: 52px; flex: 0 0 auto; flex-wrap: wrap; padding: 8px 12px; gap: 8px; }
+  .topbar h1 { max-width: 42vw; font-size: 14px; }
+  .topbar .synthetic { display: none; }               /* 手機收起裝飾標籤,留給操作 */
+  .topbar .spacer { flex-basis: 100%; height: 0; }     /* 強制把時鐘 / 工具列換到第二行 */
+  .nav { order: 3; flex-basis: 100%; }
+}
+@media (max-width: 640px) {
+  .page { padding: 12px !important; }
+  .topbar .clock { display: none; }
+}
+/* 通用:表格在窄容器可橫向捲動,不撐破版面 */
+@media (max-width: 640px) {
+  .card table { display: block; overflow-x: auto; white-space: nowrap; }
+}

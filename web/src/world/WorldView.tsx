@@ -400,8 +400,8 @@ export default function WorldView({
           light.circle(0, 0, 12 + a * 4).fill({ color: 0xf0883c, alpha: 0.1 + 0.14 * a });
           light.circle(0, 0, 7).fill(0xf0883c).stroke({ width: 2, color: 0x10151d });
         } else {
-          light.circle(0, 0, 10).fill({ color: 0x35d07a, alpha: 0.09 });
-          light.circle(0, 0, 6.5).fill(0x35d07a).stroke({ width: 2, color: 0x10151d });
+          // 正常:小而沉靜,讓紅(故障)/橘(預測)在滿屏時仍一眼跳出
+          light.circle(0, 0, 5).fill(0x2ba869).stroke({ width: 1.6, color: 0x10151d });
         }
       }
       smoke(animT, dt);

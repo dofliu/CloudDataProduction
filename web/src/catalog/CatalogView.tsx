@@ -8,7 +8,7 @@ const td: React.CSSProperties = { padding: "5px 8px", borderBottom: "1px solid v
 const tag = (t: string, color: string, bg: string): React.CSSProperties => ({
   fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600, color, background: bg, padding: "1px 6px", borderRadius: 5 });
 
-export default function CatalogView({ catalog, telemetry }: { catalog: Catalog | null; telemetry: TelemetryMsg | null }) {
+export default function CatalogView({ catalog, telemetry, onOpen }: { catalog: Catalog | null; telemetry: TelemetryMsg | null; onOpen?: (id: string) => void }) {
   const [selId, setSelId] = useState<string | null>(null);
   if (!catalog) return <div className="page">載入目錄中…</div>;
 
@@ -48,6 +48,8 @@ export default function CatalogView({ catalog, telemetry }: { catalog: Catalog |
               <span className="mono">{sel.id}</span>
               {live && <span className="badge" style={{ background: STATUS_COLOR_CSS[live.state] ?? "var(--muted)" }}>{live.state}</span>}
               <span className="muted" style={{ fontSize: 13, fontWeight: 400 }}>{sel.template} · {sel.company_id}</span>
+              {onOpen && live && <button className="btn primary" style={{ marginLeft: "auto", padding: "5px 13px", fontSize: 12.5 }}
+                onClick={() => onOpen(sel.id)}>🔍 放大詳細動畫</button>}
             </h2>
             <p className="sub" style={{ marginBottom: 14 }}>⚠ 全部為合成數據(synthetic),非真實場域量測。</p>
 

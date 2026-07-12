@@ -10,6 +10,7 @@ import DiagnosticsView from "./diagnostics/DiagnosticsView";
 import OeeView from "./oee/OeeView";
 import StudentView from "./student/StudentView";
 import ClassroomView from "./classroom/ClassroomView";
+import DeviceDetailModal from "./world/DeviceDetailModal";
 import OnboardingView from "./onboarding/OnboardingView";
 import GlossaryOverlay from "./help/GlossaryOverlay";
 import TourOverlay from "./tour/TourOverlay";
@@ -194,7 +195,7 @@ export default function App() {
         ) : view === "classroom" ? (
           <ClassroomView />
         ) : view === "catalog" ? (
-          <CatalogView catalog={catalog} telemetry={telemetry} />
+          <CatalogView catalog={catalog} telemetry={telemetry} onOpen={setSelected} />
         ) : view === "diag" ? (
           <DiagnosticsView host={window.location.hostname} />
         ) : view === "oee" ? (
@@ -204,6 +205,13 @@ export default function App() {
                        onParkChanged={() => getPark().then(setPark).catch(console.error)} />
         )}
       </div>
+
+      {/* 設備詳情彈窗:點世界廠內機台 / 目錄卡 → 放大詳細動畫 + 即時訊號(方案 4D 新功能) */}
+      {selected && sel && (
+        <DeviceDetailModal deviceId={selected} snapshot={sel}
+          company={park?.companies.find((c) => (c.device_ids || []).includes(selected))?.name}
+          onClose={() => setSelected(null)} />
+      )}
     </div>
   );
 }

@@ -84,6 +84,8 @@ header.topbar {
 }
 /* 小圓點脈動(範例即時指示) */
 @keyframes dotPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.8); } }
+/* 彈窗淡入 */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
 /* ── 分頁 nav ─────────────────────────────────────── */
 .nav { display: flex; gap: 2px; flex-wrap: nowrap; }

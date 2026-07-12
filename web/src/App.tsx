@@ -228,12 +228,12 @@ function DevicePanel({ sel, setpoints, resetMsg, setResetMsg }: {
 
       {isTeacher ? (
         <div style={{ margin: "10px 0 2px", display: "flex", flexWrap: "wrap", gap: 8 }}>
-          <button className="btn" style={{ background: runEnabled ? "var(--warn)" : "var(--ok)", color: "#08121e" }}
+          <button className="btn" style={{ background: runEnabled ? "var(--warn)" : "var(--ok)", color: "#fffaf0" }}
             onClick={async () => {
               try { await setCoil(sel.id, "run_enable", !runEnabled); setResetMsg(`已寫 run_enable=${!runEnabled}:${sel.id}`); }
               catch (e: any) { setResetMsg(`線圈寫入失敗:${e.message}(檢查教師 token)`); }
             }}>{runEnabled ? "⏸ 停機" : "▶ 復機"}</button>
-          <button className="btn" style={{ background: "var(--ok)", color: "#08121e" }}
+          <button className="btn" style={{ background: "var(--ok)", color: "#fffaf0" }}
             onClick={async () => {
               try { await setCoil(sel.id, "reset_fault", true); setResetMsg(`已寫 reset_fault:${sel.id}`); }
               catch { try { await resetDevice(sel.id); setResetMsg(`已重置 / 清除故障:${sel.id}`); }

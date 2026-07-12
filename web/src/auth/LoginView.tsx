@@ -28,11 +28,11 @@ export default function LoginView({ parkName, onAuthed }: { parkName: string; on
 
   return (
     <div style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
-                  background: "radial-gradient(1200px 600px at 50% -10%, #16233a 0%, var(--bg) 60%)", padding: 20 }}>
+                  background: "radial-gradient(1200px 600px at 50% -10%, #f4e6d2 0%, var(--bg) 60%)", padding: 20 }}>
       <div className="card float" style={{ width: "min(400px, 100%)", padding: "26px 26px 22px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
           <div className="logo" style={{ width: 30, height: 30, borderRadius: 8, background: "var(--accent-grad)",
-                display: "flex", alignItems: "center", justifyContent: "center", color: "#051019", fontWeight: 700 }}>勤</div>
+                display: "flex", alignItems: "center", justifyContent: "center", color: "#fffaf0", fontWeight: 700 }}>勤</div>
           <div style={{ fontSize: 18, fontWeight: 700 }}>{parkName || "智慧工業區"}</div>
         </div>
         <p className="hint" style={{ margin: "0 0 16px" }}>用老師發給你的帳號密碼登入。</p>
@@ -57,7 +57,7 @@ export default function LoginView({ parkName, onAuthed }: { parkName: string; on
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               <input className="inp" placeholder="TEACHER_TOKEN" value={token}
                      onChange={(e) => setToken(e.target.value)} onKeyDown={(e) => e.key === "Enter" && doToken()} style={{ flex: 1 }} />
-              <button className="btn" style={{ background: "var(--warn)", color: "#08121e" }} onClick={doToken} disabled={busy || !token}>進入</button>
+              <button className="btn" style={{ background: "var(--warn)", color: "#fffaf0" }} onClick={doToken} disabled={busy || !token}>進入</button>
             </div>
           )}
         </div>

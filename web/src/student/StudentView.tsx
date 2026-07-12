@@ -73,7 +73,7 @@ export default function StudentView({ park, telemetry }: { park: Park; telemetry
         {/* 身分卡 */}
         <div className="card" style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 16 }}>
           <div style={{ width: 42, height: 42, borderRadius: 10, background: "var(--accent-grad)",
-                        display: "flex", alignItems: "center", justifyContent: "center", color: "#05101a", fontWeight: 700, fontSize: 18 }}>
+                        display: "flex", alignItems: "center", justifyContent: "center", color: "#fffaf0", fontWeight: 700, fontSize: 18 }}>
             {me ? me[0]?.toUpperCase() : "?"}
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", flex: 1 }}>
@@ -81,7 +81,7 @@ export default function StudentView({ park, telemetry }: { park: Park; telemetry
             <input className="inp" value={meInput} onChange={(e) => setMeInput(e.target.value)}
                    onKeyDown={(e) => e.key === "Enter" && saveMe()} placeholder="例:S001 / kiwi" style={{ width: 150 }} />
             <button className="btn primary" onClick={saveMe}>設定</button>
-            {me && <span className="pill" style={{ color: "var(--ok)", borderColor: "#1e4230" }}>目前 {me}</span>}
+            {me && <span className="pill" style={{ color: "var(--ok)", borderColor: "#d3e2c4" }}>目前 {me}</span>}
             <span style={{ flex: 1 }} />
             <span className="mono" style={{ fontSize: 12, color: openCount > 0 ? "var(--fault)" : "var(--muted)" }}>未結案工單 {openCount}</span>
           </div>
@@ -96,7 +96,7 @@ export default function StudentView({ park, telemetry }: { park: Park; telemetry
           <div className="seg" style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden" }}>
             {FILTERS.map(([f, label, n]) => (
               <button key={f} onClick={() => setFilter(f)}
-                style={{ background: filter === f ? "var(--accent)" : "var(--panel-3)", color: filter === f ? "#05101a" : "var(--text-2)",
+                style={{ background: filter === f ? "var(--accent)" : "var(--panel-3)", color: filter === f ? "#fffaf0" : "var(--text-2)",
                          border: "none", padding: "6px 11px", cursor: "pointer", fontSize: 12.5, fontWeight: filter === f ? 700 : 400 }}>
                 {label} <span style={{ opacity: .7 }}>{n}</span>
               </button>
@@ -112,7 +112,7 @@ export default function StudentView({ park, telemetry }: { park: Park; telemetry
             const fault = devFault(c);
             return (
               <div key={c.id} className="card" style={{ padding: "10px 12px",
-                borderColor: mine ? "#2f7a4f" : "var(--line)", background: mine ? "#0f2018" : "var(--panel)", opacity: taken ? 0.55 : 1 }}>
+                borderColor: mine ? "#bcd6a6" : "var(--line)", background: mine ? "#eef4e8" : "var(--panel)", opacity: taken ? 0.55 : 1 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontWeight: 600 }}>{c.name}</span>
                   <span style={{ width: 9, height: 9, borderRadius: 9, background: fault ? "var(--fault)" : "var(--ok)" }} />
@@ -145,8 +145,8 @@ export default function StudentView({ park, telemetry }: { park: Park; telemetry
                     <td className="mono" style={{ padding: "6px 8px", borderBottom: "1px solid var(--line-3)", textAlign: "right" }}>{fmtH(t.detection_latency_sim_s)}</td>
                     <td className="mono" style={{ padding: "6px 8px", borderBottom: "1px solid var(--line-3)", textAlign: "right" }}>{fmtH(t.mttr_sim_s)}</td>
                     <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--line-3)", display: "flex", gap: 6 }}>
-                      {t.status === "open" && <button className="btn" style={{ background: "var(--warn)", color: "#08121e", padding: "3px 9px", fontSize: 11.5 }} onClick={() => act(ackTicket, t.id, "確認")}>ack</button>}
-                      {t.status !== "resolved" && <button className="btn" style={{ background: "var(--ok)", color: "#08121e", padding: "3px 9px", fontSize: 11.5 }} onClick={() => act(resolveTicket, t.id, "處置")}>resolve</button>}
+                      {t.status === "open" && <button className="btn" style={{ background: "var(--warn)", color: "#fffaf0", padding: "3px 9px", fontSize: 11.5 }} onClick={() => act(ackTicket, t.id, "確認")}>ack</button>}
+                      {t.status !== "resolved" && <button className="btn" style={{ background: "var(--ok)", color: "#fffaf0", padding: "3px 9px", fontSize: 11.5 }} onClick={() => act(resolveTicket, t.id, "處置")}>resolve</button>}
                     </td>
                   </tr>
                 ))}
@@ -186,7 +186,7 @@ function Leaderboard({ title, cols, rows, mine }: { title: string; cols: string[
         <tbody>
           {rows.length === 0 ? <tr><td colSpan={cols.length + 1} className="hint" style={{ padding: "8px 6px" }}>尚無資料</td></tr> :
             rows.map((r, i) => (
-              <tr key={i} style={i === mine ? { background: "#0f2018", outline: "1px solid #1e4230" } : undefined}>
+              <tr key={i} style={i === mine ? { background: "#eef4e8", outline: "1px solid #d3e2c4" } : undefined}>
                 <td className="mono" style={{ padding: "5px 6px", color: i === 0 ? "var(--warn)" : "var(--dim)", fontWeight: i === 0 ? 700 : 400, borderBottom: "1px solid var(--line-3)" }}>{i + 1}</td>
                 {r.map((cell, j) => (
                   <td key={j} className={j === 0 ? "" : "mono"} style={{ textAlign: j === 0 ? "left" : "right", padding: "5px 6px", fontSize: 12, borderBottom: "1px solid var(--line-3)",

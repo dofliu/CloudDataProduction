@@ -46,7 +46,7 @@ export default function DiagnosticsView({ host }: { host: string }) {
               const allOk = s.reachable === s.total;
               const col = allOk ? "var(--ok)" : "var(--fault)";
               return (
-                <div key={k} className="card" style={{ borderColor: allOk ? "#1e4230" : "#4a2620", background: allOk ? "#0d1a14" : "#180f10" }}>
+                <div key={k} className="card" style={{ borderColor: allOk ? "#d3e2c4" : "#f7e6e2", background: allOk ? "#eef4e8" : "#f7e6e2" }}>
                   <div style={{ fontWeight: 600, fontSize: 12.5 }}>{PROTO_LABEL[k]}
                     <span className="mono muted" style={{ fontSize: 11 }}> :{s.port}</span></div>
                   <div className="mono" style={{ fontSize: 26, fontWeight: 700, color: col, marginTop: 4 }}>

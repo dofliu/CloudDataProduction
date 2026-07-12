@@ -31,7 +31,7 @@ export default function CatalogView({ catalog, telemetry }: { catalog: Catalog |
             <div key={d.id} onClick={() => setSelId(d.id)}
                  style={{ padding: "8px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
                           borderLeft: `2px solid ${on ? "var(--accent)" : "transparent"}`,
-                          background: on ? "#132029" : "transparent" }}>
+                          background: on ? "#f6efe2" : "transparent" }}>
               <span style={{ width: 8, height: 8, borderRadius: 8, flex: "0 0 8px", background: STATUS_COLOR_CSS[st ?? ""] ?? "var(--dim)" }} />
               <span className="mono" style={{ fontSize: 12.5, color: on ? "var(--text)" : "var(--text-2)" }}>{d.id}</span>
               <span className="muted" style={{ fontSize: 10.5, marginLeft: "auto" }}>{d.company_id}</span>
@@ -64,7 +64,7 @@ export default function CatalogView({ catalog, telemetry }: { catalog: Catalog |
 
             {/* HOLDING */}
             <div style={{ display: "flex", gap: 8, alignItems: "center", margin: "0 0 6px" }}>
-              <span style={tag("#7fd0e6", "#7fd0e6", "#0d2831")}>FC03</span><b style={{ fontSize: 13 }}>保持暫存器 Holding · 量測</b>
+              <span style={tag("#7fd0e6", "#7fd0e6", "#f6efe2")}>FC03</span><b style={{ fontSize: 13 }}>保持暫存器 Holding · 量測</b>
             </div>
             <div className="card" style={{ padding: "2px 14px", marginBottom: 16 }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -88,28 +88,28 @@ export default function CatalogView({ catalog, telemetry }: { catalog: Catalog |
             {/* 兩欄:離散輸入 + 線圈 + 輸入暫存器 + 設定點 */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 16 }}>
               {sel.discrete_inputs && sel.discrete_inputs.length > 0 && (
-                <ObjTable label="離散輸入 Discrete" fc="FC02" fcColor="#8fd6a0" fcBg="#0f2417"
+                <ObjTable label="離散輸入 Discrete" fc="FC02" fcColor="#cfe6c0" fcBg="#eef4e8"
                   head={["name", "addr", "值"]} rows={sel.discrete_inputs.map((p) => {
                     const v = live?.discretes?.[p.name];
                     return [p.name, String(p.address), v === undefined ? "—" : v ? "1 ●" : "0 ○"];
                   })} />
               )}
               {sel.coils && sel.coils.length > 0 && (
-                <ObjTable label="命令線圈 Coil" fc="FC01/05" fcColor="#f2c14e" fcBg="#241d0c"
+                <ObjTable label="命令線圈 Coil" fc="FC01/05" fcColor="#d9a441" fcBg="#fbf1dc"
                   head={["name", "addr", "權限", "值"]} rows={sel.coils.map((c) => {
                     const v = live?.coils?.[c.name];
                     return [c.name, String(c.address), c.access, v === undefined ? "—" : v ? "1 ●" : "0 ○"];
                   })} />
               )}
               {sel.input_registers && sel.input_registers.length > 0 && (
-                <ObjTable label="輸入暫存器 Input" fc="FC04" fcColor="#c7a3f0" fcBg="#1a1226"
+                <ObjTable label="輸入暫存器 Input" fc="FC04" fcColor="#c7a3f0" fcBg="#f4e6d2"
                   head={["name", "addr", "scale", "值"]} rows={sel.input_registers.map((p) => {
                     const v = live?.input_regs?.[p.name];
                     return [p.name, String(p.address), `÷${p.scale}`, v === undefined ? "—" : String(v)];
                   })} />
               )}
               {sel.setpoints && sel.setpoints.length > 0 && (
-                <ObjTable label="設定點 Setpoint ★學生可寫" fc="FC06" fcColor="#4c9ce8" fcBg="#0d1e30"
+                <ObjTable label="設定點 Setpoint ★學生可寫" fc="FC06" fcColor="var(--accent)" fcBg="#f4e6d2"
                   head={["name", "reg", "範圍", "值"]} rows={sel.setpoints.map((s) => {
                     const v = live?.setpoints?.[s.name];
                     return [s.name, String(s.register), `${s.min}~${s.max}${s.unit}`, v === undefined ? "—" : String(v)];

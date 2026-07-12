@@ -210,9 +210,9 @@ export default function DemoPlayground({ onClose, onNav, courseStatus }: { onClo
               <div key={k} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 20,
                               fontSize: 12.5, fontWeight: 600,
-                              background: active ? "var(--accent)" : done ? "#13241b" : "var(--panel-3)",
-                              color: active ? "#08121e" : done ? "#9be7bd" : "var(--muted)",
-                              border: `1px solid ${active ? "var(--accent)" : done ? "#2f7a4f" : "var(--line)"}` }}>
+                              background: active ? "var(--accent)" : done ? "#eef4e8" : "var(--panel-3)",
+                              color: active ? "#fffaf0" : done ? "#cfe6c0" : "var(--muted)",
+                              border: `1px solid ${active ? "var(--accent)" : done ? "#bcd6a6" : "var(--line)"}` }}>
                   <span>{done ? "✓" : num}</span>{label}
                 </div>
                 {k < CHAPTERS.length - 1 && <span style={{ color: "var(--line-2)" }}>→</span>}
@@ -253,7 +253,7 @@ export default function DemoPlayground({ onClose, onNav, courseStatus }: { onClo
             {phase === "run" && (
               <Narr title="② 設備健康運轉中">
                 <p>
-                  認領成功!設備正常運轉,燈號<b style={{ color: "#37d07a" }}>綠</b>。
+                  認領成功!設備正常運轉,燈號<b style={{ color: "#5a9e5a" }}>綠</b>。
                   觀察右側:振動穩定在 ~2、主軸溫度 ~64°C、健康度 100%。
                   你的監控程式此刻讀到的就是這些值。時鐘正在加速,劣化很快就會浮現 …
                 </p>
@@ -264,9 +264,9 @@ export default function DemoPlayground({ onClose, onNav, courseStatus }: { onClo
             {phase === "onset" && (
               <Narr title="③ 徵兆出現 —— 設備開始退化">
                 <p>
-                  注意右圖:<b style={{ color: "#e0503f" }}>振動 vibration_rms 一路往上爬</b>,
+                  注意右圖:<b style={{ color: "#c85a4a" }}>振動 vibration_rms 一路往上爬</b>,
                   主軸溫度也開始跟著升。這不是雜訊,是隱藏健康狀態真的在掉。
-                  {ticket ? <> 振動一越過門檻 <b>{VIB_THRESH}</b>,系統就<b style={{ color: "#e0503f" }}>自動開了工單</b> —— 故障確立。</>
+                  {ticket ? <> 振動一越過門檻 <b>{VIB_THRESH}</b>,系統就<b style={{ color: "#c85a4a" }}>自動開了工單</b> —— 故障確立。</>
                           : <> 盯住振動,快要碰到告警門檻 <b>{VIB_THRESH}</b> 了。</>}
                 </p>
                 <LiveNote text="退化進行中 · 工單將自動生成" />
@@ -277,8 +277,8 @@ export default function DemoPlayground({ onClose, onNav, courseStatus }: { onClo
               <Narr title="④ 分析 —— 訊號告訴我們什麼">
                 <p>設備已故障。別急著重開機 —— 先看訊號,判斷<b>根因</b>。這是預測性維護的核心:</p>
                 <ul style={{ margin: "6px 0 10px", paddingLeft: 18, lineHeight: 1.7 }}>
-                  <li><b style={{ color: "#e0503f" }}>振動</b>大幅上升(2 → ~7.5),而且<b>領先</b>其它訊號。</li>
-                  <li><b style={{ color: "#f2c14e" }}>主軸溫度</b>隨後跟著升(64 → ~90°C)—— 摩擦生熱。</li>
+                  <li><b style={{ color: "#c85a4a" }}>振動</b>大幅上升(2 → ~7.5),而且<b>領先</b>其它訊號。</li>
+                  <li><b style={{ color: "#d9a441" }}>主軸溫度</b>隨後跟著升(64 → ~90°C)—— 摩擦生熱。</li>
                   <li><b style={{ color: "#5b9bd5" }}>主軸電流</b>幾乎沒變 —— 切削負載沒變重,問題不在馬達出力。</li>
                   <li>三個獨立訊號<b>一致惡化</b> → 不是單一感測器在說謊,是真的機械劣化。</li>
                 </ul>
@@ -301,13 +301,13 @@ export default function DemoPlayground({ onClose, onNav, courseStatus }: { onClo
                     return (
                       <button key={d.key} onClick={() => pickDiag(d.key)} disabled={sim.diagOk}
                         style={{ textAlign: "left", cursor: sim.diagOk ? "default" : "pointer", padding: "10px 12px", borderRadius: 8,
-                                 background: showRight ? "#13241b" : showWrong ? "#2a1518" : "var(--panel-3)",
+                                 background: showRight ? "#eef4e8" : showWrong ? "#f7e6e2" : "var(--panel-3)",
                                  color: "var(--text)",
-                                 border: `1px solid ${showRight ? "#2f7a4f" : showWrong ? "#6b2f34" : "var(--line)"}` }}>
+                                 border: `1px solid ${showRight ? "#bcd6a6" : showWrong ? "#eccabf" : "var(--line)"}` }}>
                         <div style={{ fontWeight: 600 }}>
                           {showRight ? "✅ " : showWrong ? "✗ " : ""}{d.label}
                         </div>
-                        {picked && <div className="hint" style={{ margin: "4px 0 0", color: d.correct ? "#9be7bd" : "#ffb4b4" }}>{d.note}</div>}
+                        {picked && <div className="hint" style={{ margin: "4px 0 0", color: d.correct ? "#cfe6c0" : "#eccabf" }}>{d.note}</div>}
                       </button>
                     );
                   })}
@@ -324,8 +324,8 @@ export default function DemoPlayground({ onClose, onNav, courseStatus }: { onClo
               <Narr title="⑥ 排除 —— 更換軸承、清除故障">
                 <p>
                   已確認根因並派工。維修動作(換軸承 / reset)後,看右圖:
-                  <b style={{ color: "#e0503f" }}>振動回落</b>、溫度下降、
-                  <b style={{ color: "#37d07a" }}>健康度回升</b>,工單即將 resolve、設備翻回綠燈。
+                  <b style={{ color: "#c85a4a" }}>振動回落</b>、溫度下降、
+                  <b style={{ color: "#5a9e5a" }}>健康度回升</b>,工單即將 resolve、設備翻回綠燈。
                 </p>
                 <LiveNote text="復機中 · 訊號回到正常區間" />
               </Narr>
@@ -358,17 +358,17 @@ export default function DemoPlayground({ onClose, onNav, courseStatus }: { onClo
 
           {/* 右:即時設備 + 工單 + 圖 */}
           <div style={{ minWidth: 0 }}>
-            <div style={{ border: `1px solid ${state === "fault" ? "#6b2f34" : "var(--line)"}`, borderRadius: 10,
-                          padding: "10px 12px", background: state === "fault" ? "#1e1416" : "var(--panel-3)" }}>
+            <div style={{ border: `1px solid ${state === "fault" ? "#eccabf" : "var(--line)"}`, borderRadius: 10,
+                          padding: "10px 12px", background: state === "fault" ? "#f7e6e2" : "var(--panel-3)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <b className="mono">{DEV}</b>
                 <span className="badge" style={{ background: STATE_COLOR[state] }}>{state}</span>
               </div>
               <div style={{ marginTop: 8, display: "grid", gap: 4 }}>
-                <Reading name="vibration_rms" v={latest?.vib} unit="mm/s" color="#e0503f" hot={(latest?.vib ?? 0) > VIB_THRESH} />
-                <Reading name="spindle_temp" v={latest?.temp} unit="°C" color="#f2c14e" />
+                <Reading name="vibration_rms" v={latest?.vib} unit="mm/s" color="#c85a4a" hot={(latest?.vib ?? 0) > VIB_THRESH} />
+                <Reading name="spindle_temp" v={latest?.temp} unit="°C" color="#d9a441" />
                 <Reading name="spindle_current" v={latest?.cur} unit="A" color="#5b9bd5" />
-                <Reading name="health" v={latest?.health} unit="" color="#37d07a" pct />
+                <Reading name="health" v={latest?.health} unit="" color="#5a9e5a" pct />
               </div>
             </div>
 
@@ -378,7 +378,7 @@ export default function DemoPlayground({ onClose, onNav, courseStatus }: { onClo
                 <div className="sec-label" style={{ marginTop: 0 }}>工單 · TICKET</div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span className="mono" style={{ fontSize: 12 }}>{DEV} · bearing</span>
-                  <span className="badge" style={{ background: ticket.status === "resolved" ? "#37d07a" : ticket.status === "acked" ? "#f2c14e" : "#e0503f" }}>
+                  <span className="badge" style={{ background: ticket.status === "resolved" ? "#5a9e5a" : ticket.status === "acked" ? "#d9a441" : "#c85a4a" }}>
                     {ticket.status}
                   </span>
                 </div>
@@ -395,10 +395,10 @@ export default function DemoPlayground({ onClose, onNav, courseStatus }: { onClo
               <div className="sec-label" style={{ marginTop: 0 }}>訊號趨勢</div>
               <DemoChart history={history} onsetIdx={sim.onsetIdx} />
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 6, fontSize: 11 }}>
-                <Legend c="#e0503f" t="振動" />
-                <Legend c="#f2c14e" t="溫度" />
+                <Legend c="#c85a4a" t="振動" />
+                <Legend c="#d9a441" t="溫度" />
                 <Legend c="#5b9bd5" t="電流" />
-                <Legend c="#37d07a" t="健康度" />
+                <Legend c="#5a9e5a" t="健康度" />
                 <span style={{ color: "var(--dim)" }}>┈ 振動門檻 {VIB_THRESH}</span>
               </div>
             </div>
@@ -424,19 +424,19 @@ function DemoChart({ history, onsetIdx }: { history: Pt[]; onsetIdx: number | nu
     history.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(f(p)).toFixed(1)}`).join(" ");
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 150, background: "#0b1017", border: "1px solid var(--line)", borderRadius: 8 }}>
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 150, background: "#f6efe2", border: "1px solid var(--line)", borderRadius: 8 }}>
       {/* 振動門檻參考線 */}
       <line x1={PAD} x2={W - PAD} y1={y(nVib(6))} y2={y(nVib(6))} stroke="#6d7686" strokeDasharray="3 3" strokeWidth="1" />
       {/* 故障點標記 */}
       {onsetIdx != null && history[onsetIdx] && (
-        <line x1={x(onsetIdx)} x2={x(onsetIdx)} y1={PAD} y2={H - PAD} stroke="#e0503f" strokeDasharray="2 3" strokeWidth="1" opacity="0.6" />
+        <line x1={x(onsetIdx)} x2={x(onsetIdx)} y1={PAD} y2={H - PAD} stroke="#c85a4a" strokeDasharray="2 3" strokeWidth="1" opacity="0.6" />
       )}
       {history.length >= 2 && (
         <>
-          <path d={path((p) => nHealth(p.health))} fill="none" stroke="#37d07a" strokeWidth="1.6" />
+          <path d={path((p) => nHealth(p.health))} fill="none" stroke="#5a9e5a" strokeWidth="1.6" />
           <path d={path((p) => nCur(p.cur))} fill="none" stroke="#5b9bd5" strokeWidth="1.6" />
-          <path d={path((p) => nTemp(p.temp))} fill="none" stroke="#f2c14e" strokeWidth="1.6" />
-          <path d={path((p) => nVib(p.vib))} fill="none" stroke="#e0503f" strokeWidth="2" />
+          <path d={path((p) => nTemp(p.temp))} fill="none" stroke="#d9a441" strokeWidth="1.6" />
+          <path d={path((p) => nVib(p.vib))} fill="none" stroke="#c85a4a" strokeWidth="2" />
         </>
       )}
       {history.length < 2 && (
@@ -458,7 +458,7 @@ function deviceState(s: Sim): string {
 }
 
 const STATE_COLOR: Record<string, string> = {
-  running: "#37d07a", idle: "#8a93a6", alarm: "#f2c14e", fault: "#e0503f",
+  running: "#5a9e5a", idle: "#8a93a6", alarm: "#d9a441", fault: "#c85a4a",
 };
 
 function Narr({ title, children }: { title: string; children: React.ReactNode }) {
@@ -491,7 +491,7 @@ function Reading({ name, v, unit, color, hot, pct }: { name: string; v?: number;
       <span style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--muted)" }}>
         <span style={{ width: 8, height: 8, borderRadius: 2, background: color, display: "inline-block" }} />{name}
       </span>
-      <span className="mono" style={{ fontWeight: 700, color: hot ? "#e0503f" : "var(--text)" }}>{shown} {unit}</span>
+      <span className="mono" style={{ fontWeight: 700, color: hot ? "#c85a4a" : "var(--text)" }}>{shown} {unit}</span>
     </div>
   );
 }

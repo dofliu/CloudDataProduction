@@ -41,8 +41,8 @@ export default function OeeView() {
       <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", marginBottom: 18 }}>
         {top3.map((r, i) => (
           <div key={r.company} className="card float" style={{
-            background: i === 0 ? "linear-gradient(150deg,#241d0c,#12151d)" : "var(--panel)",
-            borderColor: i === 0 ? "#5a4a1e" : "var(--line)",
+            background: i === 0 ? "linear-gradient(150deg,#fbf1dc,#f6efe2)" : "var(--panel)",
+            borderColor: i === 0 ? "#eeddba" : "var(--line)",
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
               <span style={{ fontSize: 22, fontWeight: 700, color: i === 0 ? "var(--warn)" : "var(--dim)" }}>#{i + 1}</span>

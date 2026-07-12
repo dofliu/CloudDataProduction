@@ -185,11 +185,11 @@ export default function TeacherView({
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <input className="inp" value={token} onChange={(e) => setTok(e.target.value)} placeholder="dev-teacher-token" style={{ width: 150 }} />
           <button className="btn ghost" onClick={saveToken}>儲存</button>
-          {getTeacherToken() && <span className="pill" style={{ color: "var(--warn)", borderColor: "#5a4a1e", background: "#241d0c" }}>🔑 已載入</span>}
+          {getTeacherToken() && <span className="pill" style={{ color: "var(--warn)", borderColor: "#eeddba", background: "#fbf1dc" }}>🔑 已載入</span>}
           <span className="muted" style={{ fontSize: 11 }}>倍率</span>
           {[60, 600, 3600].map((m) => (
             <button key={m} className={`btn ghost${clockMult === m ? " speed-active" : ""}`} onClick={() => clk(m)}
-              style={clockMult === m ? { background: "#14304d", borderColor: "var(--accent)", color: "var(--accent)" } : {}}>{m}×</button>
+              style={clockMult === m ? { background: "#f4e6d2", borderColor: "var(--accent)", color: "var(--accent)" } : {}}>{m}×</button>
           ))}
           <button className="btn ghost" onClick={() => setClock({ paused: true })}>⏸</button>
           <button className="btn ghost" onClick={() => setClock({ paused: false })}>▶</button>
@@ -214,7 +214,7 @@ export default function TeacherView({
                 return (
                   <button key={w.week} className="btn ghost" onClick={() => doApplyWeek(w.week)}
                     title={`異常:${w.faults} · 密度:${w.order_density ?? "—"}`}
-                    style={active ? { background: "#14304d", borderColor: "var(--accent)", color: "var(--accent)" } : {}}>
+                    style={active ? { background: "#f4e6d2", borderColor: "var(--accent)", color: "var(--accent)" } : {}}>
                     第{w.week}週 · {w.title}
                     <span style={{ marginLeft: 6, fontSize: 10, color: w.faults === "injected" ? "var(--fault)" : w.faults === "clear" ? "var(--ok)" : "var(--dim)" }}>
                       {w.faults === "injected" ? "●異常" : w.faults === "clear" ? "○正常" : "—沿用"}
@@ -243,7 +243,7 @@ export default function TeacherView({
             <div style={{ display: "flex", gap: 10, alignItems: "flex-start", flexWrap: "wrap" }}>
               <textarea className="inp mono" value={roster} onChange={(e) => setRoster(e.target.value)}
                         rows={4} style={{ flex: 1, minWidth: 220, resize: "vertical", fontSize: 12 }} placeholder={"s001, pw001\ns002, pw002"} />
-              <button className="btn" style={{ background: "var(--ok)", color: "#08121e" }} onClick={doCreateRoster}>
+              <button className="btn" style={{ background: "var(--ok)", color: "#fffaf0" }} onClick={doCreateRoster}>
                 ＋ 建立{newRole === "teacher" ? "教師" : "學生"}
               </button>
             </div>
@@ -270,7 +270,7 @@ export default function TeacherView({
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               <input className="inp" value={factoryDesc} onChange={(e) => setFactoryDesc(e.target.value)}
                      placeholder="例:半導體封裝廠,3 台手臂 + 2 台製程腔體 + 1 台電表" style={{ flex: 1, minWidth: 260 }} />
-              <button className="btn" style={{ background: "var(--ok)", color: "#08121e" }} onClick={doFactory}>＋ 建立公司</button>
+              <button className="btn" style={{ background: "var(--ok)", color: "#fffaf0" }} onClick={doFactory}>＋ 建立公司</button>
             </div>
             <div className="hint" style={{ margin: "6px 0 0" }}>
               設了 Gemini key → 🤖 AI 解析自由描述、可<b>多型別混搭</b>;否則規則式(單一型別 + 數量)。建立後即時長出新公司(三協定免重啟)。
@@ -287,7 +287,7 @@ export default function TeacherView({
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
               <button className="btn" style={{ background: "var(--fault)", color: "#fff" }} disabled={!dev || !target} onClick={doInject}>注入</button>
-              <button className="btn" style={{ background: "var(--pred)", color: "#08121e" }} disabled={!dev || !health?.components?.length}
+              <button className="btn" style={{ background: "var(--pred)", color: "#fffaf0" }} disabled={!dev || !health?.components?.length}
                       onClick={doQuickFault} title="對此設備主元件注入快速劣化,課堂 demo 用">⚡ 快速故障(demo)</button>
               <button className="btn ghost" onClick={doReset}>reset 設備</button>
             </div>
@@ -299,7 +299,7 @@ export default function TeacherView({
             <div className="card-title">🎬 情境腳本(期末測驗)</div>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               <select className="inp" value={scenName} onChange={(e) => setScenName(e.target.value)}>{scripts.map((s) => <option key={s.name} value={s.name}>{s.name}({s.steps} 步)</option>)}</select>
-              <button className="btn" style={{ background: "var(--pred)", color: "#08121e" }} disabled={!!scenStatus?.running}
+              <button className="btn" style={{ background: "var(--pred)", color: "#fffaf0" }} disabled={!!scenStatus?.running}
                       onClick={async () => { try { await runScenario(scenName); setMsg(`已啟動情境 ${scenName}`); } catch (e: any) { setMsg(`啟動失敗:${e.message}`); } }}>▶ 執行</button>
               <button className="btn ghost" onClick={async () => { await stopScenario(); setMsg("已停止情境"); }}>停止</button>
               {scenStatus?.running && <span style={{ color: "var(--pred)", fontSize: 12 }}>● 執行中:{scenStatus.running}</span>}
@@ -346,7 +346,7 @@ export default function TeacherView({
                 t.mttr_sim_s !== null ? (t.mttr_sim_s / 3600).toFixed(1) + "h" : "—",
                 <span key="a" style={{ display: "flex", gap: 4 }}>
                   <button className="btn ghost" style={{ padding: "2px 7px", fontSize: 11 }} onClick={() => ackTicket(t.id)}>ack</button>
-                  <button className="btn" style={{ padding: "2px 7px", fontSize: 11, background: "var(--ok)", color: "#08121e" }} onClick={() => resolveTicket(t.id)}>fix</button>
+                  <button className="btn" style={{ padding: "2px 7px", fontSize: 11, background: "var(--ok)", color: "#fffaf0" }} onClick={() => resolveTicket(t.id)}>fix</button>
                 </span>,
               ])} empty="尚無工單" />
           </div>
@@ -400,7 +400,7 @@ export default function TeacherView({
             <div className="hint" style={{ margin: "6px 0 0" }}>每項作業取最佳分彙整平均;期末專題人工 rubric 另計後併入。</div>
           </div>
 
-          <div className="card" style={{ borderColor: "#4a2620", background: "#160f10" }}>
+          <div className="card" style={{ borderColor: "#f7e6e2", background: "#f7e6e2" }}>
             <div className="card-title" style={{ color: "var(--fault)" }}>🧹 重置課堂資料</div>
             <div className="hint" style={{ margin: "0 0 8px" }}>換班 / 下堂課歸零:清認領 / 工單 / 預測 / OEE,設備修回健康(不刪 DB)。</div>
             <button className="btn" style={{ background: "var(--fault)", color: "#fff" }} onClick={doResetSession}>🧹 重置課堂資料</button>

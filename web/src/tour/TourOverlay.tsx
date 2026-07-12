@@ -32,9 +32,9 @@ const STEPS: Step[] = [
     body: (
       <>
         你是這座<b>虛擬工業園區</b>的維運工程師。園區裡好幾間公司、數十台設備正在真實運轉,
-        以標準的 <b style={{ color: "#5b9bd5" }}>Modbus / OPC-UA / MQTT</b> 工業協定對外。
+        以標準的 <b style={{ color: "var(--accent)" }}>Modbus / OPC-UA / MQTT</b> 工業協定對外。
         它們會健康地跑、也會慢慢退化甚至故障 —— 你的工作是<b>連上、監控、在壞掉前抓到徵兆</b>。
-        <div style={{ marginTop: 8, color: "#f08c2e", fontSize: 12 }}>
+        <div style={{ marginTop: 8, color: "#d47a3f", fontSize: 12 }}>
           全部為合成數據(synthetic)、帶正解標籤,專為教學設計。放心動手、放心試錯。
         </div>
         <div style={{ marginTop: 10, color: "var(--muted)", fontSize: 12 }}>
@@ -65,7 +65,7 @@ const STEPS: Step[] = [
     view: "world",
     emoji: "🗺️",
     title: "2D 世界 · 園區俯瞰",
-    body: <>等距視角的園區地圖。點公司進廠內、再點設備看即時值。設備顏色就是健康狀態:<b style={{ color: "#37d67a" }}>綠</b>=運轉、<b style={{ color: "#f2c14e" }}>黃</b>=警告、<b style={{ color: "#e0503f" }}>紅</b>=故障。世界本身不存狀態,顏色全來自即時遙測。</>,
+    body: <>等距視角的園區地圖。點公司進廠內、再點設備看即時值。設備顏色就是健康狀態:<b style={{ color: "#5a9e5a" }}>綠</b>=運轉、<b style={{ color: "#d9a441" }}>黃</b>=警告、<b style={{ color: "#c85a4a" }}>紅</b>=故障。世界本身不存狀態,顏色全來自即時遙測。</>,
   },
   {
     target: "tab-catalog",
@@ -99,7 +99,7 @@ const STEPS: Step[] = [
     target: "lightsum",
     view: "world",
     title: "全域燈號摘要",
-    body: <>頂欄右側永遠顯示整個園區此刻有幾台<b style={{ color: "#37d67a" }}>正常</b>、<b style={{ color: "#f2c14e" }}>警告</b>、<b style={{ color: "#e0503f" }}>故障</b>。紅點會閃 —— 一眼看出全場有沒有事。</>,
+    body: <>頂欄右側永遠顯示整個園區此刻有幾台<b style={{ color: "#5a9e5a" }}>正常</b>、<b style={{ color: "#d9a441" }}>警告</b>、<b style={{ color: "#c85a4a" }}>故障</b>。紅點會閃 —— 一眼看出全場有沒有事。</>,
   },
   {
     target: "clock",
@@ -240,7 +240,7 @@ export default function TourOverlay({
           {STEPS.map((_, k) => (
             <span key={k} onClick={() => setI(k)}
               style={{ width: k === i ? 18 : 7, height: 7, borderRadius: 4, cursor: "pointer",
-                       background: k === i ? "var(--accent)" : k < i ? "#2f7a4f" : "var(--line-2)",
+                       background: k === i ? "var(--accent)" : k < i ? "#bcd6a6" : "var(--line-2)",
                        transition: "all .2s" }} />
           ))}
         </div>

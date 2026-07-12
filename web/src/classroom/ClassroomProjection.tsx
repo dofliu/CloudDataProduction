@@ -9,7 +9,7 @@ export default function ClassroomProjection({
     <div style={{ position: "fixed", inset: 0, zIndex: 100, background: "var(--bg)", overflow: "auto", padding: "3vh 4vw" }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 16, flexWrap: "wrap", marginBottom: "2vh" }}>
         <span style={{ fontSize: "clamp(24px,3vw,40px)", fontWeight: 800 }}>{active.title}</span>
-        <span className="badge" style={{ background: active.difficulty === "advanced" ? "var(--warn)" : "var(--ok)", color: "#08121e", fontSize: 16 }}>
+        <span className="badge" style={{ background: active.difficulty === "advanced" ? "var(--warn)" : "var(--ok)", color: "#fffaf0", fontSize: 16 }}>
           {active.difficulty === "advanced" ? "進階" : "基礎"}
         </span>
         <span className="pill mono" style={{ fontSize: 16 }}>設備 {active.target}</span>
@@ -27,7 +27,7 @@ export default function ClassroomProjection({
               <div style={{ display: "flex", gap: 14, alignItems: "baseline", flexWrap: "wrap" }}>
                 <span style={{ fontSize: "clamp(22px,2.4vw,34px)", fontWeight: 800, color: "var(--accent)" }}>{i + 1}.</span>
                 <span style={{ fontSize: "clamp(20px,2.2vw,32px)", fontWeight: 700, lineHeight: 1.35, flex: 1, minWidth: 260 }}>{qn.prompt}</span>
-                <span className="badge" style={{ background: complex ? "var(--pred)" : "var(--panel-3)", color: complex ? "#08121e" : "var(--text-2)", fontSize: 15 }}>
+                <span className="badge" style={{ background: complex ? "var(--pred)" : "var(--panel-3)", color: complex ? "#fffaf0" : "var(--text-2)", fontSize: 15 }}>
                   {complex ? "🧮 要計算/分析" : "👀 觀察即可"}
                 </span>
               </div>
@@ -41,7 +41,7 @@ export default function ClassroomProjection({
                     return (
                       <div key={c} style={{ position: "relative", overflow: "hidden", border: "1px solid var(--line)", borderRadius: 10,
                                             padding: "10px 16px", minWidth: 130, background: "var(--panel-3)" }}>
-                        <div style={{ position: "absolute", inset: 0, width: `${pct}%`, background: "rgba(76,156,232,.20)" }} />
+                        <div style={{ position: "absolute", inset: 0, width: `${pct}%`, background: "rgba(181,98,46,.16)" }} />
                         <div style={{ position: "relative", fontSize: "clamp(16px,1.6vw,24px)", fontWeight: 700 }}>{c}</div>
                         <div style={{ position: "relative", fontSize: 14, color: "var(--text-2)" }}>{n} 人 · {pct}%</div>
                       </div>

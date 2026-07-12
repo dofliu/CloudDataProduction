@@ -249,6 +249,14 @@ interface Flow {
   parts: Part[]; layer: Container;
   lastFeed: number; feedInterval: number; dropCycle: number;
 }
+// 雙機上下料工作站:兩台 CNC + 中央手臂在兩機間夾持搬運工件(移植原型 drawCell)
+interface TendingCell {
+  armId: string; leftId: string; rightId: string;
+  armArt: Graphics;                 // 手臂 IK 畫在這(手臂站 container 的 art,原點=armBase)
+  doorL: Pt; doorR: Pt; home: Pt;   // 相對 armBase 的局部座標
+  fence: Graphics; part: Graphics;  // 安全圍籬 + 被搬運/待取的工件(world 座標)
+  leftDoorW: Pt; rightDoorW: Pt;    // 門口 world 座標(畫待取件用)
+}
 const ARM_CYCLE = 4.5;             // 搬運手臂一個夾取-放置循環秒數(實時)
 const ease = (x: number) => x * x * (3 - 2 * x);
 const lerpPt = (a: Pt, b: Pt, f: number): Pt => ({ x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f });
@@ -284,6 +292,7 @@ export default function WorldView({
   const fxRef = useRef<Container | null>(null);
   const beltRef = useRef<Graphics | null>(null);
   const flowRef = useRef<Flow | null>(null);
+  const cellRef = useRef<TendingCell | null>(null);   // 雙機上下料工作站(2 CNC + 手臂)
   const peopleRef = useRef<{ g: Graphics; pts: Pt[]; t: number; speed: number; color: number; work: boolean }[]>([]);
   const telRef = useRef(telemetry);
   const onSelectRef = useRef(onSelect); const selectedRef = useRef(selected); const predictedRef = useRef(predicted);
@@ -417,7 +426,11 @@ export default function WorldView({
       const hasMachine = items.some((it) => PRODUCING.has(it.tmpl));
       const picker = hasMachine ? items.find((it) => it.tmpl === "robot_arm_6axis") : undefined;
       const topItems = items.filter((it) => it !== picker);        // 上排:機台與其他設備
-      const FW = Math.max(9, topItems.length * 3 + 3), FH = 9;
+      // 雙機上下料工作站:2+ CNC + 手臂 → 專屬 layout(手臂在兩機間搬運)
+      const cncItems = items.filter((it) => it.tmpl === "cnc_machining_center");
+      const armItem = items.find((it) => it.tmpl === "robot_arm_6axis");
+      const cellMode = cncItems.length >= 2 && !!armItem;
+      const FW = cellMode ? 8 : Math.max(9, topItems.length * 3 + 3), FH = cellMode ? 8 : 9;
       const fiso = (gx: number, gy: number) => ({ x: (gx - gy) * 34, y: (gx + gy) * 17 });
 
       const floor = new Graphics();
@@ -441,6 +454,53 @@ export default function WorldView({
       exitLab.x = bB.x + 2; exitLab.y = bB.y + 10; world.addChild(exitLab);
 
       const partsLayer = new Container(); world.addChild(partsLayer);  // 工件畫在輸送帶之上
+
+      // ── 雙機上下料工作站分支 ──────────────────────────────
+      if (cellMode && armItem) {
+        const mkStation = (did: string, tmpl: string, pos: Pt): Station => {
+          const cont = new Container(); cont.x = pos.x; cont.y = pos.y;
+          cont.eventMode = "static"; cont.cursor = "pointer"; cont.on("pointertap", () => onSelectRef.current(did));
+          const ring = new Graphics(); cont.addChild(ring);
+          const art = new Graphics(); cont.addChild(art);
+          const lab = new Text({ text: did, style: { fill: 0xd7c9a8, fontSize: 11, fontFamily: "Noto Sans TC" } });
+          lab.anchor.set(0.5, 0); lab.y = 34; cont.addChild(lab);
+          world.addChild(cont);
+          return { id: did, template: tmpl, container: cont, art, ring };
+        };
+        const Lp = fiso(2, 4), Rp = fiso(4, 2), Ap = fiso(3.6, 3.6);   // 左機 / 右機(螢幕對稱)/ 手臂
+        const st = [mkStation(cncItems[0].did, "cnc_machining_center", Lp),
+                    mkStation(cncItems[1].did, "cnc_machining_center", Rp),
+                    mkStation(armItem.did, "robot_arm_6axis", Ap)];
+        stationsRef.current = st;
+        // 安全圍籬:手臂作業區的黃色虛線菱形(靜態,只畫一次)
+        const fence = new Graphics(); world.addChild(fence);
+        const fc = [fiso(2.1, 2.6), fiso(4.6, 2.6), fiso(4.6, 5.1), fiso(2.1, 5.1)];
+        for (let e = 0; e < 4; e++) { const a = fc[e], b = fc[(e + 1) % 4]; const steps = 8;
+          for (let k = 0; k < steps; k += 2) {
+            const p1 = { x: a.x + (b.x - a.x) * k / steps, y: a.y + (b.y - a.y) * k / steps };
+            const p2 = { x: a.x + (b.x - a.x) * (k + 1) / steps, y: a.y + (b.y - a.y) * (k + 1) / steps };
+            fence.moveTo(p1.x, p1.y).lineTo(p2.x, p2.y);
+          } }
+        fence.stroke({ width: 2, color: 0xd9a441, alpha: 0.8 });
+        const part = new Graphics(); world.addChild(part);
+        const doorLW = { x: Lp.x, y: Lp.y + 20 }, doorRW = { x: Rp.x, y: Rp.y + 20 };
+        cellRef.current = {
+          armId: armItem.did, leftId: cncItems[0].did, rightId: cncItems[1].did,
+          armArt: st[2].art, fence, part, leftDoorW: doorLW, rightDoorW: doorRW,
+          doorL: { x: doorLW.x - Ap.x, y: doorLW.y - Ap.y },
+          doorR: { x: doorRW.x - Ap.x, y: doorRW.y - Ap.y },
+          home: { x: 0, y: -70 },
+        };
+        flowRef.current = null;
+        // 圍籬四角(菱形)+ 兩名作業員
+        const peopleLayer = new Container(); world.addChild(peopleLayer);
+        const SHIRTS = [0x8fa85a, 0xc8a06a, 0xc07a3a];
+        const people: { g: Graphics; pts: Pt[]; t: number; speed: number; color: number; work: boolean }[] = [];
+        [Lp, Rp].forEach((p, i) => { const g = new Graphics(); peopleLayer.addChild(g);
+          people.push({ g, pts: [{ x: p.x - 24, y: p.y + 16 }, { x: p.x - 24, y: p.y + 16 }], t: i * 0.7, speed: 0, color: SHIRTS[i], work: true }); });
+        peopleRef.current = people;
+        return;
+      }
 
       // 設備站
       const stations: Station[] = [];
@@ -520,16 +580,22 @@ export default function WorldView({
         st.ring.ellipse(0, 26, 28, 13).fill({ color: col, alpha: 0.12 }).stroke({ width: selW, color: col });
         if (state === "fault") { const p = 0.5 + 0.5 * Math.sin(animT * 6); st.ring.ellipse(0, 26, 32 + p * 6, 15 + p * 3).stroke({ width: 1.5, color: 0xc85a4a }); }
         st.art.clear(); st.art.position.set(0, 0);
-        if (st.template === "agv_mobile_robot") {
-          // 慢速沿固定矩形軌跡
-          const tr = (st.container as any)._track;
-          if (tr) { const segs = [tr.a, tr.b, tr.c, tr.d]; const peri = 4; const pp = (animT * 0.08) % 1 * peri;
-            const i0 = Math.floor(pp), f = pp - i0; const A = segs[i0], B = segs[(i0 + 1) % 4];
-            st.container.x += ((A.x + (B.x - A.x) * f) - st.container.x) * 0.1;
-            st.container.y += ((A.y + (B.y - A.y) * f) - st.container.y) * 0.1; }
+        const cell = cellRef.current;
+        if (cell && st.id === cell.armId) {
+          // 手臂由 drawTendingCell 畫進 st.art(不走 generic drawStation)
+        } else {
+          if (st.template === "agv_mobile_robot") {
+            // 慢速沿固定矩形軌跡
+            const tr = (st.container as any)._track;
+            if (tr) { const segs = [tr.a, tr.b, tr.c, tr.d]; const peri = 4; const pp = (animT * 0.08) % 1 * peri;
+              const i0 = Math.floor(pp), f = pp - i0; const A = segs[i0], B = segs[(i0 + 1) % 4];
+              st.container.x += ((A.x + (B.x - A.x) * f) - st.container.x) * 0.1;
+              st.container.y += ((A.y + (B.y - A.y) * f) - st.container.y) * 0.1; }
+          }
+          drawStation(st.art, st.template, t, running, animT, col, state === "fault");
         }
-        drawStation(st.art, st.template, t, running, animT, col, state === "fault");
       }
+      if (cellRef.current) drawTendingCell(animT);
       // 廠內人員:巡走的沿走道矩形移動;作業的站定做手部動作
       for (const pr of peopleRef.current) {
         pr.g.clear();
@@ -545,6 +611,42 @@ export default function WorldView({
         }
       }
       smoke(animT, dt);
+    }
+
+    // 雙機上下料:手臂在兩 CNC 間夾持搬運工件的完整節拍(2 連桿 IK,移植原型 drawCell)
+    function drawTendingCell(animT: number) {
+      const cell = cellRef.current; if (!cell) return;
+      const ss = (a: number, b: number, x: number) => { let u = (x - a) / (b - a); u = u < 0 ? 0 : u > 1 ? 1 : u; return u * u * (3 - 2 * u); };
+      const lp = (A: Pt, B: Pt, u: number): Pt => ({ x: A.x + (B.x - A.x) * u, y: A.y + (B.y - A.y) * u });
+      const phase = (animT * 0.14) % 1;
+      const H = cell.home, L = cell.doorL, R = cell.doorR;
+      let T: Pt;                                   // 手臂末端目標(相對 armBase 局部座標)
+      if (phase < 0.30) T = lp(H, L, ss(0, 0.30, phase));              // home → 左機門口
+      else if (phase < 0.38) T = L;                                    // 夾取
+      else if (phase < 0.68) { const u = ss(0.38, 0.68, phase); const p = lp(L, R, u); T = { x: p.x, y: p.y - Math.sin(u * Math.PI) * 44 }; }  // 弧線搬到右機
+      else if (phase < 0.78) T = R;                                    // 放入
+      else T = lp(R, H, ss(0.78, 1, phase));                           // 縮回 home
+      const carrying = phase > 0.36 && phase < 0.70;
+      const leftReady = phase < 0.34;
+
+      // ── 手臂 IK(畫進手臂站的 art,原點=armBase)──
+      const g = cell.armArt; g.clear();
+      const pivot = { x: 0, y: -14 };
+      g.ellipse(0, -6, 15, 7).fill(0xb09a78);       // 底座
+      const { joint, end } = solveArm(pivot.x, pivot.y, T.x, T.y, 50, 42);
+      g.moveTo(pivot.x, pivot.y).lineTo(joint.x, joint.y).lineTo(end.x, end.y).stroke({ width: 12, color: 0xd8c6a8, cap: "round" }); // 外框
+      g.moveTo(pivot.x, pivot.y).lineTo(joint.x, joint.y).stroke({ width: 9, color: 0xd47a3f, cap: "round" });   // 大臂橘
+      g.moveTo(joint.x, joint.y).lineTo(end.x, end.y).stroke({ width: 6, color: 0xc9b795, cap: "round" });       // 小臂銀
+      [pivot, joint].forEach((j) => g.circle(j.x, j.y, 5).fill(0xb5622e).stroke({ width: 1, color: 0x9a8464 }));
+      const gw = carrying ? 4 : 8;                  // 夾爪開合
+      g.moveTo(end.x - gw, end.y - 6).lineTo(end.x - gw, end.y + 6).moveTo(end.x + gw, end.y - 6).lineTo(end.x + gw, end.y + 6).stroke({ width: 3, color: 0xc9b795, cap: "round" });
+      if (carrying) g.roundRect(end.x - 6, end.y - 5, 12, 12, 2).fill(0xd9a441).stroke({ width: 1, color: 0x8a6b2e });  // 手上工件
+
+      // ── 待取工件:在左機門口等手臂來夾(帶橘光)──
+      const part = cell.part; part.clear();
+      if (leftReady) { const d = cell.leftDoorW;
+        part.circle(d.x, d.y - 6, 11).fill({ color: 0xd47a3f, alpha: 0.25 });
+        part.roundRect(d.x - 7, d.y - 14, 14, 14, 2).fill(0xd9a441).stroke({ width: 1, color: 0x8a6b2e }); }
     }
 
     function updateFlow(animT: number, dt: number) {
@@ -633,7 +735,7 @@ export default function WorldView({
     window.addEventListener("resize", onResize);
     return () => { cancelled = true; window.removeEventListener("resize", onResize);
       lightsRef.current = {}; devicesRef.current = {}; stationsRef.current = []; chimneysRef.current = []; smokeRef.current = []; peopleRef.current = [];
-      worldRef.current = null; appRef.current = null; fxRef.current = null; beltRef.current = null; flowRef.current = null;
+      worldRef.current = null; appRef.current = null; fxRef.current = null; beltRef.current = null; flowRef.current = null; cellRef.current = null;
       if (ready) safeDestroy(); };
   }, [park, focus]);
 

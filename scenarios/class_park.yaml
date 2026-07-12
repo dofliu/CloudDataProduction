@@ -2,7 +2,7 @@
 # ⚠ 全為合成(synthetic)教學資料,非任何真實公司產線;公司名為教學代號。
 # 每間至少 1 台 producer(會生產/退化),部分配 1 台公用設備。協定定址由引擎自動配。
 park:
-  name: "智慧工業區 · 課堂版(64 廠)"
+  name: "智慧工業區 · 課堂版(64 廠 + 上下料示範)"
   sim:
     tick_hz: 2
     time_multiplier: 120
@@ -544,3 +544,14 @@ park:
       intro: "課堂教學用合成廠(#64);主力 CNC 加工中心。"
       devices:
         - {id: d085, template: cnc_machining_center}
+
+    # 上下料示範廠:2 台 CNC + 1 支手臂,進廠內可看手臂在兩機間夾持搬運工件的完整節拍。
+    - id: c65
+      name: "上下料示範廠"
+      industry: machine_tool
+      product: "CNC 上下料自動化"
+      intro: "教學示範:雙 CNC + 六軸手臂上下料工作站;手臂在兩機之間夾持搬運工件。"
+      devices:
+        - {id: d086, template: cnc_machining_center}
+        - {id: d087, template: cnc_machining_center}
+        - {id: d088, template: robot_arm_6axis}

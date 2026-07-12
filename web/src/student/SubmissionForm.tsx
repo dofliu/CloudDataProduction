@@ -98,7 +98,7 @@ export default function SubmissionForm({
                   style={{ cursor: "pointer", fontSize: 12, display: "inline-flex", alignItems: "center", gap: 5 }}>
             {t.label}
             <span style={{ fontSize: 9.5, padding: "0 5px", borderRadius: 8, fontWeight: 700,
-                           color: t.tier === "進階" ? "#f0883c" : "#8a94a6",
+                           color: t.tier === "進階" ? "#d47a3f" : "#8a94a6",
                            background: t.tier === "進階" ? "rgba(240,136,60,.14)" : "var(--panel-2)" }}>{t.tier}</span>
           </button>
         ))}
@@ -202,11 +202,11 @@ export default function SubmissionForm({
       {/* 結果 */}
       {result && (
         <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8,
-                      border: `1px solid ${result.passed ? "#2f7a4f" : "#6b2f34"}`,
-                      background: result.passed ? "#13241b" : "#1e1416", display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ fontSize: 26, fontWeight: 800, color: result.passed ? "#37d67a" : "#e0503f" }}>{result.score}</div>
+                      border: `1px solid ${result.passed ? "#bcd6a6" : "#eccabf"}`,
+                      background: result.passed ? "#eef4e8" : "#f7e6e2", display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ fontSize: 26, fontWeight: 800, color: result.passed ? "#5a9e5a" : "#c85a4a" }}>{result.score}</div>
           <div style={{ minWidth: 0 }}>
-            <span className="badge" style={{ background: result.passed ? "#37d67a" : "#e0503f" }}>{result.passed ? "通過" : "未過"}</span>
+            <span className="badge" style={{ background: result.passed ? "#5a9e5a" : "#c85a4a" }}>{result.passed ? "通過" : "未過"}</span>
             <div className="hint" style={{ margin: "4px 0 0" }}>{result.feedback}</div>
           </div>
         </div>
@@ -220,7 +220,7 @@ export default function SubmissionForm({
             {history.slice(0, 6).map((s) => (
               <div key={s.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-2)" }}>
                 <span className="mono">{s.type}{s.week != null ? ` · W${s.week}` : ""}</span>
-                <span style={{ color: s.passed ? "#37d67a" : "#e0503f", fontWeight: 600 }}>{s.score} {s.passed ? "✓" : "✗"}</span>
+                <span style={{ color: s.passed ? "#5a9e5a" : "#c85a4a", fontWeight: 600 }}>{s.score} {s.passed ? "✓" : "✗"}</span>
               </div>
             ))}
           </div>

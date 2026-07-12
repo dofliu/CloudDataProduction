@@ -65,7 +65,7 @@ export default function ClassroomTeacherPanel({ onMsg }: { onMsg: (m: string) =>
           return (
             <button key={e.id} className="btn ghost" onClick={() => launch(e.id)}
               title={`${e.brief ?? ""} · ${e.questions} 題`}
-              style={on ? { background: "#14304d", borderColor: "var(--accent)", color: "var(--accent)" } : {}}>
+              style={on ? { background: "#f4e6d2", borderColor: "var(--accent)", color: "var(--accent)" } : {}}>
               {on ? "● " : ""}{e.title}
               <span style={{ marginLeft: 6, fontSize: 10, color: e.difficulty === "advanced" ? "var(--warn)" : "var(--ok)" }}>
                 {e.difficulty === "advanced" ? "進階" : "基礎"} · {e.questions}題
@@ -80,7 +80,7 @@ export default function ClassroomTeacherPanel({ onMsg }: { onMsg: (m: string) =>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <span className="pill" style={{ color: "var(--accent)" }}>進行中:{active?.title ?? activeId} · 設備 <b className="mono">{target}</b></span>
             <button className="btn primary" style={{ padding: "5px 12px" }} onClick={() => setProject(true)}>🔎 投影模式</button>
-            <button className="btn" style={{ padding: "5px 12px", background: "var(--warn)", color: "#08121e" }} onClick={() => stop(true)}>收題 + 修復設備</button>
+            <button className="btn" style={{ padding: "5px 12px", background: "var(--warn)", color: "#fffaf0" }} onClick={() => stop(true)}>收題 + 修復設備</button>
             <button className="btn ghost" style={{ padding: "5px 12px" }} onClick={() => stop(false)}>收題(保留狀態)</button>
           </div>
 
@@ -97,7 +97,7 @@ export default function ClassroomTeacherPanel({ onMsg }: { onMsg: (m: string) =>
                 </div>
                 {/* 答對率長條 */}
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-                  <div style={{ flex: 1, height: 10, borderRadius: 6, background: "#0d141d", overflow: "hidden" }}>
+                  <div style={{ flex: 1, height: 10, borderRadius: 6, background: "#efe4d0", overflow: "hidden" }}>
                     <div style={{ height: "100%", width: `${q.rate != null ? Math.round(q.rate * 100) : 0}%`,
                                   background: q.rate != null && q.rate >= 0.6 ? "var(--ok)" : "var(--warn)", transition: "width .3s" }} />
                   </div>
@@ -113,8 +113,8 @@ export default function ClassroomTeacherPanel({ onMsg }: { onMsg: (m: string) =>
                       const pct = q.students ? Math.round((n / q.students) * 100) : 0;
                       return (
                         <span key={k} style={{ position: "relative", overflow: "hidden", border: "1px solid var(--line)", borderRadius: 6,
-                                               padding: "2px 8px", fontSize: 11, background: "#0d141d" }}>
-                          <span style={{ position: "absolute", inset: 0, width: `${pct}%`, background: "rgba(76,156,232,.22)" }} />
+                                               padding: "2px 8px", fontSize: 11, background: "#efe4d0" }}>
+                          <span style={{ position: "absolute", inset: 0, width: `${pct}%`, background: "rgba(181,98,46,.18)" }} />
                           <span style={{ position: "relative" }} className="mono">{k}: {n}</span>
                         </span>
                       );

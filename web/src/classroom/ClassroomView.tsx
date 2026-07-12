@@ -72,7 +72,7 @@ function Exercise({ active, sid }: { active: ClassroomActive; sid: string }) {
 function DiffBadge({ d }: { d?: string }) {
   const adv = d === "advanced";
   return (
-    <span className="badge" style={{ background: adv ? "var(--warn)" : "var(--ok)", color: "#08121e", fontSize: 11 }}>
+    <span className="badge" style={{ background: adv ? "var(--warn)" : "var(--ok)", color: "#fffaf0", fontSize: 11 }}>
       {adv ? "進階" : "基礎"}
     </span>
   );
@@ -99,7 +99,7 @@ function Question({ exercise, q, n, sid }: { exercise: string; q: ClassroomQuest
     <div className="card" style={{ padding: "12px 14px", marginBottom: 10 }}>
       <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
         <span style={{ fontWeight: 700, color: "var(--accent)" }}>{n}.</span>
-        <span className="badge" style={{ background: complex ? "var(--pred)" : "var(--panel-3)", color: complex ? "#08121e" : "var(--text-2)", fontSize: 10.5 }}>
+        <span className="badge" style={{ background: complex ? "var(--pred)" : "var(--panel-3)", color: complex ? "#fffaf0" : "var(--text-2)", fontSize: 10.5 }}>
           {complex ? "🧮 要計算/分析" : "👀 觀察即可"}
         </span>
       </div>

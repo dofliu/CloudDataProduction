@@ -83,12 +83,12 @@ export default function GlossaryOverlay({ onClose }: { onClose: () => void }) {
         <div style={{ display: "grid", gap: 16 }}>
           {GROUPS.map((g) => (
             <div key={g.title}>
-              <div style={{ fontWeight: 700, color: "#5b9bd5", marginBottom: 6,
+              <div style={{ fontWeight: 700, color: "var(--accent)", marginBottom: 6,
                             borderBottom: "1px solid var(--line)", paddingBottom: 4 }}>{g.title}</div>
               <div style={{ display: "grid", gap: 6 }}>
                 {g.terms.map((term) => (
                   <div key={term.t} style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: 12, alignItems: "start" }}>
-                    <div style={{ fontWeight: 600, color: "#e6ecf5" }}>{term.t}</div>
+                    <div style={{ fontWeight: 600, color: "#453a29" }}>{term.t}</div>
                     <div className="hint" style={{ margin: 0 }}>{term.d}</div>
                   </div>
                 ))}

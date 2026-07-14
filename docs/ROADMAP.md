@@ -1,6 +1,6 @@
 # Roadmap · TODO · Known Issues(路線圖 · 待辦 · 已知限制)
 
-> 進度 Progress: **~99%**(P0–P4 + 上線硬化 + 產業庫擴充 + UI 全面重設計)· 更新 Updated: 2026-07-06
+> 進度 Progress: **~100%**(P0–P4 + 上線硬化 + 產業庫擴充 + 課堂即時練習 + 學生監控台 + 4D 暖色 UI 重設計)· 更新 Updated: 2026-07-12
 > 建置順序原始規劃見 [07-roadmap.md](07-roadmap.md);本檔為現況與後續。
 
 ---
@@ -26,6 +26,9 @@
 | **UI 全面重設計** | 依 [docs/design_handoff_ui_redesign](design_handoff_ui_redesign/) 設計稿:深色工業風 tokens + **IBM Plex Sans TC / Mono** 字體、頂欄 logo/SYNTHETIC pill/**全域燈號摘要**/Mono 時鐘、側欄**關鍵訊號門檻條** + 分區;五頁(學生/目錄 master-detail/戰情/OEE/教師)卡片化;2.5D 世界照設計稿實作**等距金屬量體**(`isoBox3` 三面 `FillGradient` 漸層 + 徑向陰影/發光)——俯瞰建築窗格網 + 廠內機台 mCNC/mArm/mChamber… 逐台重繪。資料流 / API 完全不動 |
 
 | **課堂即時練習** | 教師一鍵佈題(對一台設備套健康 / 感測器故障 / 設備退化情境)→ 學生手機作答(匿名以座號/學號)→ 即時批改、計入平時成績;題分基礎(觀察/選擇)與進階(統計/相關/趨勢/根因,重用既有誠實批改器)。教師面即時看板(答對率/分佈)+ 平時成績。定義於 `scenarios/classroom_exercises.yaml`,見 [docs/課堂即時練習.md](課堂即時練習.md) |
+| **學生自建監控台(範例作品)** | `student_kit/dashboard`(Streamlit)+ `student_kit/dashboard_simple`(純標準庫 `http.server` + 原生 JS,免 Streamlit);共用 `client.py` 資料層,含 **Modbus / OPC-UA / MQTT 三協定 reader** + 統一 `read_live()`;即時監控可切三協定、趨勢 / 統計 / 分析、繳交作業自動批改。設備目錄依設備實際公布協定顯示切換鈕(為 per-device protocol 預留) |
+| **課程規劃與概念文件** | 18 週課程規劃([docs/課程規劃_18週.md](課程規劃_18週.md),含分軌作業表 + W12/W13 選作)、**「雲端生產」概念與議題**([docs/雲端生產_概念與議題.md](雲端生產_概念與議題.md):課名斷句、雲製造 vs 數據上雲、ISA-95、Cloud MES,含討論題 + 動手練習)、對外連線部署說明([docs/部署_對外連線.md](部署_對外連線.md)) |
+| **4D 暖色 UI 全面重設計** | 依 Claude Design「方案 4D 教學暖色」handoff 全站重繪(**只改視覺,不動 API / telemetry / 資料流**):① 暖色 tokens + Lora / Noto Sans TC / JetBrains Mono 字體 + 全站 UI;② 2D 世界(PixiJS 俯瞰 + 廠內產線)暖色重繪;③ **設備詳情彈窗**(點機台 / 目錄卡 → 放大詳細 Canvas 動畫 + 即時訊號 / 趨勢 / HOLDING / DISCRETE,接真實 telemetry);④ **雙機上下料工作站**(2 CNC + 手臂 2 連桿 IK 在兩機間搬運,含示範廠 c65)。取代先前的深色工業風設計稿 |
 
 兩個教學階段皆可開課。Both teaching stages are classroom-ready.
 
@@ -35,6 +38,13 @@
 
 1. **對外接入 External access** —— Cloudflare Tunnel(HTTP)+ Tailscale(原生協定),ACL 限校內 / 學生群組。
    *暫緩,待能存取校內 5090 主機。Deferred until the on-campus 5090 host is accessible.*
+   說明見 [docs/部署_對外連線.md](部署_對外連線.md);設定檔骨架見 `deploy/cloudflared/`。
+7. **生產管理 KPI 自動批改 Production-mgmt KPIs** —— 目前準交率 / WIP / 瓶頸都能從 `/api/orders` 自算,但尚未像
+   其他作業一樣自動批改。後續:`/api/orders` 回傳 on-time% / 平均 WIP / 前置時間(平台算好 ground-truth)+
+   新增 `production` 作業型別(比照 `oee` / `events`)。見 [docs/雲端生產_概念與議題.md](雲端生產_概念與議題.md) §7。
+8. **字體離線化 Offline fonts** —— 4D UI 以 Google Fonts 載入 Lora / Noto Sans TC / JetBrains Mono;校內 LAN
+   無外網時會回退系統字體(版面 / 顏色不受影響)。若要離線也保證字體一致,可改自架字體檔(`web/public/fonts` +
+   `@font-face`)。Self-host fonts if the LAN has no internet and exact typography matters.
 2. **真 LLM 建廠 Real-LLM factory** —— ✅ 已完成:接 Gemini(REST,免 SDK)做自由描述、**一句話建多型別工廠**,
    失敗自動回退規則式;輸出嚴格驗證(見 Done 表)。Done — Gemini via REST, multi-template, graceful fallback.
 4. **熱載入補完 Hot-add completeness** —— ✅ 已完成:三個原生協定 adapter(Modbus channel-mux / OPC-UA /
@@ -57,6 +67,10 @@
   student_kit 的 Python 或網頁 UI。PowerShell mangles `curl` JSON bodies — use the Python scripts or web UI for POST.
 - **必須用 venv python**:裸 `python` = 全域那支(版本會漂移,pymodbus 被拉到 3.9.2 會崩);一律 `run-engine.ps1`。
 - **本機埠 Local ports**:工業協定埠統一 6xxx(Modbus 6020 / OPC-UA 6041 / MQTT 6083 / multiport 6100+ / 控制埠 6023),避開 5040(CDPSvc)等保留埠;API 8077。含中文的 .ps1 須存 UTF-8 BOM。
+- **示範廠 c65 Demo company**:`scenarios/class_park.yaml` 有一間額外的「上下料示範廠」(c65:2 CNC + 手臂),
+  用來展示雙機上下料工作站 layout(既有 64 教學廠皆單機台,無此組合)。它屬**教師展示用**,不影響 64 廠一人一廠
+  的個人作業設計;不需要時可刪除該公司。Extra teacher-demo company; remove it if not needed.
+- **4D 字體 Fonts**:見上 TODO §8 —— LAN 無外網會回退系統字體。
 
 ---
 

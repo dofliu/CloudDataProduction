@@ -39,14 +39,14 @@ Simulation engine ★  hidden health state + degradation + correlated signals + 
 Python 3.11 · asyncio + FastAPI · numpy · pymodbus 3.6.9 · asyncua (OPC-UA) · amqtt (pure-Python MQTT
 broker) · TimescaleDB · React + Vite + TypeScript + PixiJS.
 
-## Features (P0–P4 + hardening, ~99% done)
+## Features (P0–P4 + hardening + classroom + 4D UI redesign, ~100% done)
 
 - **Engine** — hidden per-component health, monotonic damage accumulation, multiple degradation
   trajectories (linear / exponential / …), correlated observable signals (vibration leads, current
   follows, temperature rises via first-order thermal lag), measurement noise, duty-cycle day/week
   structure, time acceleration against `sim_clock`.
-- **6 industry templates** — CNC machining center, air compressor, AGV, 6-axis robot arm,
-  injection molding machine, wind turbine (wind→power curve, gearbox wear).
+- **10+ industry templates** — CNC machining center, air compressor, AGV, 6-axis robot arm, injection
+  molding, wind turbine, semiconductor process chamber, energy meter, stamping press, heat-treat furnace.
 - **3 protocols, two addressing modes** — channel-mux (shared ports, split by unit_id / folder / topic)
   **and** multi_port (each device gets its own dedicated Modbus port) coexisting.
 - **4 Modbus object types** — holding register (FC03, measurements), discrete input (FC02, status bits),
@@ -62,9 +62,20 @@ broker) · TimescaleDB · React + Vite + TypeScript + PixiJS.
 - **Stage 2 teaching** — closed-loop predictions (`POST /api/predictions`), lead-time scoring, predicted
   devices turn orange in the world; **dataset generator** that fast-forwards many run-to-failure cycles
   and exports labelled CSV (RUL regression + 24h-fault classification + sensor-fault episodes).
-- **2.5D world** — isometric streets + varied buildings, smoke / fault-flash / predicted-pulse
-  animations, **drill into a company** to see in-plant equipment animation (robot arms swing by joint
-  angle, CNC spindles spin, AGVs roam, conveyors run).
+- **2.5D world (warm "4D" theme)** — isometric streets + varied buildings, smoke / fault-flash /
+  predicted-pulse animations, **drill into a company** for in-plant production-line animation (robot arms
+  swing by joint angle, CNC spindles spin, AGVs roam, conveyors run), plus a **dual-machine tending cell**
+  (two CNCs + an arm shuttling a part between them via 2-link IK). Click any machine or catalog card to
+  open a **device detail modal** — a large detailed canvas animation with live signals / trend / HOLDING /
+  DISCRETE, all fed by real telemetry.
+- **In-class exercises** — teacher one-click "deploy" (apply a healthy / sensor-fault / degradation
+  scenario to one device) → students answer on their phones (anonymous by seat/ID) → instant auto-grading
+  into a participation grade; basic (observe/choose) + advanced (stats/correlation/trend/root-cause,
+  reusing the honest graders) tiers, live board + projection mode. See `scenarios/classroom_exercises.yaml`.
+- **Student dashboard (reference deliverable)** — `student_kit/dashboard` (Streamlit) and
+  `student_kit/dashboard_simple` (pure stdlib `http.server` + vanilla JS, no Streamlit) share one
+  `client.py` data layer with **Modbus / OPC-UA / MQTT readers**; live monitor switches protocol, plus
+  trend / stats / analysis / auto-graded submission.
 - **War-room** — `/api/diagnostics/protocols` connects back to its own servers as a real client over all
   protocols to self-test connectivity and list devices by protocol.
 
@@ -94,11 +105,16 @@ simulation loop kept **100% of its configured speed** under load. Plenty of head
 
 ## Status
 
-P0–P4 + production hardening complete (~99% of features): both teaching stages are deliverable, with
+P0–P4 + production hardening complete (~100% of features): both teaching stages are deliverable, with
 four Modbus object types + teacher coil control, SQLite persistence (telemetry + ops state), 6xxx ports,
 venv launcher + watchdog + `/api/health` + smoke test, production-line choreography + in-plant people.
-**Remaining: external access** (Cloudflare Tunnel for HTTP + Tailscale for native protocols) — deferred
-until the on-campus 5090 host is accessible. See [docs/ROADMAP.md](docs/ROADMAP.md).
+Recently added: **in-class exercises**, **student self-built dashboards** (Streamlit + pure-Python, three
+protocols), an **18-week course plan + a "cloud production" concept doc**, and a full **warm "4D" UI
+redesign** (theme + 2D-world repaint + device detail modal + dual-machine tending cell — visual only, no
+data-flow changes).
+**Follow-up work** (see [docs/ROADMAP.md](docs/ROADMAP.md)): external access (Cloudflare Tunnel +
+Tailscale, pending the on-campus 5090 host), auto-graded production-management KPIs (on-time % / WIP),
+offline (self-hosted) fonts, and per-device protocol subsets.
 
 ---
 

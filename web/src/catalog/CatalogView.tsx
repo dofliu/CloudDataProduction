@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Catalog, TelemetryMsg, STATUS_COLOR_CSS } from "../api";
+import PageGuide from "../help/PageGuide";
 
 // 公開設備目錄(學生規格書):左清單 + 右規格。改成 master-detail。
 const th: React.CSSProperties = { textAlign: "left", padding: "7px 8px", color: "var(--dim)", fontFamily: "var(--font-mono)",
@@ -42,6 +43,11 @@ export default function CatalogView({ catalog, telemetry, onOpen }: { catalog: C
 
       {/* 右:規格 */}
       <div className="page" style={{ padding: "18px 22px" }}>
+        <PageGuide id="catalog" title="設備目錄怎麼用(這是你的接線圖)" steps={[
+          <>左側清單<b>點一台設備</b>,右側就是它的完整規格書。</>,
+          <>看它的<b>協定 / 埠 / unit_id / register</b>——照這些數字,你才能自己寫 client 連上去讀資料。</>,
+          <>三種協定(Modbus / OPC-UA / MQTT)讀的是<b>同一台設備</b>;按「🔍 放大詳細動畫」可看即時運轉與點位。</>,
+        ]} note="全部公開唯讀、不含任何 ground-truth;設備規格就是拿來讓你寫連線的。" />
         {sel && (
           <>
             <h2 style={{ display: "flex", alignItems: "center", gap: 10 }}>

@@ -3,6 +3,7 @@ import {
   Park, Company, TelemetryMsg, Ticket, ScoreRow, PredScoreRow, OeeRow,
   getTickets, ackTicket, resolveTicket, getScores, getPredictionScores, getOee, getPark, claimCompany,
 } from "../api";
+import PageGuide from "../help/PageGuide";
 
 // 學生面公開頁:設定學生 id → 認領公司 → 我的工單(ack/resolve)→ 競賽榜。全程免教師 token。
 function fmtH(s: number | null | undefined) { return s == null ? "—" : (s / 3600).toFixed(1) + "h"; }
@@ -69,6 +70,13 @@ export default function StudentView({ park, telemetry }: { park: Park; telemetry
     <div className="page" style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
       <div style={{ flex: "1 1 480px", minWidth: 0 }}>
         <h2>學生面 · 認領 → 處置工單 → 上競賽榜</h2>
+
+        <PageGuide id="student" title="這頁怎麼用" steps={[
+          <>在身分卡填你的<b>學號</b>並按「設定」(課堂用它記分)。</>,
+          <>用搜尋框 / 篩選找到一間<b>未認領</b>的公司,按「<b>認領</b>」——之後只有你能處理它的工單。</>,
+          <>設備退化或被老師注入故障會<b>自動開工單</b>:先按 <b>ack</b> 確認、修好後按 <b>resolve</b> 結案。</>,
+          <>偵測快、修得快、階段二預測抓得早,右側<b>競賽榜</b>名次就往上爬。</>,
+        ]} note="讀資料 / 繳作業免登入;認領與寫設定點才需要帳號。" />
 
         {/* 身分卡 */}
         <div className="card" style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 16 }}>

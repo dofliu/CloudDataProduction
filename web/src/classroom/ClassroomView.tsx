@@ -3,6 +3,7 @@ import {
   ClassroomActive, ClassroomAnswerResult, ClassroomQuestion,
   getClassroomActive, answerClassroom,
 } from "../api";
+import PageGuide from "../help/PageGuide";
 
 // 學生面「課堂即時練習」——手機友善:老師佈題後,這裡顯示題目,學生輸入座號/學號作答,即時批改。
 export default function ClassroomView() {
@@ -25,6 +26,13 @@ export default function ClassroomView() {
         <h2 style={{ margin: "2px 0" }}>📣 課堂即時練習</h2>
         <span className="muted" style={{ fontSize: 12 }}>老師佈題 → 你用手機觀察後作答 → 即時批改(計入平時成績)</span>
       </div>
+
+      <PageGuide id="classroom" title="這頁怎麼用" steps={[
+        <>先填你的<b>座號 / 學號</b>(下方欄位,會記分)。</>,
+        <>等老師<b>佈題</b>——題目會自動出現(每 5 秒更新)。</>,
+        <><b>👀 觀察題</b>:看設備狀態直接選;<b>🧮 計算題</b>:用你的 client / 監控台把資料讀下來算完,再填數字。</>,
+        <>送出即<b>即時批改</b>並給解說;可再作答,取最佳分計入平時成績。</>,
+      ]} />
 
       <div className="card" style={{ padding: "10px 12px", margin: "10px 0", position: "sticky", top: 6, zIndex: 5 }}>
         <label style={{ fontSize: 12, color: "var(--text-2)" }}>我的座號 / 學號</label>

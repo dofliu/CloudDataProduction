@@ -15,7 +15,7 @@ import { CourseStatus } from "../api";
  *   - 最後一步引導接續「▶ 範例示範」看完整故障處置迴圈。
  */
 
-type View = "start" | "world" | "student" | "catalog" | "diag" | "oee" | "teacher";
+type View = "start" | "world" | "student" | "classroom" | "catalog" | "diag" | "oee" | "teacher";
 
 interface Step {
   target?: string;       // data-tour 值;省略 = 置中大卡(開場 / 結尾)
@@ -80,6 +80,13 @@ const STEPS: Step[] = [
     emoji: "🎫",
     title: "學生面 · 認領與工單",
     body: <>認領公司、處置工單(故障會自動開單,你 ack 確認 → resolve 修復),還有故障管理與各種競賽榜。你這間廠的 OEE、MTTR 都算你的成績。</>,
+  },
+  {
+    target: "tab-classroom",
+    view: "classroom",
+    emoji: "📣",
+    title: "課堂練習 · 用手機作答",
+    body: <>老師在課堂上「佈題」後,這裡會出現題目。填座號 / 學號 → 觀察題用選的、計算題用你的 client 算完填數字 → 送出即時批改,計入平時成績。手機就能答。</>,
   },
   {
     target: "tab-diag",

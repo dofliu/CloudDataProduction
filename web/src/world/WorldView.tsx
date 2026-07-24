@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Application, Container, Graphics, Text, FillGradient } from "pixi.js";
+import { Application, Container, Graphics, Text } from "pixi.js";
 import { Park, Company, TelemetryMsg, colorOf, worstState } from "../api";
+import { darken, solveArm, drawStation } from "./machines";
 
 // ── 俯瞰格狀佈局 ───────────────────────────────────────
 // STEP 拉大 → 公司間距更寬、道路更寬敞;GRID 隨之放大,俯瞰縮放在 recenter 自動配合。
@@ -16,165 +17,6 @@ function isRoad(gx: number, gy: number) { return (gx - 1) % STEP === 0 || (gy - 
 function mulberry32(seed: number) {
   return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-}
-function darken(c: number, f: number) {
-  const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
-  return ((Math.min(255, r * f) | 0) << 16) | ((Math.min(255, g * f) | 0) << 8) | (Math.min(255, b * f) | 0);
-}
-// 徑向發光(核心 + 兩層柔光暈):用於主軸 / 電漿 / 爐火 / LED 等「亮起來」的細節
-function emissive(g: Graphics, cx: number, cy: number, r: number, color: number, a = 1) {
-  g.circle(cx, cy, r * 2.7).fill({ color, alpha: 0.06 * a });
-  g.circle(cx, cy, r * 1.7).fill({ color, alpha: 0.12 * a });
-  g.circle(cx, cy, r).fill({ color, alpha: Math.min(1, 0.92 * a) });
-}
-
-// ── 等距金屬量體(移植設計稿 box():三面線性漸層 + 頂面亮邊)────────────
-const MTW = 30, MTH = 15;   // 機台等距 tile(設計稿數值)
-type P2 = [number, number];
-function lgrad(x0: number, y0: number, x1: number, y1: number, c0: number, c1: number): FillGradient {
-  return new FillGradient({ type: "linear", start: { x: x0, y: y0 }, end: { x: x1, y: y1 }, textureSpace: "global",
-    colorStops: [{ offset: 0, color: c0 }, { offset: 1, color: c1 }] });
-}
-function rgrad(cx: number, cy: number, r: number, core: string): FillGradient {
-  return new FillGradient({ type: "radial", center: { x: cx, y: cy }, innerRadius: 0,
-    outerCenter: { x: cx, y: cy }, outerRadius: r, textureSpace: "global",
-    colorStops: [{ offset: 0, color: core }, { offset: 1, color: "rgba(0,0,0,0)" }] });
-}
-// 等距立方體:anchor=(ox,oy) 為地面原點角;w/d/h 為寬/深/高。三面各一漸層。
-function isoBox3(g: Graphics, ox: number, oy: number, w: number, d: number, h: number, pal: { top: number; left: number; right: number }) {
-  const A: P2 = [ox, oy], B: P2 = [ox + w * MTW, oy + w * MTH], C: P2 = [ox + w * MTW - d * MTW, oy + w * MTH + d * MTH], D: P2 = [ox - d * MTW, oy + d * MTH];
-  const up = (p: P2): P2 => [p[0], p[1] - h];
-  const Au = up(A), Bu = up(B), Cu = up(C), Du = up(D);
-  g.poly([D[0], D[1], C[0], C[1], Cu[0], Cu[1], Du[0], Du[1]]).fill(lgrad(Du[0], Du[1], C[0], C[1], darken(pal.left, 1.18), darken(pal.left, 0.82)));   // 左面
-  g.poly([C[0], C[1], B[0], B[1], Bu[0], Bu[1], Cu[0], Cu[1]]).fill(lgrad(Cu[0], Cu[1], B[0], B[1], darken(pal.right, 1.12), darken(pal.right, 0.88))); // 右面
-  g.poly([Au[0], Au[1], Bu[0], Bu[1], Cu[0], Cu[1], Du[0], Du[1]]).fill(lgrad(Au[0], Au[1], Cu[0], Cu[1], darken(pal.top, 1.1), darken(pal.top, 0.95)))
-    .stroke({ width: 1, color: darken(pal.top, 1.4) });                                                                                                // 頂面 + 亮邊
-  return { A, B, C, D, Au, Bu, Cu, Du };
-}
-function ishadow(g: Graphics, cx: number, cy: number, rx: number, ry: number, a: number) {
-  g.ellipse(cx, cy, rx, ry).fill(rgrad(cx, cy, rx, `rgba(0,0,0,${a})`));
-}
-function iglow(g: Graphics, cx: number, cy: number, r: number, core: string) {
-  g.ellipse(cx, cy, r, r).fill(rgrad(cx, cy, r, core));
-}
-
-// ── 各機台繪法(移植設計稿 mCNC/mArm/… anchor=(ox,oy) 地面原點)──────────
-function mCNC(g: Graphics, ox: number, oy: number, t: number, running: boolean, fault: boolean) {
-  ishadow(g, ox + 0.3 * MTW, oy + 1.6 * MTH, 64, 30, 0.4);
-  const pal = fault ? { top: 0xc09088, left: 0x8a5c50, right: 0xa87068 } : { top: 0xd8c6a8, left: 0xa08a6a, right: 0xc0aa88 };
-  isoBox3(g, ox, oy, 2.4, 2.2, 42, pal);
-  isoBox3(g, ox + 0.2 * MTW, oy + 0.2 * MTH - 42, 1.7, 1.5, 24, { top: 0xc7b592, left: 0x9a8464, right: 0xb4a082 });
-  isoBox3(g, ox + 2.55 * MTW, oy + 2.4 * MTH, 0.55, 0.55, 36, { top: 0xe0cfa8, left: 0xac9674, right: 0xc9b896 });
-  const pcx = ox + 2.8 * MTW, pcy = oy + 2.8 * MTH - 24;
-  g.rect(pcx - 6, pcy - 8, 13, 10).fill(running ? 0x6f855a : 0x8a6b4a);
-  g.rect(pcx - 4, pcy - 5, 9, 2).fill(running ? 0x5a9e5a : 0xc85a4a);
-  g.poly([ox + 1.9 * MTW, oy + 1.9 * MTH - 8, ox + 1.0 * MTW, oy + 2.9 * MTH - 8, ox + 1.0 * MTW, oy + 2.9 * MTH - 30, ox + 1.9 * MTW, oy + 1.9 * MTH - 30])
-    .fill({ color: 0x8a7658, alpha: 0.85 }).stroke({ width: 1.2, color: 0xc9b795 });   // 觀景窗
-  const cx = ox + 1.45 * MTW, cy = oy + 1.55 * MTH - 16;
-  if (running) iglow(g, cx, cy + 6, 20, "rgba(255,212,120,0.5)");
-  const spin = running ? t * 10 : 0, off = Math.cos(spin) * 5;
-  g.moveTo(cx - off, cy).lineTo(cx + off, cy + 10).stroke({ width: 3, color: running ? 0xf0c674 : 0xb8a884, cap: "round" });
-  if (running) for (let i = 0; i < 5; i++) { const a = (t * 8 + i * 0.2) % 1; g.rect(cx + (i - 2) * 2, cy + 10 + a * 10, 1.5, 1.5).fill({ color: 0xf0e6d4, alpha: 1 - a }); }
-}
-function mInjection(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
-  ishadow(g, ox + 0.2 * MTW, oy + 1.4 * MTH, 60, 28, 0.4);
-  isoBox3(g, ox, oy, 1.4, 1.8, 34, { top: 0xb4a67e, left: 0x8f8062, right: 0xa89a70 });
-  const clamp = running ? (0.5 + 0.5 * Math.sin(t * 2.2)) : 1;
-  isoBox3(g, ox + 1.5 * MTW, oy + 1.5 * MTH, 1.8, 0.9, 20, { top: 0xd0bd98, left: 0xa88f6c, right: 0xc0ad8a });
-  isoBox3(g, ox + 2.3 * MTW, oy + 2.3 * MTH - 20, 0.5, 0.5, 14, { top: 0xd8c6a8, left: 0xc0ad8a, right: 0xcbb894 });
-  if (running) iglow(g, ox + 2.0 * MTW, oy + 2.0 * MTH - 6, 22, "rgba(255,140,60,0.55)");
-  g.rect(ox + 0.6 * MTW - clamp * 10, oy + 0.5 * MTH - 24, 7, 20).fill(0xb0a27a);
-  g.rect(ox + 0.9 * MTW, oy + 0.7 * MTH - 24, 7, 20).fill(0xa89a70);
-  if (running && clamp > 0.8) iglow(g, ox + 0.6 * MTW, oy + 0.9 * MTH - 6, 10, "rgba(255,200,120,0.6)");
-}
-function mArm(g: Graphics, ox: number, oy: number, t: number, pickup: P2, drop: P2) {
-  ishadow(g, ox, oy + 0.2 * MTH, 42, 20, 0.42);
-  isoBox3(g, ox - 0.7 * MTW, oy + 0.7 * MTH, 1.4, 1.4, 16, { top: 0xd8c6a8, left: 0xb4a082, right: 0xc4b090 });
-  const base: P2 = [ox, oy - 14];
-  g.ellipse(base[0], base[1] + 4, 14, 7).fill(0xb09a78);
-  const p = (t % 4.5) / 4.5; let tx: number, ty: number, carry = false;
-  const es = (f: number) => f * f * (3 - 2 * f);
-  if (p < 0.4) { const f = es(p / 0.4); tx = drop[0] + (pickup[0] - drop[0]) * f; ty = drop[1] + (pickup[1] - drop[1]) * f; }
-  else if (p < 0.5) { tx = pickup[0]; ty = pickup[1]; carry = p >= 0.45; }
-  else if (p < 0.92) { const f = es((p - 0.5) / 0.42); tx = pickup[0] + (drop[0] - pickup[0]) * f; ty = pickup[1] + (drop[1] - pickup[1]) * f; carry = true; }
-  else { tx = drop[0]; ty = drop[1]; }
-  const { joint, end } = solveArm(base[0], base[1], tx, ty, 42, 34);
-  g.moveTo(base[0], base[1]).lineTo(joint.x, joint.y).stroke({ width: 11, color: 0xd47a3f, cap: "round" });      // 大臂橘
-  g.moveTo(base[0], base[1]).lineTo(joint.x, joint.y).stroke({ width: 4, color: darken(0xd47a3f, 1.25), cap: "round" });
-  g.moveTo(joint.x, joint.y).lineTo(end.x, end.y).stroke({ width: 7, color: 0xe6d9bf, cap: "round" });           // 小臂銀
-  g.circle(base[0], base[1], 6).fill(0xb5622e).stroke({ width: 1.5, color: 0x9a8464 });
-  g.circle(joint.x, joint.y, 5).fill(0xb5622e).stroke({ width: 1.5, color: 0x9a8464 });
-  const d = Math.atan2(end.y - joint.y, end.x - joint.x), gap = carry ? 3 : 6;
-  const nx = Math.cos(d + Math.PI / 2) * gap, ny = Math.sin(d + Math.PI / 2) * gap;
-  g.moveTo(end.x, end.y).lineTo(end.x + nx + Math.cos(d) * 7, end.y + ny + Math.sin(d) * 7).stroke({ width: 3, color: 0xc0b088 });
-  g.moveTo(end.x, end.y).lineTo(end.x - nx + Math.cos(d) * 7, end.y - ny + Math.sin(d) * 7).stroke({ width: 3, color: 0xc0b088 });
-  if (carry) { g.rect(end.x - 5, end.y - 3, 11, 9).fill(0xd9a441); g.rect(end.x - 5, end.y - 3, 11, 3).fill(0xf0c674); }
-}
-function mCompressor(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
-  ishadow(g, ox + 0.3 * MTW, oy + 1.2 * MTH, 52, 24, 0.4);
-  isoBox3(g, ox, oy, 2.2, 1.3, 26, { top: 0xb4a67e, left: 0x8f8062, right: 0xa89a70 });
-  isoBox3(g, ox + 1.6 * MTW, oy + 1.6 * MTH - 26, 0.7, 0.7, 20, { top: 0xd0bd98, left: 0xa88f6c, right: 0xc0ad8a });
-  const fx = ox + 0.2 * MTW, fy = oy + 0.7 * MTH - 13, rot = running ? t * 6 : 0;
-  for (let i = 0; i < 4; i++) { const a = rot + i * Math.PI / 2; g.moveTo(fx, fy).lineTo(fx + Math.cos(a) * 9, fy + Math.sin(a) * 9).stroke({ width: 2.5, color: running ? 0x8fc088 : 0xa2917a, cap: "round" }); }
-  g.circle(fx, fy, 2.5).fill(0xc0b088);
-  const gz = running ? 0.5 + 0.4 * Math.abs(Math.sin(t * 3)) : 0.2;
-  g.circle(ox + 1.9 * MTW, oy + 1.9 * MTH - 26, 3).fill({ color: running ? 0x5a9e5a : 0x6f855a, alpha: gz });
-}
-function mTurbine(g: Graphics, ox: number, oy: number, t: number, rpm: number) {
-  ishadow(g, ox, oy + 0.1 * MTH, 20, 10, 0.35);
-  g.poly([ox - 3, oy, ox + 3, oy, ox + 1.5, oy - 64, ox - 1.5, oy - 64]).fill(lgrad(ox - 3, oy, ox + 3, oy, 0xd8c6a8, 0xb8a884));  // 塔
-  g.rect(ox - 5, oy - 70, 15, 7).fill(0xc9b795);
-  const hx = ox - 5, hy = oy - 66, rot = t * (0.5 + (rpm || 8) * 0.08);
-  for (let i = 0; i < 3; i++) { const a = rot + i * 2 * Math.PI / 3; g.moveTo(hx, hy).lineTo(hx + Math.cos(a) * 26, hy + Math.sin(a) * 26).stroke({ width: 3.5, color: 0xf0e6d4, cap: "round" }); }
-  g.circle(hx, hy, 3.5).fill(0xb5622e);
-}
-function mChamber(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
-  ishadow(g, ox + 0.2 * MTW, oy + 1.3 * MTH, 52, 24, 0.4);
-  isoBox3(g, ox, oy, 2.0, 1.8, 34, { top: 0xac9674, left: 0x9a8464, right: 0xac9674 });
-  const vx = ox + 0.5 * MTW, vy = oy + 1.3 * MTH - 14;
-  const gz = running ? 0.5 + 0.4 * Math.abs(Math.sin(t * 3)) : 0.12;
-  if (running) iglow(g, vx, vy, 22, `rgba(150,110,220,${gz})`);
-  g.circle(vx, vy, 10).fill({ color: running ? 0x9c6bce : 0xac9674, alpha: running ? 0.85 : 1 });
-  g.circle(vx, vy, 10).stroke({ width: 2.5, color: 0xc9b795 });
-  g.moveTo(ox + 0.5 * MTW, oy + 0.5 * MTH - 34).lineTo(ox + 0.5 * MTW, oy + 0.5 * MTH - 48).stroke({ width: 3, color: 0xc9b795 });   // 氣管
-  isoBox3(g, ox + 1.8 * MTW, oy + 1.8 * MTH, 0.6, 0.6, 12, { top: 0xac9674, left: 0x968060, right: 0xa08a6a });   // 真空泵
-}
-function mMeter(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
-  ishadow(g, ox + 0.1 * MTW, oy + 0.9 * MTH, 40, 20, 0.38);
-  isoBox3(g, ox, oy, 1.5, 1.2, 40, { top: 0xa8a080, left: 0x8f8062, right: 0xa89a70 });
-  const px = ox + 0.75 * MTW, py = oy + 0.4 * MTH - 26;
-  g.rect(px - 13, py - 2, 26, 12).fill(0x2a3e28).stroke({ width: 1, color: 0x6f855a });
-  g.rect(px - 10, py + 2, running ? 18 : 6, 2).fill(running ? 0x5a9e5a : 0x6f855a);   // 讀數(以亮條代文字)
-  for (let i = 0; i < 3; i++) { const on = running && Math.sin(t * 4 + i * 2) > -0.2; const cc = [0xc85a4a, 0xf0c674, 0x5a9e5a][i];
-    if (on) emissive(g, px - 8 + i * 8, py + 16, 2.6, cc, 0.9); else g.circle(px - 8 + i * 8, py + 16, 2.6).fill(0xd0bd98); }
-}
-function mPress(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
-  ishadow(g, ox + 0.1 * MTW, oy + 1.0 * MTH, 44, 22, 0.4);
-  isoBox3(g, ox, oy, 0.6, 1.6, 52, { top: 0xa99372, left: 0x9a8464, right: 0xac9674 });       // 立柱
-  isoBox3(g, ox, oy - 52, 2.2, 1.6, 10, { top: 0xd8c6a8, left: 0xb4a082, right: 0xc4b090 });   // 上樑
-  isoBox3(g, ox + 1.4 * MTW, oy + 1.4 * MTH, 1.0, 0.6, 12, { top: 0xc7b592, left: 0x9a8464, right: 0xb4a082 });  // 工作台
-  const press = running ? Math.abs(Math.sin(t * 5)) : 0.15;
-  const slx = ox + 1.55 * MTW, sly = oy + 0.4 * MTH - 40 + press * 26;
-  g.rect(slx, sly, 20, 12).fill(lgrad(slx, sly, slx, sly + 12, 0xcabf9a, 0xd8c6a8)).stroke({ width: 1, color: 0xa99372 });   // 滑塊
-  g.rect(slx + 3, oy + 1.0 * MTH - 6, 14, 4).fill(running ? 0xf0c674 : 0xa2917a);
-  if (running && press > 0.85) iglow(g, slx + 10, oy + 1.0 * MTH - 4, 12, "rgba(255,220,140,0.7)");
-}
-function mFurnace(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
-  ishadow(g, ox + 0.2 * MTW, oy + 1.3 * MTH, 52, 24, 0.4);
-  isoBox3(g, ox, oy, 2.0, 1.7, 34, { top: 0x8a7452, left: 0x6b5842, right: 0x7a6650 });
-  const dx = ox + 0.55 * MTW, dy = oy + 1.2 * MTH - 14;
-  const heat = running ? 0.5 + 0.4 * Math.abs(Math.sin(t * 2)) : 0.1;
-  if (running) iglow(g, dx, dy, 24, `rgba(255,120,50,${heat})`);
-  g.rect(dx - 11, dy - 10, 22, 20).fill({ color: running ? 0xd47a3f : 0x7a6248, alpha: running ? 0.9 : 1 }).stroke({ width: 2, color: 0x8a6b4a });  // 爐門
-  g.moveTo(ox + 1.7 * MTW, oy + 1.7 * MTH - 34).lineTo(ox + 1.7 * MTW, oy + 1.7 * MTH - 52).stroke({ width: 3.5, color: 0xc9b795 });   // 排氣管
-  if (running) { const sy = (t * 20) % 30; g.circle(ox + 1.7 * MTW, oy + 1.7 * MTH - 52 - sy, 3 + sy * 0.1).fill({ color: 0xc9b8a0, alpha: 0.3 * (1 - sy / 30) }); }
-}
-function mAGV(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
-  const bob = running ? Math.sin(t * 3) * 1 : 0;
-  ishadow(g, ox, oy + 0.1 * MTH, 30, 15, 0.4);
-  isoBox3(g, ox - 0.7 * MTW, oy + 0.7 * MTH - bob, 1.4, 1.0, 12, { top: 0x8aa06a, left: 0x6f855a, right: 0x8aa06a });
-  g.rect(ox - 6, oy - 20 - bob, 12, 8).fill(0xd9a441); g.rect(ox - 6, oy - 20 - bob, 12, 2.5).fill(0xf0c674);   // 貨件
-  const on = Math.sin(t * 6) > 0; g.circle(ox + 0.7 * MTW - 4, oy + 0.7 * MTH - 8 - bob, 2).fill(on ? 0x5a9e5a : 0x6f855a);   // 狀態燈
 }
 const ROOFS = [0xc0a878, 0xb59a6a, 0xa8a880, 0xbcac86, 0xb59a6a, 0xb0a878, 0xb89a80];
 // 公司建築多彩色盤(較飽和,讓園區有大有小、多彩)
@@ -260,18 +102,6 @@ interface TendingCell {
 const ARM_CYCLE = 4.5;             // 搬運手臂一個夾取-放置循環秒數(實時)
 const ease = (x: number) => x * x * (3 - 2 * x);
 const lerpPt = (a: Pt, b: Pt, f: number): Pt => ({ x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f });
-// 兩節手臂 IK:base→target,回傳肘關節與末端(夾爪)點,超出可達範圍時夾到邊界。
-function solveArm(bx: number, by: number, px: number, py: number, L1: number, L2: number) {
-  const dx = px - bx, dy = py - by; let d = Math.hypot(dx, dy) || 0.01;
-  const a = Math.atan2(dy, dx);
-  d = Math.max(Math.abs(L1 - L2) + 0.5, Math.min(L1 + L2 - 0.5, d));
-  const cosA = (d * d + L1 * L1 - L2 * L2) / (2 * L1 * d);
-  const sh = a - Math.acos(Math.max(-1, Math.min(1, cosA)));
-  return {
-    joint: { x: bx + L1 * Math.cos(sh), y: by + L1 * Math.sin(sh) },
-    end: { x: bx + Math.cos(a) * d, y: by + Math.sin(a) * d },
-  };
-}
 
 export default function WorldView({
   park, telemetry, selected, onSelect, predicted,
@@ -686,29 +516,6 @@ export default function WorldView({
       }
       for (let i = flow.parts.length - 1; i >= 0; i--)
         if (flow.parts[i].done) { flow.parts[i].g.destroy(); flow.parts.splice(i, 1); }
-    }
-
-    // 各機台的中心偏移(anchor=地面原點角,調到坐落在站位中央)
-    const MOFF: Record<string, P2> = {
-      cnc_machining_center: [-38, -12], injection_molding: [-30, -8], robot_arm_6axis: [2, 4],
-      air_compressor: [-32, -4], wind_turbine: [8, 30], semi_process_chamber: [-30, -8],
-      energy_meter: [-16, 0], stamping_press: [-18, 6], heat_treat_furnace: [-30, -8], agv_mobile_robot: [6, 2],
-    };
-    function drawStation(g: Graphics, tmpl: string, t: Record<string, number>, running: boolean, animT: number, _col: number, fault: boolean) {
-      const [ox, oy] = MOFF[tmpl] ?? [-20, 0];
-      switch (tmpl) {
-        case "cnc_machining_center": mCNC(g, ox, oy, animT, running, fault); break;
-        case "injection_molding": mInjection(g, ox, oy, animT, running); break;
-        case "robot_arm_6axis": mArm(g, ox, oy, animT, [ox - 46, oy - 14], [ox + 34, oy + 40]); break;
-        case "air_compressor": mCompressor(g, ox, oy, animT, running); break;
-        case "wind_turbine": mTurbine(g, ox, oy, animT, running ? (t["rotor_rpm"] || 12) : 3); break;
-        case "semi_process_chamber": mChamber(g, ox, oy, animT, running); break;
-        case "energy_meter": mMeter(g, ox, oy, animT, running); break;
-        case "stamping_press": mPress(g, ox, oy, animT, running); break;
-        case "heat_treat_furnace": mFurnace(g, ox, oy, animT, running); break;
-        case "agv_mobile_robot": mAGV(g, ox, oy, animT, running); break;
-        default: isoBox3(g, ox, oy, 1.6, 1.4, 24, { top: 0xc8b48e, left: 0xa08a6a, right: 0xac9674 });
-      }
     }
 
     function smoke(animT: number, dt: number) {

@@ -14,7 +14,7 @@ page.on("pageerror", (e) => errs.push(String(e)));
 await page.goto(url);
 await page.waitForFunction(() => window.__ready === true, { timeout: 10000 });
 // 抓多個時間點以涵蓋各機台不同動作相位
-for (const target of [0.8, 2.2, 3.6, 5.2]) {
+for (const target of [0.8, 1.7, 4.4, 5.2]) {
   await page.waitForFunction((tt) => window.__t >= tt, target, { timeout: 10000 });
   await page.screenshot({ path: path.join(outDir, `machines_t${target}.png`) });
 }

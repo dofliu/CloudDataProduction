@@ -121,6 +121,17 @@ export function mCNC(g: Graphics, ox: number, oy: number, t: number, running: bo
     sparks(g, cx + trav * 0.4, spy + 9, t, 8, { reach: 14, grav: 16, speed: 3 });
     vapor(g, cx, spy + 7, t, 4, 0xdfece9, { rise: 20, spread: 5, size: 4, alpha: 0.2, speed: 0.9 });
   }
+  // 防護安全門:切削時滑上關門、上下料時滑開;半透玻璃,關門時仍隱約見主軸作動
+  const doorOpen = !running ? 1 : mc < 0.12 ? 1 - mc / 0.12 : mc < 0.85 ? 0 : (mc - 0.85) / 0.15;
+  const dlx = ox + 0.85 * MTW, dly = oy + 3.0 * MTH;                 // 開口左下角
+  const vX = 1.05 * MTW, vY = -1.15 * MTH;                           // 門滑軌方向(＝開口寬)
+  g.moveTo(dlx, dly - 40).lineTo(dlx + vX * 2, dly + vY * 2 - 40).stroke({ width: 1.5, color: 0x8f8062, alpha: 0.6 });   // 上滑軌(靜態)
+  const bx0 = dlx + doorOpen * vX, by0 = dly + doorOpen * vY;        // 門扇左下(隨開度滑移)
+  const dp = (fx: number, h: number): [number, number] => [bx0 + vX * fx, by0 + vY * fx - h];
+  g.poly([...dp(0, 4), ...dp(1, 4), ...dp(1, 40), ...dp(0, 40)]).fill({ color: 0xbfd0c4, alpha: 0.4 }).stroke({ width: 1.4, color: 0xd7c9a8 });   // 玻璃門扇
+  g.moveTo(...dp(0.5, 4)).lineTo(...dp(0.5, 40)).stroke({ width: 1, color: 0xd7c9a8, alpha: 0.6 });        // 中梃
+  g.moveTo(...dp(0, 4)).lineTo(...dp(0, 40)).stroke({ width: 2, color: 0xd9a441, alpha: 0.85 });           // 門緣安全警示條
+  g.moveTo(...dp(0.1, 16)).lineTo(...dp(0.1, 26)).stroke({ width: 2.5, color: 0x8f8062, cap: "round" });   // 把手
 }
 
 export function mInjection(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
@@ -296,6 +307,21 @@ export function mChamber(g: Graphics, ox: number, oy: number, t: number, running
   // 真空泵(運轉微震)
   const vb = running ? Math.sin(t * 20) * 0.6 : 0;
   isoBox3(g, ox + 1.8 * MTW, oy + 1.8 * MTH - vb, 0.6, 0.6, 12, { top: 0xac9674, left: 0x968060, right: 0xa08a6a });
+  // 晶圓搬運手臂(load-lock):腔蓋開啟時把晶圓送入腔內,關蓋前縮回
+  isoBox3(g, ox - 0.6 * MTW, oy + 0.15 * MTH, 0.5, 0.5, 12, { top: 0xbfa0e0, left: 0x8f7fa0, right: 0xa88fb0 });   // load-lock 小室
+  const abx = ox - 0.2 * MTW, aby = oy + 0.15 * MTH - 8;
+  g.ellipse(abx, aby + 3, 8, 4).fill(0xb09a78).stroke({ width: 0.7, color: 0x9a8464 });   // 手臂基座
+  const openWin = lc > 0.52 && lc < 0.9;
+  const ext = running && openWin ? Math.sin((lc - 0.52) / 0.38 * Math.PI) : 0;   // 0→1→0:伸入再縮回
+  const Hx = abx - 9, Hy = aby - 11, Tx = ox + 0.5 * MTW, Ty = oy + 0.5 * MTH - 25;
+  const arm = solveArm(abx, aby, Hx + (Tx - Hx) * ext, Hy + (Ty - Hy) * ext, 24, 20);
+  g.moveTo(abx, aby).lineTo(arm.joint.x, arm.joint.y).stroke({ width: 5, color: 0xc9b795, cap: "round" });                 // 大臂
+  g.moveTo(arm.joint.x, arm.joint.y).lineTo(arm.end.x, arm.end.y).stroke({ width: 4, color: 0xd8c6a8, cap: "round" });     // 小臂
+  g.circle(abx, aby, 2.6).fill(0xb5622e).stroke({ width: 0.8, color: 0x9a8464 });
+  g.circle(arm.joint.x, arm.joint.y, 2).fill(0xb5622e);
+  g.ellipse(arm.end.x, arm.end.y, 7, 3.4).fill(0x9aa0b0).stroke({ width: 0.6, color: 0x7f8595 });                          // 末端叉板
+  if (ext > 0.04) { g.ellipse(arm.end.x, arm.end.y - 1, 5.5, 2.7).fill(0xcdd6e2); g.ellipse(arm.end.x - 1.4, arm.end.y - 1.8, 2, 1).fill({ color: 0xf0f4fa, alpha: 0.85 }); }   // 晶圓(反光)
+  else for (let i = 0; i < 2; i++) g.ellipse(ox - 0.6 * MTW, oy + 0.15 * MTH - 12 - i * 3, 5, 2.4).fill({ color: 0xcdd6e2, alpha: 0.85 });   // 卡匣待送晶圓
 }
 
 export function mMeter(g: Graphics, ox: number, oy: number, t: number, running: boolean) {

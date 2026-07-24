@@ -96,18 +96,30 @@ export function mCNC(g: Graphics, ox: number, oy: number, t: number, running: bo
   // 觀景窗(半透玻璃,運轉時內部微亮綠)
   g.poly([ox + 1.9 * MTW, oy + 1.9 * MTH - 8, ox + 1.0 * MTW, oy + 2.9 * MTH - 8, ox + 1.0 * MTW, oy + 2.9 * MTH - 30, ox + 1.9 * MTW, oy + 1.9 * MTH - 30])
     .fill({ color: running ? 0x9db4a2 : 0x8a7658, alpha: 0.82 }).stroke({ width: 1.2, color: 0xc9b795 });
+  // 頂部刀庫轉盤(換刀時緩轉,插著幾把刀)
+  const tcx = ox + 1.05 * MTW, tcy = oy + 1.0 * MTH - 62, trot = running ? t * 0.9 : 0;
+  g.ellipse(tcx, tcy, 12, 6).fill({ color: 0xc0b088, alpha: 0.9 }).stroke({ width: 0.8, color: 0x8f8062 });
+  for (let i = 0; i < 6; i++) { const a = trot + i * Math.PI / 3; const dx = tcx + Math.cos(a) * 9, dy = tcy + Math.sin(a) * 4.2;
+    g.circle(dx, dy, 1.8).fill(0x9a8464); g.moveTo(dx, dy).lineTo(dx, dy + 3).stroke({ width: 1.4, color: 0x8f8062 }); }
   const cx = ox + 1.45 * MTW, cy = oy + 1.55 * MTH - 16;
-  // 主軸:柔光暈 + 高速殘影 + 旋轉刀具 + 冷卻液霧 + 切削火花
-  if (running) {
-    iglow(g, cx, cy + 6, 22, "rgba(255,214,130,0.55)");
-    blurDisc(g, cx, cy + 3, 7, 0xf0e6d4, 0.5);
-  }
-  const spin = running ? t * 14 : 0, off = Math.cos(spin) * 5;
-  g.moveTo(cx - off, cy).lineTo(cx + off, cy + 10).stroke({ width: 3, color: running ? 0xf0c674 : 0xb8a884, cap: "round" });
-  g.circle(cx, cy, 2.4).fill(running ? 0xf6dca0 : 0xc0b088);
-  if (running) {
-    sparks(g, cx, cy + 10, t, 7, { reach: 15, grav: 16 });
-    vapor(g, cx, cy + 8, t, 4, 0xdfece9, { rise: 22, spread: 5, size: 4, alpha: 0.2, speed: 0.7 });
+  // 加工節拍:快速進刀 → 切削橫移進給 → 退刀(主軸沿 Z、工作台沿 X 都在動)
+  const mc = running ? (t * 0.6) % 1 : 0;
+  const plunge = !running ? 0 : mc < 0.18 ? mc / 0.18 : mc < 0.82 ? 1 : 1 - (mc - 0.82) / 0.18;   // 0=抬刀 1=到底
+  const cutting = running && mc > 0.2 && mc < 0.8;
+  const trav = cutting ? Math.sin((mc - 0.2) / 0.6 * Math.PI * 2) * 8 : 0;                          // 工作台左右進給
+  // X-Y 工作台 + 工件(切削時橫移)
+  g.rect(cx - 16 + trav, cy + 11, 27, 7).fill(lgrad(cx - 16 + trav, cy + 11, cx + 11 + trav, cy + 11, 0xc7b592, 0xa89a70)).stroke({ width: 0.6, color: 0x8f8062 });
+  g.rect(cx - 6 + trav, cy + 8, 11, 5).fill(running ? 0xd9c48a : 0xc0b088);
+  // 主軸頭:沿 Z 進退,運轉時旋轉刀具 + 光暈
+  const spy = cy - 8 + plunge * 9;
+  g.rect(cx - 4, spy - 13, 8, 11).fill(lgrad(cx - 4, spy - 13, cx + 4, spy - 13, 0xd0bd98, 0xa89a70)).stroke({ width: 0.6, color: 0x8f8062 });   // 主軸箱
+  if (running) { iglow(g, cx, spy + 6, 20, `rgba(255,214,130,${0.35 + 0.3 * plunge})`); blurDisc(g, cx, spy + 2, 6, 0xf0e6d4, 0.5); }
+  const spin = running ? t * 16 : 0, off = Math.cos(spin) * 4.5;
+  g.moveTo(cx - off, spy).lineTo(cx + off, spy + 9).stroke({ width: 3, color: running ? 0xf0c674 : 0xb8a884, cap: "round" });
+  g.circle(cx, spy, 2.2).fill(running ? 0xf6dca0 : 0xc0b088);
+  if (cutting) {
+    sparks(g, cx + trav * 0.4, spy + 9, t, 8, { reach: 14, grav: 16, speed: 3 });
+    vapor(g, cx, spy + 7, t, 4, 0xdfece9, { rise: 20, spread: 5, size: 4, alpha: 0.2, speed: 0.9 });
   }
 }
 
@@ -122,6 +134,13 @@ export function mInjection(g: Graphics, ox: number, oy: number, t: number, runni
   isoBox3(g, ox + 2.3 * MTW, oy + 2.3 * MTH - 20, 0.5, 0.5, 14, { top: 0xd8c6a8, left: 0xc0ad8a, right: 0xcbb894 });
   // 料管噴嘴熔膠光(保壓相位最亮)
   if (running) iglow(g, ox + 2.0 * MTW, oy + 2.0 * MTH - 6, 22, `rgba(255,140,60,${hold ? 0.72 : 0.42})`);
+  // 塑化料斗 + 落料(非保壓的回料相位 granule 掉入料管)
+  const hpx = ox + 2.5 * MTW, hpy = oy + 2.4 * MTH - 20;
+  g.poly([hpx - 6, hpy - 9, hpx + 6, hpy - 9, hpx + 2, hpy, hpx - 2, hpy]).fill(0xa89a70).stroke({ width: 0.6, color: 0x8f8062 });
+  if (running && !hold) for (let i = 0; i < 3; i++) { const ph = ((t * 1.5 + hsh(i * 6.1)) % 1 + 1) % 1; g.circle(hpx + (hsh(i) - 0.5) * 6, hpy - 7 + ph * 7, 1).fill({ color: 0x7a6248, alpha: 0.85 * (1 - ph) }); }
+  // 射出螺桿驅動座:保壓向前推、回料縮回(沿料管軸線往復)
+  const ram = hold ? 1 : running ? Math.max(0, 1 - cyc / 0.35) : 0.3;
+  g.rect(ox + 2.32 * MTW - ram * 7, oy + 2.32 * MTH - 24, 11, 5).fill(0x8f8062).stroke({ width: 0.5, color: 0x6b5842 });
   // 兩根導柱 + 動模板(隨合模前後移動)
   for (let i = 0; i < 2; i++)
     g.moveTo(ox + 0.5 * MTW, oy + 0.35 * MTH - 20 + i * 15).lineTo(ox + 1.15 * MTW, oy + 0.68 * MTH - 20 + i * 15).stroke({ width: 1.4, color: 0x8f8062 });
@@ -181,11 +200,17 @@ export function mArm(g: Graphics, ox: number, oy: number, t: number, pickup: P2,
   g.circle(base[0], base[1], 6).fill(0xb5622e).stroke({ width: 1.5, color: 0x9a8464 });
   g.circle(joint.x, joint.y, 5).fill(0xb5622e).stroke({ width: 1.5, color: 0x9a8464 });
   g.circle(joint.x, joint.y, 1.8).fill({ color: 0x62d06a, alpha: 0.5 + 0.5 * Math.abs(Math.sin(t * 4)) });        // 伺服燈
-  const d = Math.atan2(end.y - joint.y, end.x - joint.x), gap = carry ? 3 : 6;
-  const nx = Math.cos(d + Math.PI / 2) * gap, ny = Math.sin(d + Math.PI / 2) * gap;
-  g.moveTo(end.x, end.y).lineTo(end.x + nx + Math.cos(d) * 7, end.y + ny + Math.sin(d) * 7).stroke({ width: 3, color: 0xc0b088 });
-  g.moveTo(end.x, end.y).lineTo(end.x - nx + Math.cos(d) * 7, end.y - ny + Math.sin(d) * 7).stroke({ width: 3, color: 0xc0b088 });
-  if (carry) { g.rect(end.x - 5, end.y - 3, 11, 9).fill(0xd9a441); g.rect(end.x - 5, end.y - 3, 11, 3).fill(0xf0c674); }
+  // 腕關節(第三軸):短節 + 隨動作翻轉,夾爪裝在腕末端
+  const d0 = Math.atan2(end.y - joint.y, end.x - joint.x);
+  const wd = d0 + Math.sin(t * 2.6) * 0.4 + (carry ? 0.25 : 0);
+  const wx = end.x + Math.cos(wd) * 8, wy = end.y + Math.sin(wd) * 8;
+  g.moveTo(end.x, end.y).lineTo(wx, wy).stroke({ width: 5, color: 0xc9b795, cap: "round" });
+  g.circle(end.x, end.y, 3).fill(0xb5622e).stroke({ width: 1, color: 0x9a8464 });
+  const gap = carry ? 3 : 6;
+  const nx = Math.cos(wd + Math.PI / 2) * gap, ny = Math.sin(wd + Math.PI / 2) * gap;
+  g.moveTo(wx, wy).lineTo(wx + nx + Math.cos(wd) * 7, wy + ny + Math.sin(wd) * 7).stroke({ width: 3, color: 0xc0b088 });
+  g.moveTo(wx, wy).lineTo(wx - nx + Math.cos(wd) * 7, wy - ny + Math.sin(wd) * 7).stroke({ width: 3, color: 0xc0b088 });
+  if (carry) { g.rect(wx - 5, wy - 3, 11, 9).fill(0xd9a441); g.rect(wx - 5, wy - 3, 11, 3).fill(0xf0c674); }
 }
 
 export function mCompressor(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
@@ -200,6 +225,14 @@ export function mCompressor(g: Graphics, ox: number, oy: number, t: number, runn
   if (running) blurDisc(g, fx, fy, 10, 0x9fc088, 0.4);
   for (let i = 0; i < 4; i++) { const a = rot + i * Math.PI / 2; g.moveTo(fx, fy).lineTo(fx + Math.cos(a) * 9, fy + Math.sin(a) * 9).stroke({ width: 2.5, color: running ? 0x8fc088 : 0xa2917a, cap: "round" }); }
   g.circle(fx, fy, 2.5).fill(0xc0b088);
+  // 曲軸驅動往復活塞頭:活塞由曲柄銷經連桿帶動上下衝程(壓縮的關鍵動作)
+  const px = ox + 1.95 * MTW, ptop = oy + 1.95 * MTH - 44;
+  const chy = ptop - 12 + Math.sin(rot) * 5;                       // 十字頭 y(由曲軸相位驅動)
+  const cpin = { x: fx + Math.cos(rot) * 6, y: fy + Math.sin(rot) * 6 };
+  if (running) for (let i = 0; i < 6; i++) { const f = ((t * 1.2 + i / 6) % 1); g.circle(fx + (px - fx) * f, fy + (ptop - 4 - fy) * f, 1).fill({ color: 0x6b5842, alpha: 0.55 }); }   // 驅動皮帶(流動)
+  g.rect(px - 5, ptop - 4, 10, 14).fill({ color: 0xa88f6c, alpha: 0.5 }).stroke({ width: 0.7, color: 0x8f8062 });   // 氣缸套
+  g.moveTo(px, chy + 8).lineTo(cpin.x, cpin.y).stroke({ width: 1.8, color: 0x8f8062 });                             // 連桿
+  g.rect(px - 4, chy, 8, 9).fill(lgrad(px - 4, chy, px + 4, chy, 0xd8c6a8, 0xb4a082)).stroke({ width: 0.6, color: 0x8f8062 });   // 活塞頭
   // 壓力錶:指針隨壓力循環擺動
   const gx = ox + 1.9 * MTW, gy = oy + 1.9 * MTH - 26, press = running ? 0.5 + 0.45 * Math.sin(t * 1.6) : 0.15;
   g.circle(gx, gy, 5).fill(0xf0e6d4).stroke({ width: 1, color: 0x8a7658 });
@@ -213,7 +246,10 @@ export function mCompressor(g: Graphics, ox: number, oy: number, t: number, runn
 export function mTurbine(g: Graphics, ox: number, oy: number, t: number, rpm: number) {
   ishadow(g, ox, oy + 0.1 * MTH, 20, 10, 0.35);
   g.poly([ox - 3, oy, ox + 3, oy, ox + 1.5, oy - 64, ox - 1.5, oy - 64]).fill(lgrad(ox - 3, oy, ox + 3, oy, 0xd8c6a8, 0xb8a884));  // 錐形塔
-  const hx = ox - 5, hy = oy - 66;
+  // 機艙隨風緩慢偏航(yaw):整組轉子與機艙左右擺動對準風向
+  const yaw = Math.sin(t * 0.3) * 9;
+  const hx = ox - 5 + yaw, hy = oy - 66;
+  g.moveTo(hx + 6, hy).lineTo(hx + 6 - yaw * 0.6, hy - 6).lineTo(hx + 14 - yaw * 0.6, hy - 4).lineTo(hx + 12, hy + 1).closePath().fill({ color: 0xe6d9bf, alpha: 0.85 }).stroke({ width: 0.6, color: 0xc9b795 });   // 尾舵(指示偏航)
   // 機艙(nacelle)
   g.roundRect(hx - 8, hy - 4, 20, 8, 2).fill(lgrad(hx - 8, hy - 4, hx + 12, hy + 4, 0xd8c6a8, 0xb8a884)).stroke({ width: 0.8, color: 0xc9b795 });
   const spd = 0.5 + (rpm || 8) * 0.08, rot = t * spd;
@@ -232,6 +268,13 @@ export function mTurbine(g: Graphics, ox: number, oy: number, t: number, rpm: nu
 export function mChamber(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
   ishadow(g, ox + 0.2 * MTW, oy + 1.3 * MTH, 52, 24, 0.4);
   isoBox3(g, ox, oy, 2.0, 1.8, 34, { top: 0xac9674, left: 0x9a8464, right: 0xac9674 });
+  // 腔蓋:週期性升起 → 停留 → 蓋回(模擬取放晶圓),抬起時露出內部微光
+  const lc = running ? (t * 0.16) % 1 : 0;
+  const lift = lc < 0.5 ? 0 : lc < 0.58 ? (lc - 0.5) / 0.08 : lc < 0.92 ? 1 : 1 - (lc - 0.92) / 0.08;
+  const lidx = ox + 0.7 * MTW, lidy = oy + 0.7 * MTH - 34;
+  if (lift > 0.05) { g.ellipse(lidx, lidy - 2, 15, 7).fill({ color: 0x6a4f86, alpha: 0.35 * lift }); g.ellipse(lidx, lidy - 2, 6, 3).fill({ color: 0xe6d0ff, alpha: 0.5 * lift }); }
+  g.moveTo(lidx, lidy - 3).lineTo(lidx, lidy - 3 - lift * 15).stroke({ width: 2, color: 0x8f8062, alpha: 0.6 });   // 升降柱
+  g.ellipse(lidx, lidy - 3 - lift * 15, 15, 7).fill(lgrad(lidx - 15, lidy, lidx + 15, lidy, 0xc0ad8a, 0x9a8464)).stroke({ width: 0.9, color: 0xc9b795 });   // 腔蓋
   const vx = ox + 0.5 * MTW, vy = oy + 1.3 * MTH - 14;
   const gz = running ? 0.5 + 0.4 * Math.abs(Math.sin(t * 3)) : 0.12;
   // 電漿觀察窗:色彩微循環的紫光 + 內部旋轉粒子
@@ -245,6 +288,8 @@ export function mChamber(g: Graphics, ox: number, oy: number, t: number, running
     g.circle(vx + Math.cos(a) * rr, vy + Math.sin(a) * rr * 0.7, 1.3).fill({ color: 0xe6d0ff, alpha: 0.8 });
   }
   g.circle(vx, vy, 10).stroke({ width: 2.5, color: 0xc9b795 });
+  // 承載盤旋轉:外圈刻痕環轉動(晶圓在腔內旋轉受鍍)
+  if (running) for (let i = 0; i < 10; i++) { const a = t * 1.4 + i * Math.PI / 5; g.circle(vx + Math.cos(a) * 13, vy + Math.sin(a) * 13 * 0.62, 1).fill({ color: 0xd8c6a8, alpha: 0.55 }); }
   // 氣管 + 流動氣體虛線(運轉時往上流)
   g.moveTo(ox + 0.5 * MTW, oy + 0.5 * MTH - 34).lineTo(ox + 0.5 * MTW, oy + 0.5 * MTH - 48).stroke({ width: 3, color: 0xc9b795 });
   if (running) for (let i = 0; i < 3; i++) { const fy = ((t * 0.8 + i / 3) % 1); g.circle(ox + 0.5 * MTW, oy + 0.5 * MTH - 34 - fy * 14, 1).fill({ color: 0xbfa0e0, alpha: 0.7 * (1 - fy) }); }
@@ -264,9 +309,18 @@ export function mMeter(g: Graphics, ox: number, oy: number, t: number, running: 
     for (let i = 1; i <= 12; i++) { const xx = px - 12 + i * 2, yy = py - 2 + Math.sin(t * 5 + i * 0.7) * 3.2; g.moveTo(prevx, prevy).lineTo(xx, yy).stroke({ width: 1, color: 0x62d06a, alpha: 0.85 }); prevx = xx; prevy = yy; }
     for (let i = 0; i < 4; i++) g.rect(px - 12 + i * 3.4, py + 5 - 2 * Math.abs(Math.sin(t * 4 + i)), 2.4, 2 + 2 * Math.abs(Math.sin(t * 4 + i))).fill({ color: 0x8fd08a, alpha: 0.7 });
   } else { g.rect(px - 10, py, 20, 1.4).fill({ color: 0x3f5a37, alpha: 0.7 }); }
+  // 累計電量暫存器(odometer):各位數帶持續滾動,低位快、高位慢,像真的在計數
+  const oyy = py + 12;
+  g.rect(px - 14, oyy - 4, 28, 8).fill(0xf0e6d4).stroke({ width: 0.7, color: 0x8f8062 });
+  for (let d = 0; d < 5; d++) {
+    const wx = px - 12 + d * 5.4;
+    g.rect(wx, oyy - 3, 4.4, 6).fill(d === 4 ? 0xd6b46a : 0xe6d9bf);
+    const roll = running ? ((t * Math.pow(5, 4 - d) * 0.05) % 1) : 0;
+    for (let k = -1; k <= 1; k++) g.rect(wx + 1.1, oyy - 2 - roll * 5 + k * 5, 2.2, 3).fill({ color: 0x5a4a34, alpha: 0.8 });   // 數字帶
+  }
   // 三色狀態燈
   for (let i = 0; i < 3; i++) { const on = running && Math.sin(t * 4 + i * 2) > -0.2; const cc = [0xc85a4a, 0xf0c674, 0x5a9e5a][i];
-    if (on) emissive(g, px - 8 + i * 8, py + 16, 2.6, cc, 0.9); else g.circle(px - 8 + i * 8, py + 16, 2.6).fill(0xd0bd98); }
+    if (on) emissive(g, px - 8 + i * 8, py + 22, 2.6, cc, 0.9); else g.circle(px - 8 + i * 8, py + 22, 2.6).fill(0xd0bd98); }
 }
 
 export function mPress(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
@@ -284,6 +338,12 @@ export function mPress(g: Graphics, ox: number, oy: number, t: number, running: 
   for (let i = 0; i < 3; i++) { const a = frot + i * 2 * Math.PI / 3; g.moveTo(flx, fly).lineTo(flx + Math.cos(a) * 8, fly + Math.sin(a) * 8).stroke({ width: 1.2, color: 0x8a7658 }); }
   g.circle(flx, fly, 2).fill(0x6b5842);
   isoBox3(g, ox + 1.4 * MTW, oy + 1.4 * MTH, 1.0, 0.6, 12, { top: 0xc7b592, left: 0x9a8464, right: 0xb4a082 });  // 工作台
+  // 捲料進給:金屬帶穿過模座持續往右送,帶上留下沖好的孔
+  const sy0 = oy + 1.0 * MTH - 4, feed = running ? (t * 22) % 16 : 0;
+  g.rect(ox + 0.85 * MTW, sy0, 1.55 * MTW, 5).fill(lgrad(ox + 0.85 * MTW, sy0, ox + 0.85 * MTW, sy0 + 5, 0xd8c6a8, 0xa89a70)).stroke({ width: 0.5, color: 0x8f8062 });
+  for (let i = 0; i < 5; i++) { const hx = ox + 0.95 * MTW + i * 16 - feed; if (hx > ox + 0.9 * MTW && hx < ox + 2.3 * MTW) g.rect(hx, sy0 + 1.6, 4, 2).fill(0x8f8062); }
+  // 沖壓成品:每個衝程後往右彈出
+  if (running) { const ej = (t * 0.8) % 1; if (ej > 0.55) g.rect(ox + 2.25 * MTW + (ej - 0.55) * 26, sy0 - 2, 6, 6).fill(0xd9a441).stroke({ width: 0.6, color: 0x8a6b2e }); }
   const slx = ox + 1.55 * MTW, sly = oy + 0.4 * MTH - 40 + press * 26;
   g.rect(slx, sly, 20, 12).fill(lgrad(slx, sly, slx, sly + 12, 0xcabf9a, 0xd8c6a8)).stroke({ width: 1, color: 0xa99372 });   // 滑塊
   g.rect(slx + 3, oy + 1.0 * MTH - 6, 14, 4).fill(running ? 0xf0c674 : 0xa2917a);
@@ -304,8 +364,16 @@ export function mFurnace(g: Graphics, ox: number, oy: number, t: number, running
     iglow(g, dx, dy, 26, `rgba(255,110,40,${0.45 * flick + 0.25})`);
     iglow(g, dx, dy, 15, `rgba(255,190,90,${0.5 * flick})`);
   }
-  g.rect(dx - 11, dy - 10, 22, 20).fill({ color: running ? darken(0xd47a3f, 0.9 + flick * 0.5) : 0x7a6248, alpha: running ? 0.92 : 1 }).stroke({ width: 2, color: 0x8a6b4a });  // 爐門
-  if (running) { g.rect(dx - 11, dy - 10, 22, 2).fill({ color: 0xffd27a, alpha: 0.8 * flick }); g.rect(dx - 11, dy + 8, 22, 2).fill({ color: 0xffb060, alpha: 0.7 * flick }); }  // 門縫透光
+  // 爐門週期上滑開啟(裝料):開門露出爐膛熾光,推桿把熾熱工件送入
+  const fc2 = running ? (t * 0.12) % 1 : 0;
+  const doorUp = !running ? 0 : fc2 < 0.15 ? fc2 / 0.15 : fc2 < 0.38 ? 1 : fc2 < 0.5 ? 1 - (fc2 - 0.38) / 0.12 : 0;
+  const open = running && doorUp > 0.5;
+  if (running) g.rect(dx - 11, dy - 10, 22, 20).fill({ color: darken(0xff7a30, 0.8 + flick * 0.4), alpha: 0.3 + 0.4 * doorUp });   // 爐膛內壁熾光
+  if (open) { const push = Math.min(1, Math.max(0, (fc2 - 0.19) / 0.19)); const bx = dx - 20 + push * 18;
+    g.rect(bx - 14, dy + 3, 14, 3).fill(0x8f8062);                                      // 推桿
+    g.rect(bx, dy + 1, 9, 7).fill(0xffb060).stroke({ width: 0.5, color: 0xd47a3f }); emissive(g, bx + 4, dy + 4, 3, 0xff8a40, 0.5); }   // 熾熱工件
+  g.rect(dx - 11, dy - 10 - doorUp * 17, 22, 20).fill({ color: running ? darken(0xd47a3f, 0.9 + flick * 0.5) : 0x7a6248, alpha: running ? 0.94 : 1 }).stroke({ width: 2, color: 0x8a6b4a });   // 爐門(上滑)
+  if (running && !open) { g.rect(dx - 11, dy - 10, 22, 2).fill({ color: 0xffd27a, alpha: 0.8 * flick }); g.rect(dx - 11, dy + 8, 22, 2).fill({ color: 0xffb060, alpha: 0.7 * flick }); }  // 門縫透光
   // 排氣管 + 熱煙 + 火星
   g.moveTo(ox + 1.7 * MTW, oy + 1.7 * MTH - 34).lineTo(ox + 1.7 * MTW, oy + 1.7 * MTH - 52).stroke({ width: 3.5, color: 0xc9b795 });
   if (running) {
@@ -317,17 +385,26 @@ export function mFurnace(g: Graphics, ox: number, oy: number, t: number, running
 export function mAGV(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
   const bob = running ? Math.sin(t * 3) * 1 : 0;
   ishadow(g, ox, oy + 0.1 * MTH, 30, 15, 0.4);
+  // 轉動的輪子(輻條旋轉表示滾動)
+  const wrot = running ? t * 6 : 0;
+  for (const w of [{ x: ox - 0.45 * MTW, y: oy + 0.55 * MTH }, { x: ox + 0.4 * MTW, y: oy + 0.9 * MTH }]) {
+    g.ellipse(w.x, w.y, 5, 4).fill(0x4a5340).stroke({ width: 1, color: 0x6f855a });
+    for (let i = 0; i < 3; i++) { const a = wrot + i * 2 * Math.PI / 3; g.moveTo(w.x, w.y).lineTo(w.x + Math.cos(a) * 4, w.y + Math.sin(a) * 3).stroke({ width: 0.8, color: 0x9ab08a }); }
+  }
   isoBox3(g, ox - 0.7 * MTW, oy + 0.7 * MTH - bob, 1.4, 1.0, 12, { top: 0x8aa06a, left: 0x6f855a, right: 0x8aa06a });
-  g.rect(ox - 6, oy - 20 - bob, 12, 8).fill(0xd9a441); g.rect(ox - 6, oy - 20 - bob, 12, 2.5).fill(0xf0c674);   // 貨件
+  // 貨叉週期升降 + 剪式桅桿 + 貨件
+  const lift = running ? Math.max(0, Math.sin(t * 0.5)) * 7 : 0;
+  for (const sx of [-4, 4]) { g.moveTo(ox + sx, oy - 12 - bob).lineTo(ox - sx, oy - 16 - lift - bob).stroke({ width: 1.2, color: 0x556b45 }); g.moveTo(ox - sx, oy - 12 - bob).lineTo(ox + sx, oy - 16 - lift - bob).stroke({ width: 1.2, color: 0x556b45 }); }
+  g.rect(ox - 6, oy - 20 - lift - bob, 12, 8).fill(0xd9a441); g.rect(ox - 6, oy - 20 - lift - bob, 12, 2.5).fill(0xf0c674);   // 貨件
   // 前方 LiDAR 掃描扇形(往行進方向掃)
   if (running) {
     const sweep = Math.sin(t * 3) * 0.5;
     const bx = ox + 0.75 * MTW - 2, by = oy + 0.75 * MTH - 6 - bob;
     g.moveTo(bx, by).arc(bx, by, 20, -0.5 + sweep - 0.35, -0.5 + sweep + 0.35).fill({ color: 0x8fd0a0, alpha: 0.14 });
   }
-  // 頂部旋轉警示燈(黃燈掃)
-  const beac = 0.5 + 0.5 * Math.sin(t * 5);
-  emissive(g, ox, oy - 24 - bob, 1.6 + beac * 1.2, running ? 0xf0c050 : 0xa2917a, running ? 0.8 : 0.4);
+  // 頂部旋轉警示燈(黃燈掃,跟著貨件升降)
+  const beac = 0.5 + 0.5 * Math.sin(t * 5), lift2 = running ? Math.max(0, Math.sin(t * 0.5)) * 7 : 0;
+  emissive(g, ox, oy - 24 - lift2 - bob, 1.6 + beac * 1.2, running ? 0xf0c050 : 0xa2917a, running ? 0.8 : 0.4);
   const on = Math.sin(t * 6) > 0; g.circle(ox + 0.7 * MTW - 4, oy + 0.7 * MTH - 8 - bob, 2).fill(on ? 0x5a9e5a : 0x6f855a);   // 狀態燈
 }
 

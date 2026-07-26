@@ -56,19 +56,36 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
 
     st = {"t": 0.0, "cycles": 0.0, "angles": list(_JOINT_CENTER), "tcp": [400.0, 0.0, 600.0], "running": False}
 
+    _KEYFRAMES = [
+        [-45.0, -20.0, 30.0, 0.0, 80.0, 0.0],  # 0: Above Pick (Left)
+        [-45.0,  15.0, 50.0, 0.0, 25.0, 0.0],  # 1: Pick (Down)
+        [-45.0, -20.0, 30.0, 0.0, 80.0, 0.0],  # 2: Above Pick
+        [ 45.0, -20.0, 30.0, 0.0, 80.0, 0.0],  # 3: Above Place (Right)
+        [ 45.0,  15.0, 50.0, 0.0, 25.0, 0.0],  # 4: Place (Down)
+        [ 45.0, -20.0, 30.0, 0.0, 80.0, 0.0],  # 5: Above Place
+    ]
+
     def pre_step(dt_sim, op):
         st["running"] = op["running"] and not device._fault_latched
         if not st["running"]:
             return
         st["t"] += dt_sim
         st["cycles"] += dt_sim / CYCLE_PERIOD
-        ph = 2 * math.pi * st["t"] / CYCLE_PERIOD + phase0
+        
+        ph = ((st["t"] / CYCLE_PERIOD) + (phase0 / (2 * math.pi))) % 1.0
+        idx = int(ph * 6)
+        t_interp = (ph * 6) - idx
+        t_interp = t_interp * t_interp * (3 - 2 * t_interp) # Smoothstep
+        
+        k1 = _KEYFRAMES[idx % 6]
+        k2 = _KEYFRAMES[(idx + 1) % 6]
         for i in range(6):
-            st["angles"][i] = _JOINT_CENTER[i] + _JOINT_AMP[i] * math.sin(ph + i * 0.7)
+            st["angles"][i] = k1[i] + (k2[i] - k1[i]) * t_interp
+
         # 粗略末端位置(讓 tcp 跟著擺)
-        st["tcp"][0] = 450.0 + 180.0 * math.cos(ph)
-        st["tcp"][1] = 250.0 * math.sin(ph)
-        st["tcp"][2] = 600.0 + 120.0 * math.sin(ph * 2)
+        st["tcp"][0] = 450.0 + 180.0 * math.cos(ph * 2 * math.pi)
+        st["tcp"][1] = 250.0 * math.sin(ph * 2 * math.pi)
+        st["tcp"][2] = 600.0 + 120.0 * math.sin(ph * 4 * math.pi)
 
     def state_fn(op, comps):
         return "running" if st["running"] else "idle"

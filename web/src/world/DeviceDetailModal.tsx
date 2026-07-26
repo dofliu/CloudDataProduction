@@ -1,5 +1,9 @@
-import { useEffect, useRef } from "react";
-import { DeviceSnapshot } from "../api";
+import React, { useEffect, useRef, useState } from "react";
+import { DeviceSnapshot, getTeacherToken, setCoil, resetDevice } from "../api";
+import CncMachine3D from "./CncMachine3D";
+import RobotArm3D from "./RobotArm3D";
+import InjectionMolding3D from "./InjectionMolding3D";
+import AgvMobileRobot3D from "./AgvMobileRobot3D";
 
 // 設備詳情彈窗:放大的「詳細版」Canvas 動畫 + 即時訊號/趨勢/HOLDING/DISCRETE。
 // Canvas 繪法移植自 4D 原型的 machine(ctx,...,detail=true);訊號/點位一律接真實 telemetry。
@@ -195,6 +199,10 @@ export default function DeviceDetailModal({ deviceId, snapshot, company, onClose
   const rafRef = useRef<number>(0);
   const kind = snapshot.template;
   const histRef = useRef<number[]>([]);
+  
+  const isTeacher = !!getTeacherToken();
+  const runEnabled = snapshot.coils?.run_enable !== false;
+  const [resetMsg, setResetMsg] = useState("");
 
   // 累積振動趨勢(接真實 telemetry;每次 snapshot 變動追加一點)
   const vib = snapshot.tags?.vibration_rms;
@@ -215,7 +223,10 @@ export default function DeviceDetailModal({ deviceId, snapshot, company, onClose
       const t = (now - t0) / 1000;
       ctx.clearRect(0, 0, w, h);
       // 詳細動畫(detail=true)+ 右下角趨勢
-      machine(ctx, w / 2, h * 0.60, Math.min(w, h) / 6.2, t, kind, true);
+      const use3D = ["cnc_machining_center", "robot_arm_6axis", "injection_molding", "agv_mobile_robot"].includes(kind);
+      if (!use3D) {
+        machine(ctx, w / 2, h * 0.60, Math.min(w, h) / 6.2, t, kind, true);
+      }
       // 趨勢:振動 RMS 折線(左下)
       const hist = histRef.current;
       if (hist.length > 1) {
@@ -266,11 +277,34 @@ export default function DeviceDetailModal({ deviceId, snapshot, company, onClose
         {/* 主體 */}
         <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
           <div style={{ flex: 1, position: "relative", minWidth: 0, background: "radial-gradient(120% 90% at 50% 20%,#faf4e8,#efe4d0)" }}>
-            <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block" }} />
+            {kind === "cnc_machining_center" && <CncMachine3D state={snapshot.state} tags={snapshot.tags} />}
+            {kind === "robot_arm_6axis" && <RobotArm3D state={snapshot.state} tags={snapshot.tags} />}
+            {kind === "injection_molding" && <InjectionMolding3D state={snapshot.state} tags={snapshot.tags} />}
+            {kind === "agv_mobile_robot" && <AgvMobileRobot3D state={snapshot.state} tags={snapshot.tags} />}
+            <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block", pointerEvents: ["cnc_machining_center", "robot_arm_6axis", "injection_molding", "agv_mobile_robot"].includes(kind) ? "none" : "auto" }} />
             <div style={{ position: "absolute", right: 16, bottom: 16, fontSize: 12, color: "var(--dim)", background: "rgba(255,250,240,.7)", padding: "6px 12px", borderRadius: 8 }}>{KIND_DESC[kind] || "合成數據 · 詳細動畫"}</div>
           </div>
           {/* 右側面板 */}
           <aside style={{ width: 340, flex: "0 0 340px", background: "var(--panel)", borderLeft: "1px solid var(--line)", padding: 20, overflowY: "auto" }}>
+            {isTeacher && (
+              <div style={{ marginBottom: 20 }}>
+                <SecLabel>設備控制 (教師權限)</SecLabel>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  <button className="btn" style={{ background: runEnabled ? "var(--warn)" : "var(--ok)", color: "#fffaf0", padding: "6px 12px", borderRadius: 6, border: "none", cursor: "pointer", fontWeight: "bold" }}
+                    onClick={async () => {
+                      try { await setCoil(deviceId, "run_enable", !runEnabled); setResetMsg(`已寫 run_enable=${!runEnabled}`); }
+                      catch (e: any) { setResetMsg(`寫入失敗:${e.message}`); }
+                    }}>{runEnabled ? "⏸ 停機" : "▶ 復機"}</button>
+                  <button className="btn" style={{ background: "var(--ok)", color: "#fffaf0", padding: "6px 12px", borderRadius: 6, border: "none", cursor: "pointer", fontWeight: "bold" }}
+                    onClick={async () => {
+                      try { await setCoil(deviceId, "reset_fault", true); setResetMsg(`已重置`); }
+                      catch { try { await resetDevice(deviceId); setResetMsg(`已清除故障`); }
+                              catch (e2: any) { setResetMsg(`重置失敗:${e2.message}`); } }
+                    }}>↺ 重置 / 清故障</button>
+                </div>
+                {resetMsg && <div style={{ color: "var(--accent)", fontSize: 12, marginTop: 6 }}>{resetMsg}</div>}
+              </div>
+            )}
             <SecLabel>即時訊號</SecLabel>
             <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 20 }}>
               {signals.length === 0 && <div className="muted" style={{ fontSize: 12 }}>此設備無對應訊號 tag。</div>}

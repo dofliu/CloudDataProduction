@@ -81,7 +81,7 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
 
     # 共享狀態(由 pre_step 整合,各 tag 讀取)
     st = {"mode": "moving", "soc": 100.0, "s": float(rng.uniform(0, _PERIM)),
-          "x": 0.0, "y": 0.0, "heading": 0.0, "speed": 0.0, "payload": 0.0}
+          "x": 0.0, "y": 0.0, "heading": 0.0, "speed": 0.0, "payload": 0.0, "stop_timer": 0.0}
 
     def pre_step(dt_sim, op):
         if device._fault_latched or not op["running"]:   # 故障 / 教師停機(run_enable=0)→ 停在原地
@@ -89,6 +89,21 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
             return
         h_batt = health_of(comp_map, "battery_capacity_fade")
         usable_max = 100.0 * h_batt          # 電池衰退 → 可充上限下降(可觀測線索)
+        
+        # 處理停靠站點邏輯
+        if st.get("stop_timer", 0) > 0:
+            st["stop_timer"] -= dt_sim
+            st["speed"] = 0.0
+            if st["stop_timer"] <= 0:
+                # 裝卸貨完成
+                s_mod = st["s"] % _PERIM
+                if abs(s_mod - 16.0) < 1.0:
+                    st["payload"] = 30.0 # 上料完成
+                elif abs(s_mod - 42.0) < 1.0:
+                    st["payload"] = 0.0  # 下料完成
+                st["mode"] = "moving"
+            return
+
         if st["mode"] == "charging":
             st["speed"] = 0.0
             st["soc"] = min(usable_max, st["soc"] + CHARGE_PER_S * dt_sim)
@@ -96,11 +111,26 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
                 st["mode"] = "moving"
         else:  # moving
             st["speed"] = NOM_SPEED
-            st["s"] += st["speed"] * dt_sim
+            s_mod = st["s"] % _PERIM
+            next_s = (st["s"] + st["speed"] * dt_sim) % _PERIM
+            
+            # Station 1 (18, 2): s = 16.0
+            # Station 2 (2, 12): s = 16.0 + 10.0 + 16.0 = 42.0
+            if s_mod < 16.0 and next_s >= 16.0:
+                st["s"] = (st["s"] // _PERIM) * _PERIM + 16.0
+                st["stop_timer"] = 6.0 # 停靠 6 秒 (足夠手臂播放動畫)
+                st["mode"] = "stopped"
+            elif s_mod < 42.0 and next_s >= 42.0:
+                st["s"] = (st["s"] // _PERIM) * _PERIM + 42.0
+                st["stop_timer"] = 6.0
+                st["mode"] = "stopped"
+            else:
+                st["s"] += st["speed"] * dt_sim
+                
             st["soc"] = max(0.0, st["soc"] - DRAIN_PER_S * dt_sim)
-            st["payload"] = 0.0 if int(st["s"] // _PERIM) % 2 == 0 else 30.0  # 每圈交替載重
             if st["soc"] <= SOC_LOW:
                 st["mode"] = "charging"
+                
         st["x"], st["y"], st["heading"] = _pos_from_s(st["s"])
 
     def state_fn(op, comps):

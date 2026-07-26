@@ -40,6 +40,9 @@ _TAG_SPEC = [
     ("coolant_temp",    "degC",  "float32"),
     ("cycle_time",      "s",     "float32"),
     ("part_count",      "count", "int32"),
+    ("pos_x",           "mm",    "float32"),
+    ("pos_y",           "mm",    "float32"),
+    ("pos_z",           "mm",    "float32"),
 ]
 
 
@@ -146,6 +149,70 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
             part_state["count"] += dt / max(1.0, ct)
         return int(part_state["count"])
 
+    def get_target_pos(progress: float, pattern: int):
+        if pattern == 1:
+            if progress < 0.05 or progress > 0.95:
+                return 0.0, -150.0, 50.0
+            p = (progress - 0.05) / 0.9
+            return float(np.cos((p-0.25) * np.pi * 2) * 150), float(np.sin((p-0.25) * np.pi * 2) * 150), -50.0
+        elif pattern == 2:
+            if progress < 0.05 or progress > 0.95:
+                return -150.0, -150.0, 50.0
+            p = (progress - 0.05) / 0.9
+            if p < 0.25: return -150.0 + 300.0 * (p/0.25), -150.0, -50.0
+            elif p < 0.5: return 150.0, -150.0 + 300.0 * ((p-0.25)/0.25), -50.0
+            elif p < 0.75: return 150.0 - 300.0 * ((p-0.5)/0.25), 150.0, -50.0
+            else: return -150.0, 150.0 - 300.0 * ((p-0.75)/0.25), -50.0
+        else:
+            strokes = [
+                [(-220, -60), (-220, 60)],
+                [(-220, 60), (-140, -60)],
+                [(-140, -60), (-140, 60)],
+                [(-40, 60), (-100, 60), (-100, -60), (-40, -60)],
+                [(40, 60), (40, -60), (100, -60), (100, 60)],
+                [(140, 60), (220, 60)],
+                [(180, 60), (180, -60)]
+            ]
+            total_segments = len(strokes)
+            seg_progress = progress * total_segments
+            seg_idx = min(int(seg_progress), total_segments - 1)
+            local_p = seg_progress - seg_idx
+            stroke = strokes[seg_idx]
+            pts = len(stroke)
+            
+            if local_p < 0.1:
+                return stroke[0][0], stroke[0][1], 50.0 - 100.0 * (local_p/0.1)
+            elif local_p > 0.9:
+                return stroke[-1][0], stroke[-1][1], -50.0 + 100.0 * ((local_p-0.9)/0.1)
+            else:
+                cut_p = (local_p - 0.1) / 0.8
+                cut_segs = pts - 1
+                c_idx = min(int(cut_p * cut_segs), cut_segs - 1)
+                cc_p = (cut_p * cut_segs) - c_idx
+                p1 = stroke[c_idx]
+                p2 = stroke[c_idx+1]
+                x = p1[0] + (p2[0] - p1[0]) * cc_p
+                y = p1[1] + (p2[1] - p1[1]) * cc_p
+                return float(x), float(y), -50.0
+
+    def drv_pos_x(op, comps, dt):
+        if not op["running"]: return 0.0
+        pat = int(device.setpoint("machining_pattern", 0.0))
+        x, _, _ = get_target_pos(part_state["count"] % 1.0, pat)
+        return x
+
+    def drv_pos_y(op, comps, dt):
+        if not op["running"]: return 0.0
+        pat = int(device.setpoint("machining_pattern", 0.0))
+        _, y, _ = get_target_pos(part_state["count"] % 1.0, pat)
+        return y
+
+    def drv_pos_z(op, comps, dt):
+        if not op["running"]: return 100.0
+        pat = int(device.setpoint("machining_pattern", 0.0))
+        _, _, z = get_target_pos(part_state["count"] % 1.0, pat)
+        return z
+
     tag_by_name["spindle_speed"].driver = drv_spindle_speed
     tag_by_name["spindle_load"].driver = drv_spindle_load
     tag_by_name["spindle_current"].driver = drv_spindle_current
@@ -155,6 +222,9 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
     tag_by_name["coolant_temp"].driver = drv_coolant_temp
     tag_by_name["cycle_time"].driver = drv_cycle_time
     tag_by_name["part_count"].driver = drv_part_count
+    tag_by_name["pos_x"].driver = drv_pos_x
+    tag_by_name["pos_y"].driver = drv_pos_y
+    tag_by_name["pos_z"].driver = drv_pos_z
 
     def oee_fn(op, comps):
         h_tool = health_of(comps, "tool_wear")
@@ -162,8 +232,12 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
         qual = max(0.5, 1.0 - (1.0 - h_tool) * 0.45)      # 刀鈍 → 不良率升
         return perf, qual
 
-    setpoints = [SetPoint(name="spindle_rpm_setpoint", register=100, unit="rpm",
-                          min=2000.0, max=12000.0, default=SPINDLE_NOM_RPM, scale=1.0)]  # 學生可寫轉速目標
+    setpoints = [
+        SetPoint(name="spindle_rpm_setpoint", register=100, unit="rpm",
+                 min=2000.0, max=12000.0, default=SPINDLE_NOM_RPM, scale=1.0),
+        SetPoint(name="machining_pattern", register=101, unit="enum",
+                 min=0.0, max=2.0, default=0.0, scale=1.0)
+    ]
     device = Device(
         device_id=device_id,
         template="cnc_machining_center",

@@ -210,6 +210,7 @@ export default function App() {
       {/* 設備詳情彈窗:點世界廠內機台 / 目錄卡 → 放大詳細動畫 + 即時訊號(方案 4D 新功能) */}
       {selected && sel && (
         <DeviceDetailModal deviceId={selected} snapshot={sel}
+          multiplier={telemetry?.multiplier ?? 1}
           onClose={() => setSelected(null)} />
       )}
     </div>

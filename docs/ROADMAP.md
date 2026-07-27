@@ -30,6 +30,8 @@
 | **課程規劃與概念文件** | 18 週課程規劃([docs/課程規劃_18週.md](課程規劃_18週.md),含分軌作業表 + W12/W13 選作)、**「雲端生產」概念與議題**([docs/雲端生產_概念與議題.md](雲端生產_概念與議題.md):課名斷句、雲製造 vs 數據上雲、ISA-95、Cloud MES,含討論題 + 動手練習)、對外連線部署說明([docs/部署_對外連線.md](部署_對外連線.md)) |
 | **4D 暖色 UI 全面重設計** | 依 Claude Design「方案 4D 教學暖色」handoff 全站重繪(**只改視覺,不動 API / telemetry / 資料流**):① 暖色 tokens + Lora / Noto Sans TC / JetBrains Mono 字體 + 全站 UI;② 2D 世界(PixiJS 俯瞰 + 廠內產線)暖色重繪;③ **設備詳情彈窗**(點機台 / 目錄卡 → 放大詳細 Canvas 動畫 + 即時訊號 / 趨勢 / HOLDING / DISCRETE,接真實 telemetry);④ **雙機上下料工作站**(2 CNC + 手臂 2 連桿 IK 在兩機間搬運,含示範廠 c65)。取代先前的深色工業風設計稿 |
 
+| **3D 設備動畫精準化** | 建立**動畫綁定契約**([docs/animation_binding.md](animation_binding.md)):每個會動的部位都必須對應一支具體 tag / setpoint / coil,前端不得重算引擎已算過的物理,做了時間換算就必須在畫面標示倍率。依此重寫全部機種 3D:① 修好 4 支**抓不到的 tag**(空壓機 `tank_pressure`→`outlet_pressure`、風機 `yaw_angle`→`pitch_angle`、電表 `voltage`/`current`→三相 `*_l1/l2/l3`、CNC `machining_pattern` 改讀 setpoint);② CNC 改吃引擎的 `pos_x/y/z` + 真 `cycle_time`(含相位鎖定),手臂改吃完整六軸 `joint_angle_1..6`(取放站由正運動學定位),沖壓改吃 `ram_position`;③ 新增 **`deviceMotion.ts` 資料橋**(狀態正規化 / 退化度 / delta-based 補間 / L3 時間換算)與 **`MachineFx`** 共用視覺語彙(柱燈 / 故障冒煙 / 依 `vibration_rms` 抖動 / 過熱輝光);④ 補上**製程腔體**與**熱處理爐** 3D(11 種 template 全覆蓋);⑤ 燈光 / 環境 / 陰影上移到 Canvas 層級(WebGL context lost 根因);⑥ **全面移除 CDN 相依**(drei `<Environment preset>` 抓 .hdr、`<Text>` 抓字型資料,LAN 無外網會整個 Canvas 崩掉)—— 改本地程序化環境貼圖 + CanvasTexture 文字牌;⑦ dev 預覽頁 `web/preview/models3d.html` + `shot3d.mjs` 自動截圖與 console 錯誤檢查 |
+
 兩個教學階段皆可開課。Both teaching stages are classroom-ready.
 
 ---
@@ -45,6 +47,9 @@
 8. **字體離線化 Offline fonts** —— 4D UI 以 Google Fonts 載入 Lora / Noto Sans TC / JetBrains Mono;校內 LAN
    無外網時會回退系統字體(版面 / 顏色不受影響)。若要離線也保證字體一致,可改自架字體檔(`web/public/fonts` +
    `@font-face`)。Self-host fonts if the LAN has no internet and exact typography matters.
+   *註:3D 層已完全不依賴外網(見 Done 表「3D 設備動畫精準化」⑥),此項只剩 HTML 字體。*
+9. **動畫綁定契約落實到俯瞰層 Binding contract for the overview layer** —— [docs/animation_binding.md](animation_binding.md)
+   目前規範的是廠內 3D;PixiJS 俯瞰層(公司量體 / 燈號 / 煙囪)還是純裝飾動畫,未來可比照納管。
 2. **真 LLM 建廠 Real-LLM factory** —— ✅ 已完成:接 Gemini(REST,免 SDK)做自由描述、**一句話建多型別工廠**,
    失敗自動回退規則式;輸出嚴格驗證(見 Done 表)。Done — Gemini via REST, multi-template, graceful fallback.
 4. **熱載入補完 Hot-add completeness** —— ✅ 已完成:三個原生協定 adapter(Modbus channel-mux / OPC-UA /
@@ -67,10 +72,19 @@
   student_kit 的 Python 或網頁 UI。PowerShell mangles `curl` JSON bodies — use the Python scripts or web UI for POST.
 - **必須用 venv python**:裸 `python` = 全域那支(版本會漂移,pymodbus 被拉到 3.9.2 會崩);一律 `run-engine.ps1`。
 - **本機埠 Local ports**:工業協定埠統一 6xxx(Modbus 6020 / OPC-UA 6041 / MQTT 6083 / multiport 6100+ / 控制埠 6023),避開 5040(CDPSvc)等保留埠;API 8077。含中文的 .ps1 須存 UTF-8 BOM。
-- **示範廠 c65 Demo company**:`scenarios/class_park.yaml` 有一間額外的「上下料示範廠」(c65:2 CNC + 手臂),
-  用來展示雙機上下料工作站 layout(既有 64 教學廠皆單機台,無此組合)。它屬**教師展示用**,不影響 64 廠一人一廠
-  的個人作業設計;不需要時可刪除該公司。Extra teacher-demo company; remove it if not needed.
-- **4D 字體 Fonts**:見上 TODO §8 —— LAN 無外網會回退系統字體。
+- **示範廠 c65 Demo company**:`scenarios/class_park.yaml` 有一間額外的「上下料示範廠」(c65:2 CNC + 手臂)。
+  廠內視圖改 3D 後,原本的 2D「雙機上下料工作站」畫法已移除,c65 現在就是一般的多機台產線;
+  上下料的搬運演示改由 **AGV 詳情場景**(兩個停靠站各有一支上下料手臂,節拍對齊引擎的 6 秒停靠)呈現。
+  c65 屬**教師展示用**,不需要時可刪除該公司。Extra teacher-demo company; remove it if not needed.
+- **4D 字體 Fonts**:見上 TODO §8 —— LAN 無外網,HTML 會回退系統字體;**3D 層不受影響**(不依賴外網)。
+- **動畫的時間換算 Animation time scaling**:場景預設 `time_multiplier: 120`,多數設備的真實循環在牆鐘上
+  只有零點幾秒,直接畫會變閃爍。因此週期性動作與高轉速件會夾在可讀區間並**在畫面標出倍率**
+  (例:「動畫慢放 ×8」「轉速視覺 ×1/10667」)。**數值一律以點位為準,畫面節拍是換算後的**。
+  這時 1 Hz 的 `pos_*` / `ram_position` 已低於該循環的 Nyquist,因此不做相位鎖定;
+  倍率≈1(慢速 sim)時才會把畫面相位鎖回遙測。見 [docs/animation_binding.md](animation_binding.md) §1 鐵則三。
+- **3D 層禁用 CDN 資源 No CDN in the 3D layer**:drei 的 `<Environment preset>`(抓 .hdr)與 `<Text>`
+  (troika 抓字型資料,中文必抓)在無外網時會讓整個 Canvas 拋錯 / 文字消失。專案已改用本地程序化環境貼圖與
+  CanvasTexture 文字牌;**新增 3D 元件時不要把這兩個 API 加回來**,`node preview/shot3d.mjs` 會攔到。
 
 ---
 

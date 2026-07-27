@@ -1,47 +1,50 @@
-import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Box, Cylinder, Environment, ContactShadows } from '@react-three/drei';
-import * as THREE from 'three';
+/**
+ * CNC 加工中心 3D(綁定表見 docs/animation_binding.md §4.1)。
+ *
+ * 三軸位置**直接吃引擎的 pos_x / pos_y / pos_z**(L1),不再由前端另跑一套刀路。
+ * 遙測只有 1 Hz,所以本地用同一條參數曲線做連續推進,並在每次遙測到達時把相位
+ * 鎖回引擎回報的位置(lockCncPhase)—— 學生用 Modbus 讀 pos_x,值會對得上畫面刀尖。
+ */
+import React, { useRef, useMemo } from "react";
+import { useFrame } from "@react-three/fiber";
+import { Box, Cylinder } from "@react-three/drei";
+import * as THREE from "three";
+import MachineScene, { Readout, Row } from "./MachineScene";
+import { FaultSmoke, HeatGlow, Shake, StatusBeacon, bodyColor } from "./MachineFx";
+import {
+  DeviceMotion, MachineProps, approach, clamp01, cncToolPath, lockCncPhase,
+  scaleNote, visualPeriod, visualSpin,
+} from "./deviceMotion";
 
-const MAX_LINES = 2000;
+const MM_PER_UNIT = 50;               // 引擎 mm → 模型單位
+const MAX_TRAIL_POINTS = 4000;
 
-// Coolant Effect
+/** 冷卻液:只在真正下刀(pos_z < 0)時噴。 */
 const Coolant = ({ active }: { active: boolean }) => {
   const count = 40;
-  const particles = useMemo(() => new Float32Array(count * 3), [count]);
-  const velocities = useMemo(() => {
-    const arr = [];
-    for(let i=0; i<count; i++){
-      arr.push(new THREE.Vector3((Math.random()-0.5)*0.5, -Math.random()*8 - 4, (Math.random()-0.5)*0.5));
-    }
-    return arr;
-  }, [count]);
-
+  const particles = useMemo(() => new Float32Array(count * 3).fill(100), [count]);
+  const velocities = useMemo(
+    () => Array.from({ length: count }, () =>
+      new THREE.Vector3((Math.random() - 0.5) * 0.5, -Math.random() * 8 - 4, (Math.random() - 0.5) * 0.5)),
+    [count]);
   const pointsRef = useRef<THREE.Points>(null);
 
-  useFrame((state, delta) => {
-    if(!pointsRef.current) return;
-    const positions = pointsRef.current.geometry.attributes.position.array as Float32Array;
-    for(let i=0; i<count; i++) {
-      if(active) {
-        if(positions[i*3+1] < -4.5 || Math.random() < 0.03) {
-          positions[i*3] = (Math.random()-0.5)*0.4;
-          positions[i*3+1] = -2.0;
-          positions[i*3+2] = (Math.random()-0.5)*0.4;
-        } else {
-          positions[i*3] += velocities[i].x * delta;
-          positions[i*3+1] += velocities[i].y * delta;
-          positions[i*3+2] += velocities[i].z * delta;
-        }
+  useFrame((_, delta) => {
+    if (!pointsRef.current) return;
+    const p = pointsRef.current.geometry.attributes.position.array as Float32Array;
+    for (let i = 0; i < count; i++) {
+      if (!active) { p[i * 3 + 1] = 100; continue; }
+      if (p[i * 3 + 1] < -4.5 || p[i * 3 + 1] > 50 || Math.random() < 0.03) {
+        p[i * 3] = (Math.random() - 0.5) * 0.4; p[i * 3 + 1] = -2.0; p[i * 3 + 2] = (Math.random() - 0.5) * 0.4;
       } else {
-        positions[i*3+1] = 100;
+        p[i * 3] += velocities[i].x * delta; p[i * 3 + 1] += velocities[i].y * delta; p[i * 3 + 2] += velocities[i].z * delta;
       }
     }
     pointsRef.current.geometry.attributes.position.needsUpdate = true;
   });
 
   return (
-    <points ref={pointsRef}>
+    <points frustumCulled={false} ref={pointsRef}>
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" count={count} array={particles} itemSize={3} />
       </bufferGeometry>
@@ -50,271 +53,224 @@ const Coolant = ({ active }: { active: boolean }) => {
   );
 };
 
-// Sparks Effect
-const Sparks = ({ active, position }: { active: boolean, position: THREE.Vector3 }) => {
-  const count = 60;
-  const particles = useMemo(() => new Float32Array(count * 3), [count]);
-  
-  const velocities = useMemo(() => {
-    const arr = [];
-    for(let i=0; i<count; i++){
-      arr.push(new THREE.Vector3((Math.random()-0.5)*3, Math.random()*4, (Math.random()-0.5)*3));
-    }
-    return arr;
-  }, [count]);
-
+/**
+ * 切削火花。密度與顏色吃 tool_wear(L2):刀越鈍,火花越多、越偏紅
+ * —— 學生看得到「刀具磨耗」這條 subtle 退化線,而不是只在數字裡。
+ */
+const Sparks = ({ active, position, wear }: { active: boolean; position: THREE.Vector3; wear: number }) => {
+  const COUNT = 60;
+  const particles = useMemo(() => new Float32Array(COUNT * 3).fill(-100), []);
+  const velocities = useMemo(() => Array.from({ length: COUNT }, () => new THREE.Vector3()), []);
   const pointsRef = useRef<THREE.Points>(null);
 
-  useFrame((state, delta) => {
-    if(!pointsRef.current) return;
-    const positions = pointsRef.current.geometry.attributes.position.array as Float32Array;
-    for(let i=0; i<count; i++) {
-      if(active) {
-        if(Math.random() < 0.1 || positions[i*3+1] < 0.5) {
-          positions[i*3] = position.x;
-          positions[i*3+1] = position.y;
-          positions[i*3+2] = position.z;
-          velocities[i].set((Math.random()-0.5)*6, Math.random()*5 + 1, (Math.random()-0.5)*6);
-        } else {
-          velocities[i].y -= 9.8 * delta; 
-          positions[i*3] += velocities[i].x * delta;
-          positions[i*3+1] += velocities[i].y * delta;
-          positions[i*3+2] += velocities[i].z * delta;
-        }
+  useFrame((_, delta) => {
+    if (!pointsRef.current) return;
+    const p = pointsRef.current.geometry.attributes.position.array as Float32Array;
+    const live = Math.round(COUNT * (0.35 + 0.65 * clamp01(wear)));   // 刀鈍 → 噴得更多
+    for (let i = 0; i < COUNT; i++) {
+      if (!active || i >= live) { p[i * 3 + 1] = -100; continue; }
+      if (Math.random() < 0.1 || p[i * 3 + 1] < 0.5) {
+        p[i * 3] = position.x; p[i * 3 + 1] = position.y; p[i * 3 + 2] = position.z;
+        velocities[i].set((Math.random() - 0.5) * 6, Math.random() * 5 + 1, (Math.random() - 0.5) * 6);
       } else {
-        positions[i*3+1] = -100;
+        velocities[i].y -= 9.8 * delta;
+        p[i * 3] += velocities[i].x * delta; p[i * 3 + 1] += velocities[i].y * delta; p[i * 3 + 2] += velocities[i].z * delta;
       }
     }
     pointsRef.current.geometry.attributes.position.needsUpdate = true;
+    const mat = pointsRef.current.material as THREE.PointsMaterial;
+    mat.color.setHex(clamp01(wear) > 0.55 ? 0xff5a2a : 0xffaa00);
+    mat.size = 0.15 + 0.1 * clamp01(wear);
   });
 
   return (
-    <points ref={pointsRef}>
+    <points frustumCulled={false} ref={pointsRef}>
       <bufferGeometry>
-        <bufferAttribute attach="attributes-position" count={count} array={particles} itemSize={3} />
+        <bufferAttribute attach="attributes-position" count={COUNT} array={particles} itemSize={3} />
       </bufferGeometry>
-      <pointsMaterial size={0.15} color="#ffaa00" transparent opacity={0.8} blending={THREE.AdditiveBlending} depthWrite={false} />
+      <pointsMaterial size={0.15} color="#ffaa00" transparent opacity={0.85} blending={THREE.AdditiveBlending} depthWrite={false} />
     </points>
   );
 };
 
-const MAX_TRAIL_POINTS = 5000;
-
-function get_target_pos(progress: number, pattern: number) {
-  if (pattern === 1) {
-    if (progress < 0.05 || progress > 0.95) return [0.0, -150.0, 50.0];
-    const p = (progress - 0.05) / 0.9;
-    return [Math.cos((p - 0.25) * Math.PI * 2) * 150, Math.sin((p - 0.25) * Math.PI * 2) * 150, -50.0];
-  } else if (pattern === 2) {
-    if (progress < 0.05 || progress > 0.95) return [-150.0, -150.0, 50.0];
-    const p = (progress - 0.05) / 0.9;
-    if (p < 0.25) return [-150.0 + 300.0 * (p / 0.25), -150.0, -50.0];
-    else if (p < 0.5) return [150.0, -150.0 + 300.0 * ((p - 0.25) / 0.25), -50.0];
-    else if (p < 0.75) return [150.0 - 300.0 * ((p - 0.5) / 0.25), 150.0, -50.0];
-    else return [-150.0, 150.0 - 300.0 * ((p - 0.75) / 0.25), -50.0];
-  } else {
-    const strokes = [
-      [[-220, -60], [-220, 60]],
-      [[-220, 60], [-140, -60]],
-      [[-140, -60], [-140, 60]],
-      [[-40, 60], [-100, 60], [-100, -60], [-40, -60]], 
-      [[40, 60], [40, -60], [100, -60], [100, 60]], 
-      [[140, 60], [220, 60]], 
-      [[180, 60], [180, -60]] 
-    ];
-    const total_segments = strokes.length;
-    const seg_progress = progress * total_segments;
-    const seg_idx = Math.min(Math.floor(seg_progress), total_segments - 1);
-    const local_p = seg_progress - seg_idx;
-    const stroke = strokes[seg_idx];
-    const pts = stroke.length;
-
-    if (local_p < 0.1) {
-      return [stroke[0][0], stroke[0][1], 50.0 - 100.0 * (local_p / 0.1)];
-    } else if (local_p > 0.9) {
-      return [stroke[pts - 1][0], stroke[pts - 1][1], -50.0 + 100.0 * ((local_p - 0.9) / 0.1)];
-    } else {
-      const cut_p = (local_p - 0.1) / 0.8;
-      const cut_segs = pts - 1;
-      const c_idx = Math.min(Math.floor(cut_p * cut_segs), cut_segs - 1);
-      const cc_p = (cut_p * cut_segs) - c_idx;
-      const p1 = stroke[c_idx];
-      const p2 = stroke[c_idx + 1];
-      const x = p1[0] + (p2[0] - p1[0]) * cc_p;
-      const y = p1[1] + (p2[1] - p1[1]) * cc_p;
-      return [x, y, -50.0];
-    }
-  }
-}
-
-export const CNCModel = ({ state, tags }: { state: string, tags: Record<string, number> }) => {
-  const gantryRef = useRef<THREE.Group>(null);
-  const spindleHeadRef = useRef<THREE.Group>(null);
-  const drillRef = useRef<THREE.Group>(null);
+export const CNCModel = ({ motion }: MachineProps) => {
+  const gantryRef = useRef<THREE.Group>(null);        // Z 向(引擎 pos_y)
+  const spindleHeadRef = useRef<THREE.Group>(null);   // X 向(引擎 pos_x)
+  const drillRef = useRef<THREE.Group>(null);         // Y 向升降(引擎 pos_z)+ 主軸自轉
   const trailMeshRef = useRef<THREE.InstancedMesh>(null);
-  
-  const lastPartCount = useRef<number>(0);
-  const isCutting = useRef<boolean>(false);
-  const sparkPos = useRef<THREE.Vector3>(new THREE.Vector3());
-  const progressRef = useRef(0);
-  const pos = useRef({ x: 0, y: 0, z: 100 }); 
-  
-  const linesCount = useRef(0);
+  const headMatRef = useRef<THREE.MeshStandardMaterial>(null);
+
+  const phase = useRef(0);                            // 本地連續相位(0..1),隨時鎖回遙測
+  const pos = useRef({ x: 0, y: 0, z: 1 });           // 已補間的模型單位座標
+  const lastPart = useRef(-1);
+  const isCutting = useRef(false);
+  const sparkPos = useRef(new THREE.Vector3());
+  const lines = useRef(0);
   const lastCutPos = useRef<THREE.Vector3 | null>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
 
-  useFrame((sceneState, delta) => {
-    const isRunning = state === 'running';
-    const rpm = tags.spindle_speed || 0;
-    const pattern = tags.machining_pattern || 0;
-    // Speed up the visual animation to 10 seconds per loop instead of actual cycle time 60s
-    // so the user can see the shape being drawn quickly without waiting.
-    const ct = 10.0; 
-    
-    if (isRunning) {
-      progressRef.current += delta / ct;
-      if (progressRef.current >= 1.0) progressRef.current -= 1.0;
+  useFrame((_, delta) => {
+    const { tags, setpoints, running, timeScale } = motion;
+    const pattern = Math.round(setpoints.machining_pattern ?? 0);   // ⚙ setpoint,不在 tags
+    const cycle = tags.cycle_time || 45;
+    const per = visualPeriod(cycle, timeScale);                     // L3:夾在可讀區間
+
+    // 換件 → 清空刻痕(part_count 是引擎的真實累積件數)
+    const part = Math.round(tags.part_count ?? 0);
+    if (part !== lastPart.current) {
+      lastPart.current = part;
+      lines.current = 0; lastCutPos.current = null;
+      if (trailMeshRef.current) trailMeshRef.current.count = 0;
     }
 
-    const currentPartCount = tags.part_count || 0;
-    if (currentPartCount !== lastPartCount.current) {
-        linesCount.current = 0;
-        if (trailMeshRef.current) trailMeshRef.current.count = 0;
-        lastPartCount.current = currentPartCount;
-        lastCutPos.current = null;
-        progressRef.current = 0; // sync progress
+    if (running) {
+      phase.current = (phase.current + delta / per.value) % 1;
+      // 相位鎖定:把本地相位拉回引擎回報的位置。
+      // 只在動畫**沒有被時間換算**時鎖(factor≈1);一旦慢放,1 Hz 的 pos_* 早已低於
+      // 該循環的 Nyquist,硬鎖只會抖 —— 這時畫的是「代表性刀路」,倍率已標在畫面上。
+      if (Math.abs(per.factor - 1) < 0.05 &&
+          typeof tags.pos_x === "number" && typeof tags.pos_y === "number") {
+        phase.current = lockCncPhase(phase.current, tags.pos_x, tags.pos_y, pattern);
+      }
     }
 
-    // Use continuous local calculation instead of 1Hz telemetry for smooth shape
-    let targetX = 0, targetY = 0, targetZ = 1;
-    if (isRunning) {
-       const [tx, ty, tz] = get_target_pos(progressRef.current, pattern);
-       targetX = tx / 50;
-       targetY = ty / 50;
-       targetZ = tz / 50;
+    // 目標座標:running 用鎖定後的相位取曲線;停機 / 故障就抬刀回原點(與引擎一致)
+    let tx = 0, ty = 0, tz = 1;
+    if (running) {
+      const [mx, my, mz] = cncToolPath(phase.current, pattern);
+      tx = mx / MM_PER_UNIT; ty = my / MM_PER_UNIT; tz = mz / MM_PER_UNIT;
     }
+    // delta-based 趨近,與 frame rate 無關
+    const tau = 0.06;
+    pos.current.x = approach(pos.current.x, tx, tau, delta);
+    pos.current.y = approach(pos.current.y, ty, tau, delta);
+    pos.current.z = approach(pos.current.z, tz, tau, delta);
 
-    pos.current.x += (targetX - pos.current.x) * 0.4;
-    pos.current.y += (targetY - pos.current.y) * 0.4;
-    pos.current.z += (targetZ - pos.current.z) * 0.4;
-    
-    if (isRunning) {
-      const px = pos.current.x;
-      const py = pos.current.y;
-      const pz = pos.current.z;
+    // 切削判定用引擎語意:pos_z < 0 就是下刀
+    isCutting.current = running && pos.current.z < -0.5;
+    sparkPos.current.set(pos.current.x, 1.25, pos.current.y);
 
-      isCutting.current = pz < -0.5; // Only cut when drill is significantly down
-      sparkPos.current.set(px, 1.25, py); 
-      
-      if (isCutting.current) {
-        const pt = new THREE.Vector3(px, 1.25, py); 
-        if (lastCutPos.current && lastCutPos.current.distanceTo(pt) > 0.08) {
-          if (linesCount.current < MAX_TRAIL_POINTS) {
-            dummy.position.copy(pt);
-            dummy.scale.set(1.4, 0.5, 1.4); // flat wide spheres look like engraved lines
-            dummy.updateMatrix();
-            if (trailMeshRef.current) {
-                trailMeshRef.current.setMatrixAt(linesCount.current, dummy.matrix);
-                trailMeshRef.current.instanceMatrix.needsUpdate = true;
-                trailMeshRef.current.count = linesCount.current + 1;
-            }
-            linesCount.current += 1;
-          }
-          lastCutPos.current.copy(pt);
-        } else if (!lastCutPos.current) {
-          lastCutPos.current = pt.clone();
+    if (isCutting.current) {
+      const pt = new THREE.Vector3(pos.current.x, 1.25, pos.current.y);
+      if (!lastCutPos.current) lastCutPos.current = pt.clone();
+      else if (lastCutPos.current.distanceTo(pt) > 0.08 && lines.current < MAX_TRAIL_POINTS) {
+        dummy.position.copy(pt);
+        dummy.scale.set(1.4, 0.5, 1.4);
+        dummy.updateMatrix();
+        if (trailMeshRef.current) {
+          trailMeshRef.current.setMatrixAt(lines.current, dummy.matrix);
+          trailMeshRef.current.instanceMatrix.needsUpdate = true;
+          trailMeshRef.current.count = lines.current + 1;
         }
-      } else {
-        lastCutPos.current = null;
+        lines.current += 1;
+        lastCutPos.current.copy(pt);
       }
     } else {
-      isCutting.current = false;
       lastCutPos.current = null;
     }
 
     if (gantryRef.current) gantryRef.current.position.z = pos.current.y;
     if (spindleHeadRef.current) spindleHeadRef.current.position.x = pos.current.x;
     if (drillRef.current) {
-      drillRef.current.position.y = pos.current.z + 0.75; 
-      if (isRunning) {
-        drillRef.current.rotation.y -= (rpm / 60) * Math.PI * 2 * delta;
+      drillRef.current.position.y = pos.current.z + 0.75;
+      if (running) {
+        // L3:8000 rpm 直接畫會 aliasing,降頻到可辨識轉速(倍率標在畫面上)
+        const spin = visualSpin(tags.spindle_speed || 0, timeScale).value;
+        drillRef.current.rotation.y -= spin * Math.PI * 2 * delta;
       }
+    }
+    // 主軸座過熱 → 顏色偏橘(L2)
+    if (headMatRef.current) {
+      const base = motion.fault ? new THREE.Color("#c85a4a") : new THREE.Color("#b5622e");
+      headMatRef.current.color.copy(base).lerp(new THREE.Color("#ff7a2f"), clamp01(motion.heat) * 0.6);
     }
   });
 
   return (
-    <group scale={0.5}>
-      <ambientLight intensity={0.4} />
-      <directionalLight position={[10, 20, 10]} intensity={0.8} castShadow shadow-bias={-0.0001} />
-      <pointLight position={[-10, 10, -10]} intensity={0.3} />
-
-      <Box args={[14, 0.5, 14]} position={[0, 0, 0]} receiveShadow>
-        <meshStandardMaterial color="#c5bcae" roughness={0.7} metalness={0.2} />
-      </Box>
-
-      <Box args={[10, 1, 10]} position={[0, 0.75, 0]} receiveShadow castShadow>
-        <meshStandardMaterial color="#e6dfd3" roughness={0.8} />
-      </Box>
-
-      <instancedMesh ref={trailMeshRef} args={[undefined, undefined, MAX_TRAIL_POINTS]} castShadow receiveShadow>
-        <sphereGeometry args={[0.15, 8, 8]} />
-        <meshStandardMaterial color="#7a6b58" roughness={0.9} metalness={0.4} />
-      </instancedMesh>
-
-      <Sparks active={isCutting.current} position={sparkPos.current} />
-
-      <group ref={gantryRef} position={[0, 0, 0]}>
-        <Box args={[1, 5, 2]} position={[-6.5, 2.5, 0]} castShadow receiveShadow>
-          <meshStandardMaterial color="#d8d0c2" />
+    <Shake motion={motion}>
+      <group scale={0.5}>
+        <Box args={[14, 0.5, 14]} position={[0, 0, 0]} receiveShadow>
+          <meshStandardMaterial color="#c5bcae" roughness={0.7} metalness={0.2} />
         </Box>
-        <Box args={[1, 5, 2]} position={[6.5, 2.5, 0]} castShadow receiveShadow>
-          <meshStandardMaterial color="#d8d0c2" />
-        </Box>
-        <Box args={[14, 1.5, 2]} position={[0, 5.75, 0]} castShadow receiveShadow>
-          <meshStandardMaterial color="#b8ae9a" roughness={0.6} metalness={0.4} />
+        <Box args={[10, 1, 10]} position={[0, 0.75, 0]} receiveShadow castShadow>
+          <meshStandardMaterial color="#e6dfd3" roughness={0.8} />
         </Box>
 
-        <group ref={spindleHeadRef} position={[0, 5, 1]}>
-          <Box args={[2, 2.5, 2.5]} position={[0, 0, 0]} castShadow receiveShadow>
-            <meshStandardMaterial color={state === 'fault' ? '#c85a4a' : '#b5622e'} roughness={0.4} metalness={0.1} />
+        <instancedMesh ref={trailMeshRef} args={[undefined, undefined, MAX_TRAIL_POINTS]} castShadow receiveShadow>
+          <sphereGeometry args={[0.15, 8, 8]} />
+          <meshStandardMaterial color="#7a6b58" roughness={0.9} metalness={0.4} />
+        </instancedMesh>
+
+        <Sparks active={isCutting.current} position={sparkPos.current} wear={motion.wear} />
+
+        <group ref={gantryRef}>
+          <Box args={[1, 5, 2]} position={[-6.5, 2.5, 0]} castShadow receiveShadow>
+            <meshStandardMaterial color={bodyColor(motion, "#d8d0c2")} />
           </Box>
-          
-          <group ref={drillRef} position={[0, 0, 0]}>
-            <Cylinder args={[0.4, 0.4, 3, 16]} position={[0, -0.5, 0]} castShadow>
-              <meshStandardMaterial color="#8a7c63" metalness={0.6} roughness={0.2} />
-            </Cylinder>
-            <Cylinder args={[0.1, 0.1, 2, 8]} position={[0, -2.5, 0]} castShadow>
-              <meshStandardMaterial color="#5a4c36" metalness={0.8} roughness={0.1} />
-            </Cylinder>
-            {/* Added stripes to make rotation highly visible */}
-            <Box args={[0.12, 1.9, 0.05]} position={[0, -2.5, 0]}>
-               <meshStandardMaterial color="#3a3022" />
+          <Box args={[1, 5, 2]} position={[6.5, 2.5, 0]} castShadow receiveShadow>
+            <meshStandardMaterial color={bodyColor(motion, "#d8d0c2")} />
+          </Box>
+          <Box args={[14, 1.5, 2]} position={[0, 5.75, 0]} castShadow receiveShadow>
+            <meshStandardMaterial color="#b8ae9a" roughness={0.6} metalness={0.4} />
+          </Box>
+
+          <group ref={spindleHeadRef} position={[0, 5, 1]}>
+            <Box args={[2, 2.5, 2.5]} castShadow receiveShadow>
+              <meshStandardMaterial ref={headMatRef} color="#b5622e" roughness={0.4} metalness={0.1} />
             </Box>
-            <Box args={[0.05, 1.9, 0.12]} position={[0, -2.5, 0]}>
-               <meshStandardMaterial color="#3a3022" />
-            </Box>
-            <Coolant active={state === 'running'} />
+            <HeatGlow motion={motion} position={[0, 0, 0]} radius={2.2} />
+
+            <group ref={drillRef}>
+              <Cylinder args={[0.4, 0.4, 3, 16]} position={[0, -0.5, 0]} castShadow>
+                <meshStandardMaterial color="#8a7c63" metalness={0.6} roughness={0.2} />
+              </Cylinder>
+              <Cylinder args={[0.1, 0.1, 2, 8]} position={[0, -2.5, 0]} castShadow>
+                <meshStandardMaterial color="#5a4c36" metalness={0.8} roughness={0.1} />
+              </Cylinder>
+              {/* 條紋讓轉動看得出來 */}
+              <Box args={[0.12, 1.9, 0.05]} position={[0, -2.5, 0]}><meshStandardMaterial color="#3a3022" /></Box>
+              <Box args={[0.05, 1.9, 0.12]} position={[0, -2.5, 0]}><meshStandardMaterial color="#3a3022" /></Box>
+              <Coolant active={isCutting.current} />
+            </group>
           </group>
         </group>
-      </group>
 
-      <ContactShadows position={[0, 0.26, 0]} opacity={0.5} scale={20} blur={2} far={10} />
-      <Environment preset="city" />
-    </group>
+        <StatusBeacon motion={motion} position={[6.5, 5.0, -1.2]} scale={1.6} />
+        <FaultSmoke motion={motion} position={[0, 5.8, 0]} scale={2.2} />
+      </group>
+    </Shake>
   );
 };
 
-export default function CncMachine3D({ state, tags }: { state: string, tags?: Record<string, number> }) {
+/** 詳情彈窗用的單機場景:多一組即時讀值面板,值全部取自 telemetry。 */
+export default function CncMachine3D({ motion }: MachineProps) {
+  const t = motion.tags;
+  const spin = visualSpin(t.spindle_speed || 0, motion.timeScale);
+  const per = visualPeriod(t.cycle_time || 45, motion.timeScale);
   return (
-    <Canvas shadows camera={{ position: [12, 15, 18], fov: 45 }} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block" }}>
-      <OrbitControls 
-        enablePan={true}
-        enableZoom={true}
-        enableRotate={true}
-        target={[0, 2, 0]}
-        maxPolarAngle={Math.PI / 2 - 0.05} 
-      />
-      <CNCModel state={state} tags={tags || {}} />
-    </Canvas>
+    <MachineScene camera={[7.5, 8.5, 11]} fov={45} target={[0, 1.8, 0]} env="city"
+                  ground="#ded5c6" shadowY={0} note={scaleNote(spin, per)}
+                  overlay={<CncReadout motion={motion} />}>
+      <CNCModel motion={motion} />
+    </MachineScene>
   );
+}
+
+function CncReadout({ motion }: { motion: DeviceMotion }) {
+  const t = motion.tags;
+  const rows: Row[] = [
+    ["POS X / Y", `${(t.pos_x ?? 0).toFixed(0)} / ${(t.pos_y ?? 0).toFixed(0)} mm`],
+    ["POS Z", `${(t.pos_z ?? 0).toFixed(0)} mm`, (t.pos_z ?? 0) < 0],
+    ["PATTERN", `${Math.round(motion.setpoints.machining_pattern ?? 0)}`],
+    ["SPINDLE", `${(t.spindle_speed ?? 0).toFixed(0)} rpm`],
+    ["SPINDLE T", `${(t.spindle_temp ?? 0).toFixed(1)} °C`, (t.spindle_temp ?? 0) > 85],
+    ["CURRENT", `${(t.spindle_current ?? 0).toFixed(2)} A`, (t.spindle_current ?? 0) > 10],
+    ["VIB", `${(t.vibration_rms ?? 0).toFixed(2)} mm/s`, (t.vibration_rms ?? 0) > 4.5],
+    ["TOOL WEAR", `${(t.tool_wear ?? 0).toFixed(1)} %`, (t.tool_wear ?? 0) > 60],
+    ["CYCLE", `${(t.cycle_time ?? 0).toFixed(2)} s`, (t.cycle_time ?? 45) > 52],
+    ["PARTS", `${Math.round(t.part_count ?? 0)}`],
+  ];
+  const hint = clamp01(motion.severity) > 0.5 ? "⚠ 振動 + 電流 + 溫度同步升高 → spindle_bearing 退化"
+    : (t.tool_wear ?? 0) > 60 ? "⚠ 刀具磨耗高 → 節拍變長、良率下降" : undefined;
+  return <Readout rows={rows} hint={hint} />;
 }

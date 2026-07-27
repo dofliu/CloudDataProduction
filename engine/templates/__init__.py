@@ -18,6 +18,7 @@ from .robot_arm_6axis import build as _build_arm
 from .semi_process_chamber import build as _build_semi
 from .stamping_press import build as _build_press
 from .wind_turbine import build as _build_wind
+from .conveyor import build as _build_conveyor
 
 # template 名稱 → builder
 _REGISTRY: Dict[str, Callable] = {
@@ -31,6 +32,7 @@ _REGISTRY: Dict[str, Callable] = {
     "stamping_press": _build_press,
     "heat_treat_furnace": _build_furnace,
     "wind_turbine": _build_wind,
+    "conveyor": _build_conveyor,
 }
 
 

@@ -4,8 +4,11 @@ import CncMachine3D from "./CncMachine3D";
 import RobotArm3D from "./RobotArm3D";
 import InjectionMolding3D from "./InjectionMolding3D";
 import AgvMobileRobot3D from "./AgvMobileRobot3D";
-
-// 設備詳情彈窗:放大的「詳細版」Canvas 動畫 + 即時訊號/趨勢/HOLDING/DISCRETE。
+import Conveyor3D from "./Conveyor3D";
+import StampingPress3D from "./StampingPress3D";
+import WindTurbine3D from "./WindTurbine3D";
+import AirCompressor3D from "./AirCompressor3D";
+import EnergyMeter3D from "./EnergyMeter3D";
 // Canvas 繪法移植自 4D 原型的 machine(ctx,...,detail=true);訊號/點位一律接真實 telemetry。
 
 type Pt = { x: number; y: number };
@@ -193,8 +196,8 @@ function pickTag(tags: Record<string, number>, cands: string[]): [string, number
   return null;
 }
 
-export default function DeviceDetailModal({ deviceId, snapshot, company, onClose }:
-  { deviceId: string; snapshot: DeviceSnapshot; company?: string; onClose: () => void }) {
+export default function DeviceDetailModal({ deviceId, snapshot, onClose }:
+  { deviceId: string; snapshot: DeviceSnapshot; onClose: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number>(0);
   const kind = snapshot.template;
@@ -223,7 +226,7 @@ export default function DeviceDetailModal({ deviceId, snapshot, company, onClose
       const t = (now - t0) / 1000;
       ctx.clearRect(0, 0, w, h);
       // 詳細動畫(detail=true)+ 右下角趨勢
-      const use3D = ["cnc_machining_center", "robot_arm_6axis", "injection_molding", "agv_mobile_robot"].includes(kind);
+      const use3D = ["cnc_machining_center", "robot_arm_6axis", "injection_molding", "agv_mobile_robot", "conveyor", "stamping_press", "wind_turbine", "air_compressor", "energy_meter"].includes(kind);
       if (!use3D) {
         machine(ctx, w / 2, h * 0.60, Math.min(w, h) / 6.2, t, kind, true);
       }
@@ -262,6 +265,8 @@ export default function DeviceDetailModal({ deviceId, snapshot, company, onClose
   const discretes = Object.entries(snapshot.discretes || {});
   const stColor = stateColor(snapshot.state);
 
+  const use3DCheck = ["cnc_machining_center", "robot_arm_6axis", "injection_molding", "agv_mobile_robot", "conveyor", "stamping_press", "wind_turbine", "air_compressor", "energy_meter"].includes(kind);
+
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(50,38,22,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: "3vh 2vw", animation: "fadeIn .18s ease" }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: "min(1120px,96vw)", height: "min(680px,92vh)", background: "var(--panel)", borderRadius: 20, boxShadow: "var(--shadow-modal)", display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid var(--line)" }}>
@@ -270,18 +275,24 @@ export default function DeviceDetailModal({ deviceId, snapshot, company, onClose
           <span className="mono" style={{ fontSize: 20, fontWeight: 700, color: "var(--text)" }}>{deviceId}</span>
           <span style={{ fontSize: 13, color: "var(--text-2)" }}>{KIND_NAME[kind] || kind}</span>
           <span style={{ fontSize: 11, fontWeight: 700, color: "#fff", background: stColor, padding: "3px 12px", borderRadius: 20 }}>{STATE_LABEL[snapshot.state] || snapshot.state}</span>
-          {company && <span style={{ fontSize: 12, color: "var(--dim)" }}>· {company}</span>}
           <div style={{ flex: 1 }} />
           <span onClick={onClose} title="關閉 (Esc)" style={{ width: 34, height: 34, borderRadius: 9, background: "var(--accent-tint)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 600, color: "var(--muted)", cursor: "pointer" }}>✕</span>
         </div>
         {/* 主體 */}
         <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
           <div style={{ flex: 1, position: "relative", minWidth: 0, background: "radial-gradient(120% 90% at 50% 20%,#faf4e8,#efe4d0)" }}>
-            {kind === "cnc_machining_center" && <CncMachine3D state={snapshot.state} tags={snapshot.tags} />}
-            {kind === "robot_arm_6axis" && <RobotArm3D state={snapshot.state} tags={snapshot.tags} />}
-            {kind === "injection_molding" && <InjectionMolding3D state={snapshot.state} tags={snapshot.tags} />}
-            {kind === "agv_mobile_robot" && <AgvMobileRobot3D state={snapshot.state} tags={snapshot.tags} />}
-            <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block", pointerEvents: ["cnc_machining_center", "robot_arm_6axis", "injection_molding", "agv_mobile_robot"].includes(kind) ? "none" : "auto" }} />
+            <>
+              {kind === "cnc_machining_center" && <CncMachine3D state={snapshot.state} tags={snapshot.tags} />}
+              {kind === "robot_arm_6axis" && <RobotArm3D state={snapshot.state} tags={snapshot.tags} />}
+              {kind === "injection_molding" && <InjectionMolding3D state={snapshot.state} tags={snapshot.tags} />}
+              {kind === "agv_mobile_robot" && <AgvMobileRobot3D state={snapshot.state} tags={snapshot.tags} />}
+              {kind === "conveyor" && <Conveyor3D state={snapshot.state} tags={snapshot.tags} />}
+              {kind === "stamping_press" && <StampingPress3D state={snapshot.state} tags={snapshot.tags} />}
+              {kind === "wind_turbine" && <WindTurbine3D state={snapshot.state} tags={snapshot.tags} />}
+              {kind === "air_compressor" && <AirCompressor3D state={snapshot.state} tags={snapshot.tags} />}
+              {kind === "energy_meter" && <EnergyMeter3D state={snapshot.state} tags={snapshot.tags} />}
+            </>
+            <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block", pointerEvents: use3DCheck ? "none" : "auto" }} />
             <div style={{ position: "absolute", right: 16, bottom: 16, fontSize: 12, color: "var(--dim)", background: "rgba(255,250,240,.7)", padding: "6px 12px", borderRadius: 8 }}>{KIND_DESC[kind] || "合成數據 · 詳細動畫"}</div>
           </div>
           {/* 右側面板 */}

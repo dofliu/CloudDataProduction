@@ -1,7 +1,12 @@
 import React, { useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Box, Cylinder, Environment, ContactShadows, Text } from '@react-three/drei';
+import { OrbitControls, Box, Cylinder, Environment, ContactShadows, Text, Line } from '@react-three/drei';
 import * as THREE from 'three';
+
+// -----------------------------------------------------
+// Global payload state for visual simulation
+// -----------------------------------------------------
+let globalAgvHasPayload = false;
 
 // -----------------------------------------------------
 // Dummy CNC Machine (Visual Prop)
@@ -25,7 +30,7 @@ const DummyCNC = ({ position, rotation }: { position: [number, number, number], 
 // -----------------------------------------------------
 // Dummy Robot Arm (Visual Prop, syncs with AGV stops)
 // -----------------------------------------------------
-const DummyRobotArm = ({ position, rotation, agvX, agvZ, agvSpeed, isLoad }: { position: [number, number, number], rotation: [number, number, number], agvX: number, agvZ: number, agvSpeed: number, isLoad: boolean }) => {
+const DummyRobotArm = ({ position, rotation, globalX, globalZ, agvX, agvZ, agvSpeed, isLoad }: { position: [number, number, number], rotation: [number, number, number], globalX: number, globalZ: number, agvX: number, agvZ: number, agvSpeed: number, isLoad: boolean }) => {
   const j1Ref = useRef<THREE.Group>(null);
   const j2Ref = useRef<THREE.Group>(null);
   const j3Ref = useRef<THREE.Group>(null);
@@ -36,58 +41,62 @@ const DummyRobotArm = ({ position, rotation, agvX, agvZ, agvSpeed, isLoad }: { p
   const timer = useRef(0);
 
   useFrame((_, delta) => {
-    // Check distance to AGV
-    const dist = Math.sqrt(Math.pow(agvX - position[0], 2) + Math.pow(agvZ - position[2], 2));
+    // Check distance to AGV based on global coordinates
+    const dist = Math.sqrt(Math.pow(agvX - globalX, 2) + Math.pow(agvZ - globalZ, 2));
     
-    // If AGV is stopped within radius 3.5
-    if (dist < 3.5 && agvSpeed < 0.1) {
+    // If AGV is stopped within radius (increased to 5.0 for robustness)
+    if (dist < 5.0 && agvSpeed < 0.05) {
       timer.current += delta;
     } else {
       timer.current = 0;
     }
 
-    const t = timer.current;
+    let t = timer.current;
+    if (t > 6.0) t = 6.0;
     
     // Animation phases (6 seconds total stop time)
     let j1 = 0, j2 = 20, j3 = 30;
     let hasBox = false;
     let cncHasBox = false;
-
+    
     // Helper to map time to angles smoothly
     const smoothStep = (x: number) => x * x * (3 - 2 * x);
     const interp = (start: number, end: number, progress: number) => start + (end - start) * smoothStep(Math.max(0, Math.min(1, progress)));
 
-    // CNC is at local rotation -90 deg, AGV is at local +90 deg.
+    // CNC is at -Z (local +90 in j1), AGV is at +Z (local -90 in j1).
     if (t === 0) {
       // Idle
       cncHasBox = isLoad;
     } else if (t < 1.0) {
-      // Swing to CNC
-      j1 = interp(0, -90, t);
+      // Swing to CNC (j1 -> 90)
+      j1 = interp(0, 90, t);
       j2 = interp(20, 60, t);
       j3 = interp(30, 45, t);
       cncHasBox = isLoad;
     } else if (t < 2.0) {
       // At CNC (Pick/Place happens at 1.5s)
-      j1 = -90; j2 = 60; j3 = 45;
+      j1 = 90; j2 = 60; j3 = 45;
       hasBox = t > 1.5 ? isLoad : !isLoad;
       cncHasBox = t > 1.5 ? !isLoad : isLoad;
     } else if (t < 4.0) {
-      // Swing CNC -> AGV
+      // Swing CNC -> AGV (j1 90 -> -90)
       const p = (t - 2.0) / 2.0;
-      j1 = interp(-90, 90, p);
+      j1 = interp(90, -90, p);
       // Lift arm up during swing
       j2 = p < 0.5 ? interp(60, 20, p*2) : interp(20, 60, (p-0.5)*2);
       j3 = p < 0.5 ? interp(45, 30, p*2) : interp(30, 45, (p-0.5)*2);
       hasBox = isLoad;
     } else if (t < 5.0) {
       // At AGV (Pick/Place happens at 4.5s)
-      j1 = 90; j2 = 60; j3 = 45;
+      j1 = -90; j2 = 60; j3 = 45;
       hasBox = t > 4.5 ? !isLoad : isLoad;
-    } else if (t < 6.0) {
+      if (t > 4.5) {
+        globalAgvHasPayload = isLoad;
+      }
+    } else if (t <= 6.0) {
       // Swing AGV -> Home
       const p = (t - 5.0) / 1.0;
-      j1 = interp(90, 0, p);
+      j1 = interp(-90, 0, p);
       j2 = interp(60, 20, p);
       j3 = interp(45, 30, p);
       hasBox = !isLoad;
@@ -109,8 +118,8 @@ const DummyRobotArm = ({ position, rotation, agvX, agvZ, agvSpeed, isLoad }: { p
   return (
     <group position={position} rotation={rotation}>
       {/* CNC's resting box (simulated product on the station) */}
-      {/* -90 deg in Y means it's located along +X axis locally. Distance is about 2.5 */}
-      <Box ref={cncBoxRef} args={[0.5, 0.5, 0.5]} position={[2.5, 1.25, 0]} castShadow>
+      {/* Matches the arm's reach when it swings to the CNC (j1 = -90). Reach is Z = -3.2, Height = 2.05 */}
+      <Box ref={cncBoxRef} args={[0.5, 0.5, 0.5]} position={[0, 2.05, -3.2]} castShadow>
         <meshStandardMaterial color="#3a8a3a" />
       </Box>
 
@@ -163,8 +172,9 @@ const DummyRobotArm = ({ position, rotation, agvX, agvZ, agvSpeed, isLoad }: { p
 // -----------------------------------------------------
 // Main AGV Component
 // -----------------------------------------------------
-const AgvModel = ({ state, tags }: { state: string, tags: Record<string, number> }) => {
+export const AgvModel = ({ state, tags }: { state: string, tags: Record<string, number> }) => {
   const agvRef = useRef<THREE.Group>(null);
+  const payloadRef = useRef<THREE.Group>(null);
   
   useFrame(() => {
     if (agvRef.current) {
@@ -181,6 +191,13 @@ const AgvModel = ({ state, tags }: { state: string, tags: Record<string, number>
       
       agvRef.current.rotation.y += diff * 0.1;
     }
+    if (payloadRef.current) {
+      // Sync with backend state when moving (handles hot-reloads)
+      if (Math.abs(tags.speed || 0) > 0.01) {
+        globalAgvHasPayload = (tags.payload || 0) > 0;
+      }
+      payloadRef.current.visible = globalAgvHasPayload;
+    }
   });
 
   const bodyColor = state === 'fault' ? "#c85a4a" : (state === 'charging' ? "#44aa44" : "#ffaa00");
@@ -189,24 +206,34 @@ const AgvModel = ({ state, tags }: { state: string, tags: Record<string, number>
 
   return (
     <group ref={agvRef} position={[2, 0, 2]}>
-      {/* AGV Chassis */}
-      <Box args={[1.6, 0.4, 2.4]} position={[0, 0.3, 0]} castShadow receiveShadow>
+      {/* AGV Base */}
+      <Cylinder args={[1.2, 1.2, 0.5, 32]} position={[0, 0.4, 0]} castShadow receiveShadow>
         <meshStandardMaterial color={bodyColor} />
-      </Box>
+      </Cylinder>
       
+      {/* AGV Central Pillar */}
+      <Cylinder args={[0.3, 0.3, 1.2, 16]} position={[0, 1.2, 0]} castShadow receiveShadow>
+        <meshStandardMaterial color="#888" />
+      </Cylinder>
+
       {/* Wheels */}
-      {[[-0.9, 0.8], [0.9, 0.8], [-0.9, -0.8], [0.9, -0.8]].map((pos, i) => (
+      {[[-0.7, 0.7], [0.7, 0.7], [-0.7, -0.7], [0.7, -0.7]].map((pos, i) => (
         <Cylinder key={i} args={[0.2, 0.2, 0.2, 16]} rotation={[0, 0, Math.PI / 2]} position={[pos[0], 0.2, pos[1]]} castShadow receiveShadow>
           <meshStandardMaterial color="#222" />
         </Cylinder>
       ))}
 
-      {/* Payload */}
-      {payloadVisible && (
-        <Box args={[0.5, 0.5, 0.5]} position={[0, 0.75, 0]} castShadow receiveShadow>
+      {/* Wafer FOUP Platform */}
+      <Cylinder args={[0.9, 0.9, 0.1, 32]} position={[0, 1.8, 0]} castShadow receiveShadow>
+        <meshStandardMaterial color="#444" />
+      </Cylinder>
+
+      {/* Payload (Green Cube) */}
+      <group ref={payloadRef} position={[0, 2.1, 0]}>
+        <Box args={[0.5, 0.5, 0.5]} castShadow receiveShadow>
           <meshStandardMaterial color="#3a8a3a" />
         </Box>
-      )}
+      </group>
       
       {/* Direction Indicator */}
       <Box args={[0.6, 0.1, 0.4]} position={[0, 0.55, 1.0]} castShadow receiveShadow>
@@ -229,6 +256,16 @@ export default function AgvMobileRobot3D({ state, tags }: { state: string, tags?
   const agvZ = tags?.pos_y || 0;
   const agvSpeed = tags?.speed || 0;
 
+  const pathPoints = React.useMemo(() => {
+    const pts = [];
+    pts.push(new THREE.Vector3(2, 0.05, 2));
+    pts.push(new THREE.Vector3(18, 0.05, 2));
+    pts.push(new THREE.Vector3(18, 0.05, 12));
+    pts.push(new THREE.Vector3(2, 0.05, 12));
+    pts.push(new THREE.Vector3(2, 0.05, 2));
+    return pts;
+  }, []);
+
   return (
     <Canvas shadows camera={{ position: [10, 20, 30], fov: 45 }} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block" }}>
       <OrbitControls 
@@ -241,20 +278,40 @@ export default function AgvMobileRobot3D({ state, tags }: { state: string, tags?
       <ambientLight intensity={0.6} />
       <directionalLight position={[20, 30, 20]} intensity={1} castShadow shadow-bias={-0.0001} />
       
+      {/* ------------------------------------------------------------- */}
+      {/* PATH INDICATOR ON FLOOR */}
+      {/* ------------------------------------------------------------- */}
+      <Line points={pathPoints} color="#d4a373" lineWidth={4} dashed={true} dashSize={1} gapSize={0.5} dashScale={1} />
+      
       {/* The Actual AGV */}
       <AgvModel state={state} tags={tags || {}} />
       
       {/* ------------------------------------------------------------- */}
+      {/* OBSTACLE: Smart Shelf in the middle of the area */}
+      {/* ------------------------------------------------------------- */}
+      <group position={[10, 0, 7]}>
+        <Box args={[1.5, 2.0, 1.0]} position={[0, 1.0, 0]} castShadow receiveShadow>
+          <meshStandardMaterial color="#c0c0c0" />
+        </Box>
+        {/* Shelf layers */}
+        <Box args={[1.6, 0.1, 1.1]} position={[0, 0.5, 0]}><meshStandardMaterial color="#555" /></Box>
+        <Box args={[1.6, 0.1, 1.1]} position={[0, 1.2, 0]}><meshStandardMaterial color="#555" /></Box>
+        <Box args={[1.6, 0.1, 1.1]} position={[0, 1.9, 0]}><meshStandardMaterial color="#555" /></Box>
+        <Text position={[0, 2.3, 0]} fontSize={0.4} color="#ffaa00">Middle Shelf</Text>
+      </group>
+
+      {/* ------------------------------------------------------------- */}
       {/* WORKCELL INTEGRATION: Station 1 (Load) at X=18, Z=2 */}
       {/* ------------------------------------------------------------- */}
-      <group position={[18, 0, -1]}>
+      <group position={[18, 0, -1.2]} rotation={[0, 0, 0]}>
         {/* CNC placed behind the arm */}
-        <DummyCNC position={[0, 0, -3.5]} rotation={[0, 0, 0]} />
-        {/* Arm at (18, 0, -1), facing AGV which stops at (18, 0, 2). AGV is at local Z=+3, CNC is at local X=+2.5. */}
-        {/* Rotate +90deg -> Local +X points to global -Z (CNC), Local -X points to global +Z (AGV). */}
+        <DummyCNC position={[0, 0, -3.2]} rotation={[0, 0, 0]} />
+        {/* Arm at (18, 0, -1.2), facing +Z (AGV). AGV is at Z=2 (distance 3.2). CNC is at -Z. */}
         <DummyRobotArm 
           position={[0, 0, 0]} 
-          rotation={[0, Math.PI / 2, 0]} 
+          globalX={18}
+          globalZ={-1.2}
+          rotation={[0, 0, 0]} 
           agvX={agvX} 
           agvZ={agvZ} 
           agvSpeed={agvSpeed} 
@@ -265,12 +322,13 @@ export default function AgvMobileRobot3D({ state, tags }: { state: string, tags?
       {/* ------------------------------------------------------------- */}
       {/* WORKCELL INTEGRATION: Station 2 (Unload) at X=2, Z=12 */}
       {/* ------------------------------------------------------------- */}
-      <group position={[2, 0, 15]}>
-        <DummyCNC position={[0, 0, 3.5]} rotation={[0, Math.PI, 0]} />
-        {/* Rotate -90deg -> Local +X points to global +Z (CNC), Local -X points to global -Z (AGV). */}
+      <group position={[2, 0, 15.2]} rotation={[0, Math.PI, 0]}>
+        <DummyCNC position={[0, 0, -3.2]} rotation={[0, 0, 0]} />
         <DummyRobotArm 
           position={[0, 0, 0]} 
-          rotation={[0, -Math.PI / 2, 0]} 
+          globalX={2}
+          globalZ={15.2}
+          rotation={[0, 0, 0]} 
           agvX={agvX} 
           agvZ={agvZ} 
           agvSpeed={agvSpeed} 

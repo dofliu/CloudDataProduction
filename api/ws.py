@@ -38,7 +38,10 @@ class ConnectionManager:
         for ws in list(self._active):
             try:
                 await ws.send_json(message)
-            except Exception:
+            except Exception as e:
+                print(f"[ws] Error sending to {ws.client}: {e}")
+                import traceback
+                traceback.print_exc()
                 dead.append(ws)
         if dead:
             async with self._lock:

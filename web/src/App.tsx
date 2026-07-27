@@ -104,6 +104,7 @@ export default function App() {
   const mult = telemetry?.multiplier;
   const sel = selected && telemetry ? telemetry.devices[selected] : null;
   const selSetpoints: CatalogSetpoint[] = catalog?.devices.find((d) => d.id === selected)?.setpoints ?? [];
+  const selCompany = selected && park ? park.companies.find(c => c.device_ids.includes(selected)) : undefined;
 
   // 全域燈號摘要
   let nOk = 0, nWarn = 0, nFault = 0;
@@ -209,7 +210,6 @@ export default function App() {
       {/* 設備詳情彈窗:點世界廠內機台 / 目錄卡 → 放大詳細動畫 + 即時訊號(方案 4D 新功能) */}
       {selected && sel && (
         <DeviceDetailModal deviceId={selected} snapshot={sel}
-          company={park?.companies.find((c) => (c.device_ids || []).includes(selected))?.name}
           onClose={() => setSelected(null)} />
       )}
     </div>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Application, Container, Graphics, Text } from "pixi.js";
-import { Park, Company, TelemetryMsg, colorOf, worstState } from "../api";
+import { Park, Company, TelemetryMsg, colorOf, worstState, getTeacherToken, setCoil, resetDevice } from "../api";
 import { darken, solveArm, drawStation } from "./machines";
 
 // ── 俯瞰格狀佈局 ───────────────────────────────────────
@@ -103,6 +103,8 @@ const ARM_CYCLE = 4.5;             // 搬運手臂一個夾取-放置循環秒�
 const ease = (x: number) => x * x * (3 - 2 * x);
 const lerpPt = (a: Pt, b: Pt, f: number): Pt => ({ x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f });
 
+import FactoryLine3D from "./FactoryLine3D";
+
 export default function WorldView({
   park, telemetry, selected, onSelect, predicted,
 }: {
@@ -111,19 +113,16 @@ export default function WorldView({
 }) {
   const [focus, setFocus] = useState<string | null>(null);
   const [tip, setTip] = useState<{ x: number; y: number; c: Company } | null>(null);
+  const [resetMsg, setResetMsg] = useState("");
+  const isTeacher = !!getTeacherToken();
   const hostRef = useRef<HTMLDivElement | null>(null);
   const appRef = useRef<Application | null>(null);
   const worldRef = useRef<Container | null>(null);
   const lightsRef = useRef<Record<string, Graphics>>({});
   const devicesRef = useRef<Record<string, DeviceVisual>>({});
-  const stationsRef = useRef<Station[]>([]);
   const chimneysRef = useRef<{ x: number; y: number }[]>([]);
   const smokeRef = useRef<Smoke[]>([]);
   const fxRef = useRef<Container | null>(null);
-  const beltRef = useRef<Graphics | null>(null);
-  const flowRef = useRef<Flow | null>(null);
-  const cellRef = useRef<TendingCell | null>(null);   // 雙機上下料工作站(2 CNC + 手臂)
-  const peopleRef = useRef<{ g: Graphics; pts: Pt[]; t: number; speed: number; color: number; work: boolean }[]>([]);
   const telRef = useRef(telemetry);
   const onSelectRef = useRef(onSelect); const selectedRef = useRef(selected); const predictedRef = useRef(predicted);
   telRef.current = telemetry; onSelectRef.current = onSelect; selectedRef.current = selected; predictedRef.current = predicted;
@@ -141,10 +140,10 @@ export default function WorldView({
       ready = true; appRef.current = app; host.appendChild(app.canvas);
       const world = new Container(); app.stage.addChild(world); worldRef.current = world;
       recenter();
-      if (focus) buildInterior(world, focus); else buildOverview(world);
+      buildOverview(world);
       const fx = new Container(); world.addChild(fx); fxRef.current = fx;
       let animT = 0;
-      app.ticker.add((tk) => { animT += tk.deltaMS / 1000; focus ? tickInterior(animT, tk.deltaMS / 1000) : tickOverview(animT, tk.deltaMS / 1000); });
+      app.ticker.add((tk) => { animT += tk.deltaMS / 1000; tickOverview(animT, tk.deltaMS / 1000); });
       update();
     })();
 
@@ -246,278 +245,6 @@ export default function WorldView({
       smoke(animT, dt);
     }
 
-    // ── 廠內 ─────────────────────────────────────────────
-    function buildInterior(world: Container, cid: string) {
-      const company = park.companies.find((c) => c.id === cid);
-      const devIds = company?.device_ids || [];
-      const PRODUCING = new Set(["cnc_machining_center", "injection_molding"]);
-      // 先取得各設備 template,決定誰是產出機台、哪支手臂擔任搬運
-      const items = devIds.map((did) => ({ did, tmpl: telRef.current?.devices[did]?.template || "" }));
-      const hasMachine = items.some((it) => PRODUCING.has(it.tmpl));
-      const picker = hasMachine ? items.find((it) => it.tmpl === "robot_arm_6axis") : undefined;
-      const topItems = items.filter((it) => it !== picker);        // 上排:機台與其他設備
-      // 雙機上下料工作站:2+ CNC + 手臂 → 專屬 layout(手臂在兩機間搬運)
-      const cncItems = items.filter((it) => it.tmpl === "cnc_machining_center");
-      const armItem = items.find((it) => it.tmpl === "robot_arm_6axis");
-      const cellMode = cncItems.length >= 2 && !!armItem;
-      const FW = cellMode ? 8 : Math.max(9, topItems.length * 3 + 3), FH = cellMode ? 8 : 9;
-      const fiso = (gx: number, gy: number) => ({ x: (gx - gy) * 34, y: (gx + gy) * 17 });
-
-      const floor = new Graphics();
-      for (let gx = 0; gx < FW; gx++) for (let gy = 0; gy < FH; gy++) {
-        const N = fiso(gx, gy), E = fiso(gx + 1, gy), S = fiso(gx + 1, gy + 1), W = fiso(gx, gy + 1);
-        floor.poly([N.x, N.y, E.x, E.y, S.x, S.y, W.x, W.y]).fill((gx + gy) % 2 ? 0xefe6d3 : 0xe6d9bf).stroke({ width: 0.5, color: 0xd8c6a8 });
-      }
-      world.addChild(floor);
-      // 輸送帶(底排,左→右出口)
-      const bA = fiso(1, FH - 1.6), bB = fiso(FW - 1, FH - 1.6);
-      const belt = new Graphics();
-      belt.poly([bA.x, bA.y - 9, bB.x, bB.y - 9, bB.x, bB.y + 9, bA.x, bA.y + 9]).fill(0xc9b795).stroke({ width: 1, color: 0xb8a884 });
-      world.addChild(belt);
-      const beltDash = new Graphics(); world.addChild(beltDash);
-      (beltDash as any)._a = bA; (beltDash as any)._b = bB; beltRef.current = beltDash;
-      // 出口標記
-      const exit = new Graphics();
-      exit.poly([bB.x, bB.y - 9, bB.x + 16, bB.y - 9, bB.x + 16, bB.y + 9, bB.x, bB.y + 9]).fill({ color: 0xf0e6d4, alpha: 0.9 });
-      world.addChild(exit);
-      const exitLab = new Text({ text: "出貨 →", style: { fill: 0xa2917a, fontSize: 10, fontFamily: "Noto Sans TC" } });
-      exitLab.x = bB.x + 2; exitLab.y = bB.y + 10; world.addChild(exitLab);
-
-      const partsLayer = new Container(); world.addChild(partsLayer);  // 工件畫在輸送帶之上
-
-      // ── 雙機上下料工作站分支 ──────────────────────────────
-      if (cellMode && armItem) {
-        const mkStation = (did: string, tmpl: string, pos: Pt): Station => {
-          const cont = new Container(); cont.x = pos.x; cont.y = pos.y;
-          cont.eventMode = "static"; cont.cursor = "pointer"; cont.on("pointertap", () => onSelectRef.current(did));
-          const ring = new Graphics(); cont.addChild(ring);
-          const art = new Graphics(); cont.addChild(art);
-          const lab = new Text({ text: did, style: { fill: 0xd7c9a8, fontSize: 11, fontFamily: "Noto Sans TC" } });
-          lab.anchor.set(0.5, 0); lab.y = 34; cont.addChild(lab);
-          world.addChild(cont);
-          return { id: did, template: tmpl, container: cont, art, ring };
-        };
-        const Lp = fiso(2, 4), Rp = fiso(4, 2), Ap = fiso(3.6, 3.6);   // 左機 / 右機(螢幕對稱)/ 手臂
-        const st = [mkStation(cncItems[0].did, "cnc_machining_center", Lp),
-                    mkStation(cncItems[1].did, "cnc_machining_center", Rp),
-                    mkStation(armItem.did, "robot_arm_6axis", Ap)];
-        stationsRef.current = st;
-        // 安全圍籬:手臂作業區的黃色虛線菱形(靜態,只畫一次)
-        const fence = new Graphics(); world.addChild(fence);
-        const fc = [fiso(2.1, 2.6), fiso(4.6, 2.6), fiso(4.6, 5.1), fiso(2.1, 5.1)];
-        for (let e = 0; e < 4; e++) { const a = fc[e], b = fc[(e + 1) % 4]; const steps = 8;
-          for (let k = 0; k < steps; k += 2) {
-            const p1 = { x: a.x + (b.x - a.x) * k / steps, y: a.y + (b.y - a.y) * k / steps };
-            const p2 = { x: a.x + (b.x - a.x) * (k + 1) / steps, y: a.y + (b.y - a.y) * (k + 1) / steps };
-            fence.moveTo(p1.x, p1.y).lineTo(p2.x, p2.y);
-          } }
-        fence.stroke({ width: 2, color: 0xd9a441, alpha: 0.8 });
-        const part = new Graphics(); world.addChild(part);
-        const doorLW = { x: Lp.x, y: Lp.y + 20 }, doorRW = { x: Rp.x, y: Rp.y + 20 };
-        cellRef.current = {
-          armId: armItem.did, leftId: cncItems[0].did, rightId: cncItems[1].did,
-          armArt: st[2].art, fence, part, leftDoorW: doorLW, rightDoorW: doorRW,
-          doorL: { x: doorLW.x - Ap.x, y: doorLW.y - Ap.y },
-          doorR: { x: doorRW.x - Ap.x, y: doorRW.y - Ap.y },
-          home: { x: 0, y: -70 },
-        };
-        flowRef.current = null;
-        // 圍籬四角(菱形)+ 兩名作業員
-        const peopleLayer = new Container(); world.addChild(peopleLayer);
-        const SHIRTS = [0x8fa85a, 0xc8a06a, 0xc07a3a];
-        const people: { g: Graphics; pts: Pt[]; t: number; speed: number; color: number; work: boolean }[] = [];
-        [Lp, Rp].forEach((p, i) => { const g = new Graphics(); peopleLayer.addChild(g);
-          people.push({ g, pts: [{ x: p.x - 24, y: p.y + 16 }, { x: p.x - 24, y: p.y + 16 }], t: i * 0.7, speed: 0, color: SHIRTS[i], work: true }); });
-        peopleRef.current = people;
-        return;
-      }
-
-      // 設備站
-      const stations: Station[] = [];
-      const machines: { id: string; output: Pt }[] = [];
-      const armGX = 2.2;                                              // 搬運手臂(橋接機台與輸送帶)位置
-      const armPos = fiso(armGX, FH - 2.6);
-      let topCol = 0;
-      items.forEach((it) => {
-        const { did, tmpl } = it;
-        const isPicker = picker && it === picker;
-        const pos = isPicker ? armPos : fiso(2.5 + topCol * 3, 2.6);
-        if (!isPicker) topCol++;
-        const cont = new Container(); cont.x = pos.x; cont.y = pos.y;
-        cont.eventMode = "static"; cont.cursor = "pointer"; cont.on("pointertap", () => onSelectRef.current(did));
-        const ring = new Graphics(); cont.addChild(ring);
-        const art = new Graphics(); cont.addChild(art);
-        const lab = new Text({ text: did, style: { fill: 0xd7c9a8, fontSize: 11, fontFamily: "Noto Sans TC" } });
-        lab.anchor.set(0.5, 0); lab.y = 34; cont.addChild(lab);
-        (cont as any)._track = { a: fiso(2, 1), b: fiso(FW - 2, 1), c: fiso(FW - 2, FH - 3), d: fiso(2, FH - 3) }; // AGV 軌跡
-        world.addChild(cont);
-        stations.push({ id: did, template: tmpl, container: cont, art, ring });
-        if (PRODUCING.has(tmpl)) machines.push({ id: did, output: { x: pos.x, y: pos.y + 30 } });
-      });
-      stationsRef.current = stations;
-
-      flowRef.current = {
-        beltA: bA, beltB: bB,
-        pickup: fiso(armGX, FH - 4.0),     // 手臂上方:工件送達夾取點
-        drop: fiso(armGX, FH - 1.6),       // 手臂下方:放上輸送帶
-        machines,
-        pickerId: picker ? picker.did : null,
-        parts: [], layer: partsLayer,
-        lastFeed: 0, feedInterval: 2.6, dropCycle: -1,
-      };
-
-      // 廠內人員:沿走道巡走 + 機台旁作業(純視覺,animT 驅動)
-      const peopleLayer = new Container(); world.addChild(peopleLayer);
-      const SHIRTS = [0x8fa85a, 0xc8a06a, 0xc07a3a, 0xc0785a, 0xb08a6a];
-      const aisle = [fiso(1.6, FH - 2.3), fiso(FW - 1.6, FH - 2.3), fiso(FW - 1.6, 1.4), fiso(1.6, 1.4)];
-      const people: { g: Graphics; pts: Pt[]; t: number; speed: number; color: number; work: boolean }[] = [];
-      for (let i = 0; i < 3; i++) {       // 巡走的人(沿走道矩形)
-        const g = new Graphics(); peopleLayer.addChild(g);
-        people.push({ g, pts: aisle, t: i * 1.33, speed: 0.5 + i * 0.12, color: SHIRTS[i % SHIRTS.length], work: false });
-      }
-      stations.slice(0, 2).forEach((st, i) => {   // 站在前兩台設備旁「作業」的人
-        const g = new Graphics(); peopleLayer.addChild(g);
-        const here = { x: st.container.x - 22, y: st.container.y + 14 };
-        people.push({ g, pts: [here, here], t: i * 0.7, speed: 0, color: SHIRTS[(i + 2) % SHIRTS.length], work: true });
-      });
-      peopleRef.current = people;
-    }
-
-    function drawPerson(g: Graphics, x: number, y: number, color: number, bob: number, arm: number) {
-      g.ellipse(x, y + 2, 5, 2.2).fill({ color: 0x000000, alpha: 0.22 });        // 影
-      g.roundRect(x - 3, y - 11 + bob, 6, 11, 2).fill(color);                    // 身體
-      g.moveTo(x - 3, y - 8 + bob).lineTo(x - 6, y - 8 + bob + arm).stroke({ width: 2, color, cap: "round" }); // 手臂
-      g.moveTo(x + 3, y - 8 + bob).lineTo(x + 6, y - 8 + bob - arm).stroke({ width: 2, color, cap: "round" });
-      g.circle(x, y - 14 + bob, 3).fill(0xe7c9a8).stroke({ width: 0.8, color: 0x8a6b4a }); // 頭
-    }
-
-    function tickInterior(animT: number, dt: number) {
-      const tel = telRef.current;
-      const bd: any = beltRef.current;
-      if (bd && bd._a) {
-        bd.clear(); const a = bd._a, b = bd._b, off = (animT * 0.4) % 1;
-        for (let i = 0; i < 16; i++) { const f = (i + off) / 16, x = a.x + (b.x - a.x) * f, y = a.y + (b.y - a.y) * f;
-          bd.rect(x - 2, y - 7, 4, 14).fill({ color: 0xb8a884 }); }
-      }
-      updateFlow(animT, dt);
-      for (const st of stationsRef.current) {
-        const snap = tel?.devices[st.id]; const t = snap?.tags || {}; const state = snap?.state || "idle";
-        const running = state === "running" || state === "moving";
-        const isPred = predictedRef.current.has(st.id) && state !== "fault";
-        const col = isPred ? 0xd47a3f : colorOf(state);
-        st.ring.clear();
-        const selW = st.id === selectedRef.current ? 3 : 1.5;
-        st.ring.ellipse(0, 26, 28, 13).fill({ color: col, alpha: 0.12 }).stroke({ width: selW, color: col });
-        if (state === "fault") { const p = 0.5 + 0.5 * Math.sin(animT * 6); st.ring.ellipse(0, 26, 32 + p * 6, 15 + p * 3).stroke({ width: 1.5, color: 0xc85a4a }); }
-        st.art.clear(); st.art.position.set(0, 0);
-        const cell = cellRef.current;
-        if (cell && st.id === cell.armId) {
-          // 手臂由 drawTendingCell 畫進 st.art(不走 generic drawStation)
-        } else {
-          if (st.template === "agv_mobile_robot") {
-            // 慢速沿固定矩形軌跡
-            const tr = (st.container as any)._track;
-            if (tr) { const segs = [tr.a, tr.b, tr.c, tr.d]; const peri = 4; const pp = (animT * 0.08) % 1 * peri;
-              const i0 = Math.floor(pp), f = pp - i0; const A = segs[i0], B = segs[(i0 + 1) % 4];
-              st.container.x += ((A.x + (B.x - A.x) * f) - st.container.x) * 0.1;
-              st.container.y += ((A.y + (B.y - A.y) * f) - st.container.y) * 0.1; }
-          }
-          drawStation(st.art, st.template, t, running, animT, col, state === "fault");
-        }
-      }
-      if (cellRef.current) drawTendingCell(animT);
-      // 廠內人員:巡走的沿走道矩形移動;作業的站定做手部動作
-      for (const pr of peopleRef.current) {
-        pr.g.clear();
-        if (pr.work) {
-          const here = pr.pts[0];
-          drawPerson(pr.g, here.x, here.y, pr.color, 0, 2.5 * Math.sin(animT * 3 + pr.t));
-        } else {
-          pr.t += dt * pr.speed * 0.25;
-          const P = pr.pts.length, pp = ((pr.t % P) + P) % P;
-          const i0 = Math.floor(pp), f = pp - i0;
-          const A = pr.pts[i0], B = pr.pts[(i0 + 1) % P];
-          drawPerson(pr.g, A.x + (B.x - A.x) * f, A.y + (B.y - A.y) * f, pr.color, Math.sin(pr.t * 9) * 1.1, 1.2 * Math.sin(pr.t * 9));
-        }
-      }
-      smoke(animT, dt);
-    }
-
-    // 雙機上下料:手臂在兩 CNC 間夾持搬運工件的完整節拍(2 連桿 IK,移植原型 drawCell)
-    function drawTendingCell(animT: number) {
-      const cell = cellRef.current; if (!cell) return;
-      const ss = (a: number, b: number, x: number) => { let u = (x - a) / (b - a); u = u < 0 ? 0 : u > 1 ? 1 : u; return u * u * (3 - 2 * u); };
-      const lp = (A: Pt, B: Pt, u: number): Pt => ({ x: A.x + (B.x - A.x) * u, y: A.y + (B.y - A.y) * u });
-      const phase = (animT * 0.14) % 1;
-      const H = cell.home, L = cell.doorL, R = cell.doorR;
-      let T: Pt;                                   // 手臂末端目標(相對 armBase 局部座標)
-      if (phase < 0.30) T = lp(H, L, ss(0, 0.30, phase));              // home → 左機門口
-      else if (phase < 0.38) T = L;                                    // 夾取
-      else if (phase < 0.68) { const u = ss(0.38, 0.68, phase); const p = lp(L, R, u); T = { x: p.x, y: p.y - Math.sin(u * Math.PI) * 44 }; }  // 弧線搬到右機
-      else if (phase < 0.78) T = R;                                    // 放入
-      else T = lp(R, H, ss(0.78, 1, phase));                           // 縮回 home
-      const carrying = phase > 0.36 && phase < 0.70;
-      const leftReady = phase < 0.34;
-
-      // ── 手臂 IK(畫進手臂站的 art,原點=armBase)──
-      const g = cell.armArt; g.clear();
-      const pivot = { x: 0, y: -14 };
-      g.ellipse(0, -6, 15, 7).fill(0xb09a78);       // 底座
-      const { joint, end } = solveArm(pivot.x, pivot.y, T.x, T.y, 50, 42);
-      g.moveTo(pivot.x, pivot.y).lineTo(joint.x, joint.y).lineTo(end.x, end.y).stroke({ width: 12, color: 0xd8c6a8, cap: "round" }); // 外框
-      g.moveTo(pivot.x, pivot.y).lineTo(joint.x, joint.y).stroke({ width: 9, color: 0xd47a3f, cap: "round" });   // 大臂橘
-      g.moveTo(joint.x, joint.y).lineTo(end.x, end.y).stroke({ width: 6, color: 0xc9b795, cap: "round" });       // 小臂銀
-      [pivot, joint].forEach((j) => g.circle(j.x, j.y, 5).fill(0xb5622e).stroke({ width: 1, color: 0x9a8464 }));
-      const gw = carrying ? 4 : 8;                  // 夾爪開合
-      g.moveTo(end.x - gw, end.y - 6).lineTo(end.x - gw, end.y + 6).moveTo(end.x + gw, end.y - 6).lineTo(end.x + gw, end.y + 6).stroke({ width: 3, color: 0xc9b795, cap: "round" });
-      if (carrying) g.roundRect(end.x - 6, end.y - 5, 12, 12, 2).fill(0xd9a441).stroke({ width: 1, color: 0x8a6b2e });  // 手上工件
-
-      // ── 待取工件:在左機門口等手臂來夾(帶橘光)──
-      const part = cell.part; part.clear();
-      if (leftReady) { const d = cell.leftDoorW;
-        part.circle(d.x, d.y - 6, 11).fill({ color: 0xd47a3f, alpha: 0.25 });
-        part.roundRect(d.x - 7, d.y - 14, 14, 14, 2).fill(0xd9a441).stroke({ width: 1, color: 0x8a6b2e }); }
-    }
-
-    function updateFlow(animT: number, dt: number) {
-      const flow = flowRef.current; if (!flow) return; const tel = telRef.current;
-      const hasArm = !!flow.pickerId;
-      // 機台輸出工件(僅運轉中的機台會出件)
-      if (flow.machines.length && animT - flow.lastFeed >= flow.feedInterval) {
-        flow.lastFeed = animT;
-        for (const m of flow.machines) {
-          const stt = tel?.devices[m.id]?.state;
-          if (stt && stt !== "running") continue;
-          const g = new Graphics(); flow.layer.addChild(g);
-          const pts: Pt[] = hasArm ? [m.output, flow.pickup] : [m.output, flow.beltA, flow.beltB];
-          flow.parts.push({ g, pts, seg: 0, t: 0, speed: hasArm ? 40 : 34, kind: hasArm ? "feed" : "belt" });
-        }
-      }
-      // 搬運手臂每個循環在放件相位於輸送帶生出一個工件(隨帶外送)
-      if (hasArm && flow.machines.length) {
-        const cyc = Math.floor(animT / ARM_CYCLE);
-        if (flow.dropCycle < 0) flow.dropCycle = cyc;
-        else if (cyc > flow.dropCycle) {
-          flow.dropCycle = cyc;
-          const g = new Graphics(); flow.layer.addChild(g);
-          flow.parts.push({ g, pts: [flow.drop, flow.beltB], seg: 0, t: 0, speed: 30, kind: "belt" });
-        }
-      }
-      for (const pt of flow.parts) {
-        const a = pt.pts[pt.seg], b = pt.pts[pt.seg + 1];
-        const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
-        pt.t += (pt.speed * dt) / len;
-        if (pt.t >= 1) { pt.t = 0; pt.seg++; if (pt.seg >= pt.pts.length - 1) pt.done = true; }
-        const aa = pt.pts[Math.min(pt.seg, pt.pts.length - 1)], bb = pt.pts[Math.min(pt.seg + 1, pt.pts.length - 1)];
-        const x = aa.x + (bb.x - aa.x) * pt.t, y = aa.y + (bb.y - aa.y) * pt.t;
-        pt.g.clear();
-        pt.g.roundRect(x - 7, y - 7, 14, 12, 2).fill(0xd9a441).stroke({ width: 1, color: 0x9a7b42 });
-        pt.g.rect(x - 7, y - 7, 14, 3).fill({ color: 0xf0c674, alpha: 0.7 });
-      }
-      for (let i = flow.parts.length - 1; i >= 0; i--)
-        if (flow.parts[i].done) { flow.parts[i].g.destroy(); flow.parts.splice(i, 1); }
-    }
-
     function smoke(animT: number, dt: number) {
       const fxc = fxRef.current; if (!fxc) return;
       if (!focus && Math.sin(animT * 9) > 0.6) for (const ch of chimneysRef.current) if (Math.random() < 0.4) {
@@ -541,10 +268,10 @@ export default function WorldView({
     const onResize = () => { if (ready && app.renderer) { app.renderer.resize(host.clientWidth || 800, host.clientHeight || 600); recenter(); } };
     window.addEventListener("resize", onResize);
     return () => { cancelled = true; window.removeEventListener("resize", onResize);
-      lightsRef.current = {}; devicesRef.current = {}; stationsRef.current = []; chimneysRef.current = []; smokeRef.current = []; peopleRef.current = [];
-      worldRef.current = null; appRef.current = null; fxRef.current = null; beltRef.current = null; flowRef.current = null; cellRef.current = null;
+      lightsRef.current = {}; devicesRef.current = {}; chimneysRef.current = []; smokeRef.current = [];
+      worldRef.current = null; appRef.current = null; fxRef.current = null;
       if (ready) safeDestroy(); };
-  }, [park, focus]);
+  }, [park]);
 
   useEffect(() => { update(); }, [telemetry, selected, predicted, focus]);
 
@@ -578,19 +305,60 @@ export default function WorldView({
           <div className="mono" style={{ color: "var(--muted)", fontSize: 11 }}>設備:{(tip.c.device_ids || []).join("、")}</div>
         </div>
       )}
+      {/* 廠內 3D 動畫 - 保持掛載以避免 WebGL Context Lost，僅透過 CSS 顯示/隱藏 */}
+      <div style={{ position: "absolute", inset: 0, zIndex: 1, pointerEvents: fc ? "auto" : "none", opacity: fc ? 1 : 0, visibility: fc ? "visible" : "hidden", transition: "opacity 0.3s, visibility 0.3s" }}>
+        <FactoryLine3D 
+          devices={fc ? fc.device_ids.map(did => ({ id: did, template: telemetry?.devices[did]?.template || "unknown" })) : []}
+          snapshots={telemetry?.devices || {}}
+          onDeviceClick={onSelect}
+        />
+      </div>
+
       {/* 廠內標題 + 返回 + 公司介紹 */}
       {fc && (
         <>
-          <div style={{ position: "absolute", top: 12, left: 14, display: "flex", gap: 12, alignItems: "center" }}>
-            <button className="btn ghost" onClick={() => setFocus(null)}>← 返回俯瞰</button>
-            <span style={{ color: "var(--text-2)", fontWeight: 600 }}>🏭 {fc.name} · 廠內即時</span>
+          <div style={{ position: "absolute", top: 12, left: 14, display: "flex", gap: 12, alignItems: "center", zIndex: 10 }}>
+            <button className="btn ghost" style={{ background: "rgba(255,255,255,0.8)" }} onClick={() => setFocus(null)}>← 返回俯瞰</button>
+            <span style={{ color: "white", fontWeight: 600, textShadow: "0px 1px 3px rgba(0,0,0,0.8)" }}>🏭 {fc.name} · 廠內即時</span>
           </div>
-          <div className="card float" style={{ position: "absolute", top: 58, left: 16, width: 300, padding: "14px 16px" }}>
+          <div className="card float" style={{ position: "absolute", top: 58, right: 16, width: 300, padding: "14px 16px", zIndex: 10 }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>{fc.name}</div>
             {fc.product && <div style={{ color: "var(--accent)", fontSize: 12.5, margin: "6px 0" }}>主要產品:{fc.product}</div>}
             {fc.intro && <div style={{ color: "var(--text-2)", fontSize: 12.5, lineHeight: 1.6 }}>{fc.intro}</div>}
             <div className="mono" style={{ color: "var(--muted)", fontSize: 11, marginTop: 8 }}>廠內設備:{(fc.device_ids || []).join("、")}</div>
             <div style={{ color: "var(--pred)", fontSize: 11, marginTop: 6 }}>⚠ 合成數據,非真實產線</div>
+            
+            {/* 廠內全部設備控制 (教師權限) */}
+            {isTeacher && (
+              <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
+                <div style={{ fontFamily: "var(--font-serif)", fontSize: 11, letterSpacing: ".4px", color: "var(--dim)", marginBottom: 10, fontWeight: 600 }}>廠內設備控制 (教師權限)</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {fc.device_ids.map(did => {
+                    const snap = telemetry?.devices[did];
+                    const runEnabled = snap?.coils?.run_enable !== false;
+                    return (
+                      <div key={did} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                        <span className="mono" style={{ fontSize: 12, color: "var(--text)" }}>{did}</span>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button className="btn" style={{ background: runEnabled ? "var(--warn)" : "var(--ok)", color: "#fffaf0", padding: "4px 8px", fontSize: 11, borderRadius: 4, border: "none", cursor: "pointer", fontWeight: "bold" }}
+                            onClick={async () => {
+                              try { await setCoil(did, "run_enable", !runEnabled); setResetMsg(`已寫 run_enable=${!runEnabled}:${did}`); }
+                              catch (e: any) { setResetMsg(`寫入失敗:${e.message}`); }
+                            }}>{runEnabled ? "⏸" : "▶"}</button>
+                          <button className="btn" style={{ background: "var(--ok)", color: "#fffaf0", padding: "4px 8px", fontSize: 11, borderRadius: 4, border: "none", cursor: "pointer", fontWeight: "bold" }}
+                            onClick={async () => {
+                              try { await setCoil(did, "reset_fault", true); setResetMsg(`已重置:${did}`); }
+                              catch { try { await resetDevice(did); setResetMsg(`已清故障:${did}`); }
+                                      catch (e2: any) { setResetMsg(`失敗:${e2.message}`); } }
+                            }}>↺</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {resetMsg && <div style={{ color: "var(--accent)", fontSize: 11, marginTop: 8 }}>{resetMsg}</div>}
+              </div>
+            )}
           </div>
         </>
       )}

@@ -1,231 +1,420 @@
-# 勤益智慧工業區 —— 取材自台中工業區 / 精密機械聚落代表廠商(23 間公司、~51 台設備)。
-#
-# ⚠ 公司名稱與「主要產品」為公開資訊;本園區的設備、數據、運轉狀態全為合成(synthetic),
-#   並非任何公司的真實產線或量測值,僅供教學。
-#
-# 設備只需寫 id + template:協定定址(unit_id / node / topic)由引擎自動遞增配,
-# 退化參數未指定時用 template 預設並做個體差異抖動(見 engine/templates/_common.py)。
 park:
-  name: "勤益智慧工業區(台中精密機械主題)"
+  name: 國立勤益科技大學 智慧自動化工程園區
   sim:
-    tick_hz: 2                 # 引擎每秒步進 2 次,每步 = 1 模擬分鐘(退化積分維持細緻度)
-    time_multiplier: 120       # 1 真實秒 = 2 模擬分鐘
-    broadcast_interval_s: 5    # telemetry / 資料每 5 真實秒才推一次 = 一次跳 10 模擬分鐘(畫面平靜;動畫走前端 ticker 仍滑順)
-  # MES(製造執行系統,Phase 1):離散製造設備「有工單才運轉」,退化因此綁生產節奏。
-  # 疊在班表之上(班表決定工廠開不開工、MES 決定開工時做哪張單)。預設開啟;設 enabled: false 回到純班表。
-  mes: {enabled: true}
+    tick_hz: 2
+    time_multiplier: 120
+    broadcast_interval_s: 5
+  mes:
+    enabled: true
   protocol_mode: channel_mux
-  ports: {modbus: 6020, opcua: 6041, mqtt: 6083}   # 預設;.env 可覆寫(統一 6xxx 區)
-
+  ports:
+    modbus: 6020
+    opcua: 6041
+    mqtt: 6083
   companies:
-    - id: c01
-      name: "台中精機"
-      industry: machine_tool
-      product: "CNC 車床、加工中心、塑膠射出成型機"
-      intro: "成立於 1954 年,華人圈精密機械指標品牌之一;產品橫跨工具機與塑膠射出機,2019 年於台中精密機械園區啟用全球營運總部。"
-      devices:
-        - {id: cnc-01, template: cnc_machining_center}
-        - {id: im-01, template: injection_molding}
-
-    - id: c02
-      name: "友嘉實業"
-      industry: machine_tool
-      product: "綜合加工中心、車削中心"
-      intro: "友嘉集團(FFG)以併購擴張,為全球前列工具機集團,台灣工具機業少數年營收破 500 億元者。"
-      devices:
-        - {id: cnc-02, template: cnc_machining_center}
-        - {id: cnc-03, template: cnc_machining_center, duty_cycle: {profile: two_shift}}
-
-    - id: c03
-      name: "東台精機"
-      industry: machine_tool
-      product: "CNC 加工機、放電加工機、航太加工"
-      intro: "東台集團(Tongtai),工具機與放電加工大廠,跨足航太、能源與半導體設備。"
-      devices:
-        - {id: cnc-04, template: cnc_machining_center}
-        - {id: cnc-05, template: cnc_machining_center}
-        - {id: chamber-01, template: semi_process_chamber}   # 跨足半導體設備:製程腔體
-
-    - id: c04
-      name: "永進機械"
-      industry: machine_tool
-      product: "立式 / 臥式綜合加工中心"
-      intro: "YCM,專注高剛性綜合加工中心與五軸機,外銷全球。"
-      devices:
-        - {id: cnc-06, template: cnc_machining_center}
-        - {id: cnc-07, template: cnc_machining_center}
-
-    - id: c05
-      name: "上銀科技"
-      industry: motion_robotics
-      product: "線性滑軌、滾珠螺桿、工業機器人"
-      intro: "HIWIN,線性傳動與機器人大廠,產品為精密機械的關鍵零組件,進駐台中精密機械園區。"
-      devices:
-        - {id: arm-01, template: robot_arm_6axis}
-        - {id: arm-02, template: robot_arm_6axis}
-
-    - id: c06
-      name: "大立光電"
-      industry: optics
-      product: "手機 / 車載光學鏡頭"
-      intro: "Largan,全球領先的手機鏡頭模組廠,以高精度光學與自動化組裝著稱,進駐台中精密機械園區。"
-      devices:
-        - {id: arm-03, template: robot_arm_6axis}
-        - {id: arm-04, template: robot_arm_6axis, duty_cycle: {profile: two_shift}}
-        - {id: chamber-02, template: semi_process_chamber}   # 光學鍍膜製程腔體
-
-    - id: c07
-      name: "成霖企業"
-      industry: hardware
-      product: "水龍頭、衛浴五金(水五金)"
-      intro: "Globe Union,總部台中,全球主要水龍頭與衛浴五金製造商,旗下含多個國際衛浴品牌。"
-      devices:
-        - {id: cnc-08, template: cnc_machining_center}
-        - {id: arm-05, template: robot_arm_6axis}
-        - {id: press-01, template: stamping_press}   # 水五金鈑金沖壓
-
-    - id: c08
-      name: "全立發機械"
-      industry: plastics
-      product: "塑膠射出成型機"
-      intro: "Multiplas,台中潭子,專業塑膠射出成型機製造,含多模 / 立式 / 包覆射出機種。"
-      devices:
-        - {id: im-02, template: injection_molding}
-        - {id: im-03, template: injection_molding}
-
-    - id: c09
-      name: "高明精機"
-      industry: machine_tool
-      product: "精密平面磨床、龍門加工機"
-      intro: "Kaoming,平面磨床與大型龍門加工機製造商。"
-      devices:
-        - {id: cnc-09, template: cnc_machining_center}
-        - {id: cnc-10, template: cnc_machining_center}
-        - {id: furnace-01, template: heat_treat_furnace}   # 精密件熱處理爐
-
-    - id: c10
-      name: "麗偉電腦機械"
-      industry: machine_tool
-      product: "CNC 綜合加工機、車床"
-      intro: "Leadwell,綜合加工中心與車床製造商,外銷導向。"
-      devices:
-        - {id: cnc-11, template: cnc_machining_center}
-        - {id: cnc-12, template: cnc_machining_center}
-
-    - id: c11
-      name: "慶鴻機電"
-      industry: machine_tool
-      product: "線切割 / 細孔放電加工機"
-      intro: "CHMER,放電加工(EDM)與線切割機大廠。"
-      devices:
-        - {id: cnc-13, template: cnc_machining_center}
-        - {id: cnc-14, template: cnc_machining_center, duty_cycle: {profile: two_shift}}
-
-    - id: c12
-      name: "喬福機械"
-      industry: machine_tool
-      product: "五面加工機、龍門加工中心"
-      intro: "Chiah Chyun,大型龍門與五面加工機製造商。"
-      devices:
-        - {id: cnc-15, template: cnc_machining_center}
-        - {id: arm-06, template: robot_arm_6axis}
-
-    - id: c13
-      name: "楊鐵工廠"
-      industry: machine_tool
-      product: "CNC 車床、車削中心"
-      intro: "Yang Iron,老牌車床製造商。"
-      devices:
-        - {id: cnc-16, template: cnc_machining_center}
-        - {id: cnc-17, template: cnc_machining_center}
-
-    - id: c14
-      name: "復盛應用科技"
-      industry: utility
-      product: "螺桿空壓機、無油式壓縮機"
-      intro: "Fusheng,空壓機與壓縮機領導品牌,廠務動力常見設備。"
-      devices:
-        - {id: comp-01, template: air_compressor}
-        - {id: comp-02, template: air_compressor}
-
-    - id: c15
-      name: "捷豹空壓機"
-      industry: utility
-      product: "活塞 / 螺桿空壓機"
-      intro: "Jaguar,中部空壓機製造商,涵蓋工業與商用機種。"
-      devices:
-        - {id: comp-03, template: air_compressor}
-        - {id: comp-04, template: air_compressor}
-
-    - id: c16
-      name: "盟立自動化"
-      industry: logistics
-      product: "AGV、自動倉儲、智慧搬運"
-      intro: "Mirle,自動化系統整合商,AGV 與自動倉儲解決方案供應者。"
-      devices:
-        - {id: agv-01, template: agv_mobile_robot}
-        - {id: agv-02, template: agv_mobile_robot}
-
-    - id: c17
-      name: "中科智慧物流中心"
-      industry: logistics
-      product: "AGV 廠內搬運、智慧物流"
-      intro: "示範性廠內物流中心,以 AGV 車隊串接各廠站料件搬運。"
-      devices:
-        - {id: agv-03, template: agv_mobile_robot}
-        - {id: agv-04, template: agv_mobile_robot}
-
-    - id: c18
-      name: "瀧澤科技"
-      industry: machine_tool
-      product: "CNC 車床"
-      intro: "Takisawa,精密 CNC 車床製造商。"
-      devices:
-        - {id: cnc-18, template: cnc_machining_center}
-        - {id: cnc-19, template: cnc_machining_center}
-
-    - id: c19
-      name: "程泰機械"
-      industry: machine_tool
-      product: "CNC 車床、車銑複合"
-      intro: "Goodway,車床與車銑複合加工機大廠。"
-      devices:
-        - {id: cnc-20, template: cnc_machining_center}
-        - {id: cnc-21, template: cnc_machining_center}
-
-    - id: c20
-      name: "亞崴機電"
-      industry: machine_tool
-      product: "大型 / 五軸綜合加工中心"
-      intro: "Awea,大型龍門與五軸加工中心製造商。"
-      devices:
-        - {id: cnc-22, template: cnc_machining_center}
-        - {id: cnc-23, template: cnc_machining_center, duty_cycle: {profile: two_shift}}
-
-    - id: c21
-      name: "哈伯精密"
-      industry: utility
-      product: "主軸油冷機、恆溫機(廠務動力)"
-      intro: "Habor,主軸油冷與精密溫控設備,工具機廠務常見動力源。"
-      devices:
-        - {id: comp-05, template: air_compressor}
-        - {id: comp-06, template: air_compressor}
-
-    - id: c22
-      name: "離岸風電示範場(假設)"
-      industry: wind_energy
-      product: "離岸風力發電機組"
-      intro: "教學假設:雖然風場不會在工業區內,本園區放入示範風機,呈現風速—功率曲線、轉子轉速與齒輪箱退化等風能 SCADA 訊號。"
-      devices:
-        - {id: wt-01, template: wind_turbine}
-        - {id: wt-02, template: wind_turbine}
-        - {id: wt-03, template: wind_turbine}
-
-    - id: c23
-      name: "台中工業區能源中心"
-      industry: utility
-      product: "園區變電 / 電能監測"
-      intro: "示範性園區動力節點:三相電表量測園區用電,呈現日 / 週負載曲線、功因與能耗,供能耗分析與異常耗電偵測題。"
-      devices:
-        - {id: em-01, template: energy_meter}
-        - {id: em-02, template: energy_meter, duty_cycle: {profile: continuous}}
+  - id: t01-f1
+    name: 彭達仁老師 第1工廠
+    industry: plastics
+    product: 綜合智慧自動化產線
+    intro: 彭達仁老師指導的智慧示範工廠。
+    devices:
+    - id: cnc-001
+      template: cnc_machining_center
+    - id: arm-001
+      template: robot_arm_6axis
+    - id: conv-001
+      template: conveyor
+  - id: t01-f2
+    name: 彭達仁老師 第2工廠
+    industry: wind_energy
+    product: 綜合智慧自動化產線
+    intro: 彭達仁老師指導的智慧示範工廠。
+    devices:
+    - id: wt-001
+      template: wind_turbine
+    - id: em-001
+      template: energy_meter
+  - id: t01-f3
+    name: 彭達仁老師 第3工廠
+    industry: wind_energy
+    product: 綜合智慧自動化產線
+    intro: 彭達仁老師指導的智慧示範工廠。
+    devices:
+    - id: press-001
+      template: stamping_press
+    - id: arm-002
+      template: robot_arm_6axis
+  - id: t02-f1
+    name: 翁偉翰老師 第1工廠
+    industry: wind_energy
+    product: 綜合智慧自動化產線
+    intro: 翁偉翰老師指導的智慧示範工廠。
+    devices:
+    - id: wt-002
+      template: wind_turbine
+    - id: em-002
+      template: energy_meter
+  - id: t02-f2
+    name: 翁偉翰老師 第2工廠
+    industry: wind_energy
+    product: 綜合智慧自動化產線
+    intro: 翁偉翰老師指導的智慧示範工廠。
+    devices:
+    - id: press-002
+      template: stamping_press
+    - id: arm-003
+      template: robot_arm_6axis
+  - id: t02-f3
+    name: 翁偉翰老師 第3工廠
+    industry: utility
+    product: 綜合智慧自動化產線
+    intro: 翁偉翰老師指導的智慧示範工廠。
+    devices:
+    - id: im-001
+      template: injection_molding
+    - id: arm-004
+      template: robot_arm_6axis
+    - id: conv-002
+      template: conveyor
+  - id: t03-f1
+    name: 劉瑞弘老師 第1工廠
+    industry: hardware
+    product: 綜合智慧自動化產線
+    intro: 劉瑞弘老師指導的智慧示範工廠。
+    devices:
+    - id: cnc-002
+      template: cnc_machining_center
+    - id: arm-005
+      template: robot_arm_6axis
+    - id: conv-003
+      template: conveyor
+  - id: t03-f2
+    name: 劉瑞弘老師 第2工廠
+    industry: utility
+    product: 綜合智慧自動化產線
+    intro: 劉瑞弘老師指導的智慧示範工廠。
+    devices:
+    - id: press-003
+      template: stamping_press
+    - id: arm-006
+      template: robot_arm_6axis
+  - id: t03-f3
+    name: 劉瑞弘老師 第3工廠
+    industry: utility
+    product: 綜合智慧自動化產線
+    intro: 劉瑞弘老師指導的智慧示範工廠。
+    devices:
+    - id: comp-001
+      template: air_compressor
+    - id: em-003
+      template: energy_meter
+  - id: t04-f1
+    name: 陳智榮老師 第1工廠
+    industry: machine_tool
+    product: 綜合智慧自動化產線
+    intro: 陳智榮老師指導的智慧示範工廠。
+    devices:
+    - id: press-004
+      template: stamping_press
+    - id: arm-007
+      template: robot_arm_6axis
+  - id: t04-f2
+    name: 陳智榮老師 第2工廠
+    industry: wind_energy
+    product: 綜合智慧自動化產線
+    intro: 陳智榮老師指導的智慧示範工廠。
+    devices:
+    - id: cnc1-003
+      template: cnc_machining_center
+    - id: cnc2-004
+      template: cnc_machining_center
+    - id: agv-001
+      template: agv_mobile_robot
+  - id: t04-f3
+    name: 陳智榮老師 第3工廠
+    industry: wind_energy
+    product: 綜合智慧自動化產線
+    intro: 陳智榮老師指導的智慧示範工廠。
+    devices:
+    - id: press-005
+      template: stamping_press
+    - id: arm-008
+      template: robot_arm_6axis
+  - id: t05-f1
+    name: 李坤穎老師 第1工廠
+    industry: wind_energy
+    product: 綜合智慧自動化產線
+    intro: 李坤穎老師指導的智慧示範工廠。
+    devices:
+    - id: wt-003
+      template: wind_turbine
+    - id: em-004
+      template: energy_meter
+  - id: t05-f2
+    name: 李坤穎老師 第2工廠
+    industry: utility
+    product: 綜合智慧自動化產線
+    intro: 李坤穎老師指導的智慧示範工廠。
+    devices:
+    - id: comp-002
+      template: air_compressor
+    - id: em-005
+      template: energy_meter
+  - id: t05-f3
+    name: 李坤穎老師 第3工廠
+    industry: wind_energy
+    product: 綜合智慧自動化產線
+    intro: 李坤穎老師指導的智慧示範工廠。
+    devices:
+    - id: wt-004
+      template: wind_turbine
+    - id: em-006
+      template: energy_meter
+  - id: t06-f1
+    name: 吳崇民老師 第1工廠
+    industry: logistics
+    product: 綜合智慧自動化產線
+    intro: 吳崇民老師指導的智慧示範工廠。
+    devices:
+    - id: cnc1-005
+      template: cnc_machining_center
+    - id: cnc2-006
+      template: cnc_machining_center
+    - id: agv-002
+      template: agv_mobile_robot
+  - id: t06-f2
+    name: 吳崇民老師 第2工廠
+    industry: wind_energy
+    product: 綜合智慧自動化產線
+    intro: 吳崇民老師指導的智慧示範工廠。
+    devices:
+    - id: cnc-007
+      template: cnc_machining_center
+    - id: arm-009
+      template: robot_arm_6axis
+    - id: conv-004
+      template: conveyor
+  - id: t06-f3
+    name: 吳崇民老師 第3工廠
+    industry: machine_tool
+    product: 綜合智慧自動化產線
+    intro: 吳崇民老師指導的智慧示範工廠。
+    devices:
+    - id: cnc-008
+      template: cnc_machining_center
+    - id: arm-010
+      template: robot_arm_6axis
+    - id: conv-005
+      template: conveyor
+  - id: t07-f1
+    name: 黃秋杰老師 第1工廠
+    industry: wind_energy
+    product: 綜合智慧自動化產線
+    intro: 黃秋杰老師指導的智慧示範工廠。
+    devices:
+    - id: wt-005
+      template: wind_turbine
+    - id: em-007
+      template: energy_meter
+  - id: t07-f2
+    name: 黃秋杰老師 第2工廠
+    industry: logistics
+    product: 綜合智慧自動化產線
+    intro: 黃秋杰老師指導的智慧示範工廠。
+    devices:
+    - id: cnc-009
+      template: cnc_machining_center
+    - id: arm-011
+      template: robot_arm_6axis
+    - id: conv-006
+      template: conveyor
+  - id: t07-f3
+    name: 黃秋杰老師 第3工廠
+    industry: hardware
+    product: 綜合智慧自動化產線
+    intro: 黃秋杰老師指導的智慧示範工廠。
+    devices:
+    - id: cnc-010
+      template: cnc_machining_center
+    - id: press-006
+      template: stamping_press
+    - id: agv-003
+      template: agv_mobile_robot
+  - id: t07-f4
+    name: 黃秋杰老師 第4工廠
+    industry: utility
+    product: 綜合智慧自動化產線
+    intro: 黃秋杰老師指導的智慧示範工廠。
+    devices:
+    - id: comp-003
+      template: air_compressor
+    - id: em-008
+      template: energy_meter
+  - id: t08-f1
+    name: 吳俊毅老師 第1工廠
+    industry: plastics
+    product: 綜合智慧自動化產線
+    intro: 吳俊毅老師指導的智慧示範工廠。
+    devices:
+    - id: cnc1-011
+      template: cnc_machining_center
+    - id: cnc2-012
+      template: cnc_machining_center
+    - id: agv-004
+      template: agv_mobile_robot
+  - id: t08-f2
+    name: 吳俊毅老師 第2工廠
+    industry: plastics
+    product: 綜合智慧自動化產線
+    intro: 吳俊毅老師指導的智慧示範工廠。
+    devices:
+    - id: press-007
+      template: stamping_press
+    - id: arm-012
+      template: robot_arm_6axis
+  - id: t08-f3
+    name: 吳俊毅老師 第3工廠
+    industry: utility
+    product: 綜合智慧自動化產線
+    intro: 吳俊毅老師指導的智慧示範工廠。
+    devices:
+    - id: im-002
+      template: injection_molding
+    - id: arm-013
+      template: robot_arm_6axis
+    - id: conv-007
+      template: conveyor
+  - id: t08-f4
+    name: 吳俊毅老師 第4工廠
+    industry: wind_energy
+    product: 綜合智慧自動化產線
+    intro: 吳俊毅老師指導的智慧示範工廠。
+    devices:
+    - id: cnc1-013
+      template: cnc_machining_center
+    - id: cnc2-014
+      template: cnc_machining_center
+    - id: agv-005
+      template: agv_mobile_robot
+  - id: t09-f1
+    name: 謝式娜老師 第1工廠
+    industry: hardware
+    product: 綜合智慧自動化產線
+    intro: 謝式娜老師指導的智慧示範工廠。
+    devices:
+    - id: press-008
+      template: stamping_press
+    - id: arm-014
+      template: robot_arm_6axis
+  - id: t09-f2
+    name: 謝式娜老師 第2工廠
+    industry: wind_energy
+    product: 綜合智慧自動化產線
+    intro: 謝式娜老師指導的智慧示範工廠。
+    devices:
+    - id: wt-006
+      template: wind_turbine
+    - id: em-009
+      template: energy_meter
+  - id: t09-f3
+    name: 謝式娜老師 第3工廠
+    industry: utility
+    product: 綜合智慧自動化產線
+    intro: 謝式娜老師指導的智慧示範工廠。
+    devices:
+    - id: im-003
+      template: injection_molding
+    - id: arm-015
+      template: robot_arm_6axis
+    - id: conv-008
+      template: conveyor
+  - id: t09-f4
+    name: 謝式娜老師 第4工廠
+    industry: utility
+    product: 綜合智慧自動化產線
+    intro: 謝式娜老師指導的智慧示範工廠。
+    devices:
+    - id: comp-004
+      template: air_compressor
+    - id: em-010
+      template: energy_meter
+  - id: t10-f1
+    name: 李榮茂老師 第1工廠
+    industry: machine_tool
+    product: 綜合智慧自動化產線
+    intro: 李榮茂老師指導的智慧示範工廠。
+    devices:
+    - id: cnc-015
+      template: cnc_machining_center
+    - id: press-009
+      template: stamping_press
+    - id: agv-006
+      template: agv_mobile_robot
+  - id: t10-f2
+    name: 李榮茂老師 第2工廠
+    industry: machine_tool
+    product: 綜合智慧自動化產線
+    intro: 李榮茂老師指導的智慧示範工廠。
+    devices:
+    - id: im-004
+      template: injection_molding
+    - id: arm-016
+      template: robot_arm_6axis
+    - id: conv-009
+      template: conveyor
+  - id: t10-f3
+    name: 李榮茂老師 第3工廠
+    industry: utility
+    product: 綜合智慧自動化產線
+    intro: 李榮茂老師指導的智慧示範工廠。
+    devices:
+    - id: comp-005
+      template: air_compressor
+    - id: em-011
+      template: energy_meter
+  - id: t11-f1
+    name: 陳鵬仁老師 第1工廠
+    industry: utility
+    product: 綜合智慧自動化產線
+    intro: 陳鵬仁老師指導的智慧示範工廠。
+    devices:
+    - id: comp-006
+      template: air_compressor
+    - id: em-012
+      template: energy_meter
+  - id: t11-f2
+    name: 陳鵬仁老師 第2工廠
+    industry: wind_energy
+    product: 綜合智慧自動化產線
+    intro: 陳鵬仁老師指導的智慧示範工廠。
+    devices:
+    - id: im-005
+      template: injection_molding
+    - id: arm-017
+      template: robot_arm_6axis
+    - id: conv-010
+      template: conveyor
+  - id: t11-f3
+    name: 陳鵬仁老師 第3工廠
+    industry: hardware
+    product: 綜合智慧自動化產線
+    intro: 陳鵬仁老師指導的智慧示範工廠。
+    devices:
+    - id: cnc1-016
+      template: cnc_machining_center
+    - id: cnc2-017
+      template: cnc_machining_center
+    - id: agv-007
+      template: agv_mobile_robot
+  - id: t11-f4
+    name: 陳鵬仁老師 第4工廠
+    industry: utility
+    product: 綜合智慧自動化產線
+    intro: 陳鵬仁老師指導的智慧示範工廠。
+    devices:
+    - id: im-006
+      template: injection_molding
+    - id: arm-018
+      template: robot_arm_6axis
+    - id: conv-011
+      template: conveyor

@@ -3,7 +3,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Box, Cylinder, Environment, ContactShadows, Text } from '@react-three/drei';
 import * as THREE from 'three';
 
-const InjectionMoldingModel = ({ state, tags }: { state: string, tags: Record<string, number> }) => {
+export const InjectionMoldingModel = ({ state, tags }: { state: string, tags: Record<string, number> }) => {
   const movingPlatenRef = useRef<THREE.Group>(null);
   const screwRef = useRef<THREE.Mesh>(null);
   const meltRef = useRef<THREE.Mesh>(null);

@@ -15,7 +15,7 @@ from ..signals import ThermalLag, gaussian_noise, health_of
 from ._common import build_components, build_tags, default_seed
 
 AMBIENT_C = 25.0
-NOM_SPEED = 1.2          # m/s
+NOM_SPEED = 0.15         # m/s (Even slower speed)
 DRAIN_PER_S = 0.0009     # 移動時 SOC 每模擬秒下降(%)
 CHARGE_PER_S = 0.004     # 充電時 SOC 每模擬秒上升(%)
 SOC_LOW = 20.0           # 低於此去充電

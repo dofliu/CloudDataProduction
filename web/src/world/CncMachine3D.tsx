@@ -147,7 +147,7 @@ function get_target_pos(progress: number, pattern: number) {
   }
 }
 
-const CNCModel = ({ state, tags }: { state: string, tags: Record<string, number> }) => {
+export const CNCModel = ({ state, tags }: { state: string, tags: Record<string, number> }) => {
   const gantryRef = useRef<THREE.Group>(null);
   const spindleHeadRef = useRef<THREE.Group>(null);
   const drillRef = useRef<THREE.Group>(null);
@@ -243,7 +243,7 @@ const CNCModel = ({ state, tags }: { state: string, tags: Record<string, number>
   });
 
   return (
-    <group>
+    <group scale={0.5}>
       <ambientLight intensity={0.4} />
       <directionalLight position={[10, 20, 10]} intensity={0.8} castShadow shadow-bias={-0.0001} />
       <pointLight position={[-10, 10, -10]} intensity={0.3} />

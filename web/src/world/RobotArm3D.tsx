@@ -3,7 +3,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Box, Cylinder, Environment, ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
 
-const RobotArmModel = ({ state, tags }: { state: string, tags: Record<string, number> }) => {
+export const RobotArmModel = ({ state, tags }: { state: string, tags: Record<string, number> }) => {
   const j1Ref = useRef<THREE.Group>(null);
   const j2Ref = useRef<THREE.Group>(null);
   const j3Ref = useRef<THREE.Group>(null);

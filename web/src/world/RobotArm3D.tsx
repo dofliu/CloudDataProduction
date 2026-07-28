@@ -46,10 +46,23 @@ function fk(j1: number, j2: number, j3: number, j5: number): [number, number, nu
 const PICK_POS = fk(KF_PICK.j1, KF_PICK.j2, KF_PICK.j3, KF_PICK.j5);
 const PLACE_POS = fk(KF_PLACE.j1, KF_PLACE.j2, KF_PLACE.j3, KF_PLACE.j5);
 
+/**
+ * 取放點(模型單位,未套外層縮放)。產線佈局要拿它把上游機台的出料側對到取件點、
+ * 把輸送帶對到放件點 —— 匯出來讓 processFlow.ts 用同一組數字,不要兩邊各寫一份。
+ * 兩點的 x 相同、差在 z(j1=∓45° 是繞基座轉),所以整支手臂轉 90° 後連線就落在主線方向。
+ */
+export const ARM_PICK_LOCAL = PICK_POS;
+export const ARM_PLACE_LOCAL = PLACE_POS;
+
 /** 在網址加 ?fkdebug=1 會畫出 fk() 算出的取放點,用來核對骨架與運動學是否一致(dev)。 */
 const FK_DEBUG = typeof location !== "undefined" && new URLSearchParams(location.search).get("fkdebug") === "1";
 
-export const RobotArmModel = ({ motion }: MachineProps) => {
+export const RobotArmModel = ({ motion, stations }: MachineProps & {
+  /** 取 / 放兩側要不要畫自己的料檯。產線視圖裡上下游是真的機台,就關掉。 */
+  stations?: { pick?: boolean; place?: boolean };
+}) => {
+  const showPick = stations?.pick ?? true;
+  const showPlace = stations?.place ?? true;
   const refs = {
     j1: useRef<THREE.Group>(null), j2: useRef<THREE.Group>(null), j3: useRef<THREE.Group>(null),
     j4: useRef<THREE.Group>(null), j5: useRef<THREE.Group>(null), j6: useRef<THREE.Group>(null),
@@ -183,8 +196,8 @@ export const RobotArmModel = ({ motion }: MachineProps) => {
         </group>
 
         {/* 取放站:位置由 fk() 在引擎 keyframe 姿態上算出,夾爪必定落在站上 */}
-        <Station pos={PICK_POS} showBox={!holding} />
-        <Station pos={PLACE_POS} showBox={!holding && side > 0} />
+        {showPick && <Station pos={PICK_POS} showBox={!holding} />}
+        {showPlace && <Station pos={PLACE_POS} showBox={!holding && side > 0} />}
         {FK_DEBUG && (
           <>
             <mesh position={PICK_POS}><sphereGeometry args={[0.18, 12, 10]} /><meshBasicMaterial color="#ff0000" /></mesh>

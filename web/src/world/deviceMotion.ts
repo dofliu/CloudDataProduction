@@ -224,6 +224,29 @@ export function scaleNote(...scales: (VisualScale | string | undefined)[]): stri
 // 反推出當下相位,再於兩次遙測之間平滑推進(相位鎖定,而不是各跑各的)。
 
 /** 與引擎 get_target_pos() 逐行對應。progress ∈ [0,1),回傳 mm。 */
+/**
+ * pattern 0 的刀路:刻「NCUT」(校名縮寫)。**必須與 engine/templates/cnc_machining_center.py
+ * 的 _ncut_strokes() 逐點相同** —— 相位鎖定(lockCncPhase)就是拿這條曲線去比對引擎回報的
+ * pos_x/y/z,兩邊不一致就鎖不上。驗證見 tests/animation §1(刀尖世界座標 ↔ pos_*,R²≈1)。
+ *
+ * 字面朝向:引擎 pos_y 對到世界 Z,而相機在 +Z 看向原點,所以世界 +Z 在畫面上是往下,
+ * 字母的「上緣」在引擎座標是 y = -60。用 +60 當上緣會畫成上下鏡像的「И Ⅽ ∩ ⊥」。
+ */
+const GY_TOP = -60, GY_BOT = 60;
+const GLYPH_W = 60, GLYPH_GAP = 40;
+const glyphX = (i: number) => -(4 * GLYPH_W + 3 * GLYPH_GAP) / 2 + i * (GLYPH_W + GLYPH_GAP);
+
+const NCUT_STROKES: number[][][] = (() => {
+  const [n, c, u, t] = [0, 1, 2, 3].map(glyphX);
+  const T = GY_TOP, B = GY_BOT, W = GLYPH_W;
+  return [
+    [[n, B], [n, T]], [[n, T], [n + W, B]], [[n + W, B], [n + W, T]],   // N
+    [[c + W, T], [c, T], [c, B], [c + W, B]],                            // C
+    [[u, T], [u, B], [u + W, B], [u + W, T]],                            // U
+    [[t, T], [t + W, T]], [[t + W / 2, T], [t + W / 2, B]],              // T
+  ];
+})();
+
 export function cncToolPath(progress: number, pattern: number): [number, number, number] {
   if (pattern === 1) {
     if (progress < 0.05 || progress > 0.95) return [0, -150, 50];
@@ -238,15 +261,7 @@ export function cncToolPath(progress: number, pattern: number): [number, number,
     if (p < 0.75) return [150 - 300 * ((p - 0.5) / 0.25), 150, -50];
     return [-150, 150 - 300 * ((p - 0.75) / 0.25), -50];
   }
-  const strokes: number[][][] = [
-    [[-220, -60], [-220, 60]],
-    [[-220, 60], [-140, -60]],
-    [[-140, -60], [-140, 60]],
-    [[-40, 60], [-100, 60], [-100, -60], [-40, -60]],
-    [[40, 60], [40, -60], [100, -60], [100, 60]],
-    [[140, 60], [220, 60]],
-    [[180, 60], [180, -60]],
-  ];
+  const strokes = NCUT_STROKES;
   const total = strokes.length;
   const segProgress = progress * total;
   const segIdx = Math.min(Math.floor(segProgress), total - 1);

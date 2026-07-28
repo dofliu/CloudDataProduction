@@ -68,8 +68,8 @@ park:
     - id: c07
       name: "光鼎光電"
       industry: optics
-      product: "手機鏡頭模組"
-      intro: "課堂教學用**合成**工廠(#07);光學元件 · 手機鏡頭模組。設備:半導體製程腔體 + CNC 加工中心。所有數據皆為模擬產生,非真實場域量測。"
+      product: "車用鏡頭元件"
+      intro: "課堂教學用**合成**工廠(#07);光學元件 · 車用鏡頭元件。設備:半導體製程腔體 + CNC 加工中心。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d009, template: semi_process_chamber}
         - {id: d010, template: cnc_machining_center}
@@ -210,8 +210,8 @@ park:
     - id: c23
       name: "宏泰動力"
       industry: facility
-      product: "廠區能源管理"
-      intro: "課堂教學用**合成**工廠(#23);廠務動力 · 廠區能源管理。設備:空壓機 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
+      product: "動力機房"
+      intro: "課堂教學用**合成**工廠(#23);廠務動力 · 動力機房。設備:空壓機 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d039, template: air_compressor}
         - {id: d040, template: energy_meter}
@@ -219,8 +219,8 @@ park:
     - id: c24
       name: "清風綠能"
       industry: green_energy
-      product: "風場運維示範"
-      intro: "課堂教學用**合成**工廠(#24);綠能發電 · 風場運維示範。設備:風力發電機。所有數據皆為模擬產生,非真實場域量測。"
+      product: "離岸風機監測示範"
+      intro: "課堂教學用**合成**工廠(#24);綠能發電 · 離岸風機監測示範。設備:風力發電機。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d041, template: wind_turbine}
 
@@ -302,8 +302,8 @@ park:
     - id: c33
       name: "智運倉儲"
       industry: logistics
-      product: "產線間物流整合"
-      intro: "課堂教學用**合成**工廠(#33);智慧物流 · 產線間物流整合。設備:AGV 搬運車 + 輸送帶 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
+      product: "廠內無人搬運"
+      intro: "課堂教學用**合成**工廠(#33);智慧物流 · 廠內無人搬運。設備:AGV 搬運車 + 輸送帶 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d061, template: agv_mobile_robot}
         - {id: d062, template: conveyor}
@@ -322,16 +322,16 @@ park:
     - id: c35
       name: "華通氣力"
       industry: facility
-      product: "廠區能源管理"
-      intro: "課堂教學用**合成**工廠(#35);廠務動力 · 廠區能源管理。設備:空壓機。所有數據皆為模擬產生,非真實場域量測。"
+      product: "動力機房"
+      intro: "課堂教學用**合成**工廠(#35);廠務動力 · 動力機房。設備:空壓機。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d067, template: air_compressor}
 
     - id: c36
       name: "藍天風電"
       industry: green_energy
-      product: "風場運維示範"
-      intro: "課堂教學用**合成**工廠(#36);綠能發電 · 風場運維示範。設備:風力發電機 + 風力發電機 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
+      product: "離岸風機監測示範"
+      intro: "課堂教學用**合成**工廠(#36);綠能發電 · 離岸風機監測示範。設備:風力發電機 + 風力發電機 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d068, template: wind_turbine}
         - {id: d069, template: wind_turbine}
@@ -395,8 +395,8 @@ park:
     - id: c43
       name: "明鏡光電"
       industry: optics
-      product: "手機鏡頭模組"
-      intro: "課堂教學用**合成**工廠(#43);光學元件 · 手機鏡頭模組。設備:CNC 加工中心 + 半導體製程腔體 + 空壓機。所有數據皆為模擬產生,非真實場域量測。"
+      product: "車用鏡頭元件"
+      intro: "課堂教學用**合成**工廠(#43);光學元件 · 車用鏡頭元件。設備:CNC 加工中心 + 半導體製程腔體 + 空壓機。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d084, template: cnc_machining_center}
         - {id: d085, template: semi_process_chamber}
@@ -414,8 +414,8 @@ park:
     - id: c45
       name: "大成動能"
       industry: facility
-      product: "動力機房"
-      intro: "課堂教學用**合成**工廠(#45);廠務動力 · 動力機房。設備:空壓機 + 空壓機 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
+      product: "壓縮空氣站"
+      intro: "課堂教學用**合成**工廠(#45);廠務動力 · 壓縮空氣站。設備:空壓機 + 空壓機 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d089, template: air_compressor}
         - {id: d090, template: air_compressor}
@@ -523,8 +523,8 @@ park:
     - id: c57
       name: "展翼綠電"
       industry: green_energy
-      product: "風場運維示範"
-      intro: "課堂教學用**合成**工廠(#57);綠能發電 · 風場運維示範。設備:風力發電機 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
+      product: "小型風力發電"
+      intro: "課堂教學用**合成**工廠(#57);綠能發電 · 小型風力發電。設備:風力發電機 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d114, template: wind_turbine}
         - {id: d115, template: energy_meter}
@@ -542,8 +542,8 @@ park:
     - id: c59
       name: "清源氣站"
       industry: facility
-      product: "廠區能源管理"
-      intro: "課堂教學用**合成**工廠(#59);廠務動力 · 廠區能源管理。設備:空壓機 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
+      product: "動力機房"
+      intro: "課堂教學用**合成**工廠(#59);廠務動力 · 動力機房。設備:空壓機 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d119, template: air_compressor}
         - {id: d120, template: energy_meter}
@@ -551,8 +551,8 @@ park:
     - id: c60
       name: "澄光學儀"
       industry: optics
-      product: "車用鏡頭元件"
-      intro: "課堂教學用**合成**工廠(#60);光學元件 · 車用鏡頭元件。設備:半導體製程腔體 + CNC 加工中心。所有數據皆為模擬產生,非真實場域量測。"
+      product: "光學檢測治具"
+      intro: "課堂教學用**合成**工廠(#60);光學元件 · 光學檢測治具。設備:半導體製程腔體 + CNC 加工中心。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d121, template: semi_process_chamber}
         - {id: d122, template: cnc_machining_center}
@@ -587,8 +587,8 @@ park:
     - id: c64
       name: "環宇智慧工廠"
       industry: logistics
-      product: "廠內無人搬運"
-      intro: "課堂教學用**合成**工廠(#64);智慧物流 · 廠內無人搬運。設備:AGV 搬運車 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
+      product: "成品出貨緩衝區"
+      intro: "課堂教學用**合成**工廠(#64);智慧物流 · 成品出貨緩衝區。設備:AGV 搬運車 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d129, template: agv_mobile_robot}
         - {id: d130, template: conveyor}

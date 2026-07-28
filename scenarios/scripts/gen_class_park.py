@@ -109,7 +109,7 @@ ARCHETYPES = {
     },
     "logistics": {
         "label": "智慧物流",
-        "products": ["廠內無人搬運", "自動倉儲揀貨", "產線間物流整合"],
+        "products": ["廠內無人搬運", "自動倉儲揀貨", "產線間物流整合", "成品出貨緩衝區"],
         "recipes": [
             ["agv_mobile_robot", "conveyor"],
             ["agv_mobile_robot", "conveyor", "energy_meter"],
@@ -118,7 +118,7 @@ ARCHETYPES = {
     },
     "green_energy": {
         "label": "綠能發電",
-        "products": ["小型風力發電", "廠區自發自用綠電", "風場運維示範"],
+        "products": ["小型風力發電", "廠區自發自用綠電", "風場運維示範", "離岸風機監測示範"],
         "recipes": [
             ["wind_turbine", "energy_meter"],
             ["wind_turbine"],
@@ -127,7 +127,7 @@ ARCHETYPES = {
     },
     "facility": {
         "label": "廠務動力",
-        "products": ["壓縮空氣站", "廠區能源管理", "動力機房"],
+        "products": ["壓縮空氣站", "廠區能源管理", "動力機房", "廠務用電需量管理"],
         "recipes": [
             ["air_compressor", "energy_meter"],
             ["air_compressor"],
@@ -136,7 +136,7 @@ ARCHETYPES = {
     },
     "optics": {
         "label": "光學元件",
-        "products": ["手機鏡頭模組", "光學鍍膜", "車用鏡頭元件"],
+        "products": ["手機鏡頭模組", "光學鍍膜", "車用鏡頭元件", "光學檢測治具"],
         "recipes": [
             ["semi_process_chamber", "cnc_machining_center"],      # 鍍膜腔 + 精密加工
             ["semi_process_chamber", "energy_meter"],

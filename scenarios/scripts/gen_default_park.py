@@ -6,6 +6,7 @@
 原本的問題:
   · `industry` 亂標 —— 沖壓機工廠掛 `wind_energy`、射出廠掛 `utility`。
   · `product` 37 間全部都是「綜合智慧自動化產線」,等於沒有內容。
+  · 廠名是「{老師} 第 N 工廠」,看不出這條線在做什麼。
   · 設備組合只有 7 種 / 37 間,而且完全沒有 semi_process_chamber 與 heat_treat_furnace。
 
 用法:
@@ -56,7 +57,9 @@ def build() -> list[dict]:
                 devices.append({"id": f"{tid}-d{dev_no:03d}", "template": tmpl})
             companies.append({
                 "id": f"{tid}-f{f}",
-                "name": f"{teacher} 第{f}工廠",
+                # 廠名要說得出這條線在做什麼(而不是「第 N 工廠」),老師掛在後面當負責人。
+                # 每位老師一個主題、廠內產品各不相同,所以廠名天然唯一。
+                "name": f"{product}廠({teacher}負責)",
                 "industry": theme,
                 "product": product,
                 "intro": INTRO.format(teacher=teacher, label=arch["label"], product=product,
@@ -64,6 +67,18 @@ def build() -> list[dict]:
                 "devices": devices,
             })
     return companies
+
+
+def _assert_unique_names(companies: list[dict]) -> None:
+    """廠名撞名要在產生時就爆,不要等到場景驗證才發現。
+
+    撞名的原因通常是:某位老師的工廠數 > 該產業的產品數,`products[(f-1) % n]` 繞回去
+    重複。補產品或減工廠數都可以,但不能默默產出兩間同名的廠。
+    """
+    from collections import Counter
+    dup = [n for n, c in Counter(x["name"] for x in companies).items() if c > 1]
+    if dup:
+        raise SystemExit(f"廠名重複:{dup} —— 對應產業的 products 數量不夠,請補足")
 
 
 def to_yaml(companies: list[dict]) -> str:
@@ -103,6 +118,7 @@ def to_yaml(companies: list[dict]) -> str:
 
 def main() -> None:
     companies = build()
+    _assert_unique_names(companies)
     devices = [d for c in companies for d in c["devices"]]
     combos = {tuple(sorted(d["template"] for d in c["devices"])) for c in companies}
     used = {d["template"] for d in devices}

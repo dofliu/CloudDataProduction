@@ -20,6 +20,7 @@
 import { createRequire } from "module";
 import { fileURLToPath } from "url";
 import path from "path";
+import fs from "fs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const { chromium } = createRequire(path.join(HERE, "../../web/package.json"))("playwright");
@@ -82,13 +83,34 @@ function checkLinear(name, tagVals, probeVals, expectSlope, unit,
 }
 
 // ── 瀏覽器 ────────────────────────────────────────────────
-const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
+/**
+ * Chromium 位置:CI(GitHub Actions)用 playwright 自己裝的那份,本機開發環境
+ * 則有預先安裝在 /opt/pw-browsers/chromium。用環境變數覆寫,兩邊都能跑。
+ *   PLAYWRIGHT_CHROMIUM=<path>  指定;留空 = 交給 playwright 自己找。
+ */
+function launchOpts() {
+  const exe = process.env.PLAYWRIGHT_CHROMIUM
+    ?? (fs.existsSync("/opt/pw-browsers/chromium") ? "/opt/pw-browsers/chromium" : undefined);
+  return exe ? { executablePath: exe } : {};
+}
+
+/**
+ * 要不要把這則 console error 當成失敗。
+ * 只放行一種:瀏覽器自動去要 /favicon.ico 而預覽頁沒有提供 —— 與被測的 3D 層無關。
+ * 其他一律視為失敗,離線資源(CDN 字型 / HDR)回歸才擋得住。
+ */
+function isIgnorableConsoleError(msg) {
+  const url = msg.location?.()?.url ?? "";
+  return url.endsWith("/favicon.ico");
+}
+
+const browser = await chromium.launch(launchOpts());
 // 這個環境是軟體渲染(SwiftShader),畫面越大越慢。驗證只讀場景座標、不看畫面,
 // 所以用小視窗把 fps 拉上來 —— 低 fps 會讓補間量到的是過渡值而不是穩態。
 const page = await browser.newPage({ viewport: { width: 380, height: 280 } });
 const pageErrors = [];
 page.on("pageerror", (e) => pageErrors.push(String(e)));
-page.on("console", (m) => { if (m.type() === "error") pageErrors.push(m.text()); });
+page.on("console", (m) => { if (m.type() === "error" && !isIgnorableConsoleError(m)) pageErrors.push(m.text()); });
 
 /** 輪詢到指定探針的世界座標穩定為止,回傳最後一次讀值。 */
 async function settle(probeNames, tol = 2e-4) {

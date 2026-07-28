@@ -136,9 +136,50 @@ function Cell({ c }: { c: Case }) {
  * 一次只掛一個 Canvas —— 瀏覽器的 WebGL context 上限約 16 個,全部一起開會被回收、
  * 畫面變黑。用 ?i=<index> 逐台看,?all=1 才一次全開(僅供快速掃視,可能超上限)。
  */
-/** 廠內產線視圖:一個 Canvas 擺多台,驗收共用燈光 / 縮放 / 標籤。 */
+/**
+ * 廠內產線視圖:驗收製程佈局(上游 → 手臂 → 出料)、共用燈光 / 縮放 / 標籤。
+ * `?line=<key>` 選組合,對應真實場景裡會出現的配方。
+ */
+const LINE_COMBOS: Record<string, number[]> = {
+  // CNC 加工 → 手臂取件 → 輸送帶出料(machine_tool / precision_parts 的配方)
+  cnc: [0, 2, 6],
+  // 射出成型 → 手臂取件 → 輸送帶(plastics 的配方,對應使用者截圖 3)
+  inj: [10, 2, 6],
+  // 沖壓 → 手臂取件(metal_forming)
+  press: [8, 2],
+  // 單機 + 廠務:不該畫料道,廠務要退到後排
+  solo: [0, 14, 16],
+  // 全部混一起,壓力測試
+  mixed: [0, 2, 6, 8, 10, 18, 20],
+};
+
+/**
+ * 量測模式(`?line=measure`):把每個機種各掛一次,讀出**已套 LINE_SCALE** 的世界包圍盒,
+ * 寫到 window.__measured 給 preview/measure.mjs 收。用來訂 processFlow 的 HALF_W ——
+ * 那張表用猜的就會穿模或留一大段空隙。
+ */
+function Measure() {
+  const one: Record<string, any> = {};
+  for (const c of CASES) if (!one[c.template]) one[c.template] = c;
+  const list = Object.values(one) as typeof CASES;
+  return (
+    <div style={{ position: "absolute", inset: 0 }}>
+      <FactoryLine3D
+        devices={list.map((c, i) => ({ id: `m${i}`, template: c.template }))}
+        snapshots={Object.fromEntries(list.map((c, i) => [`m${i}`, {
+          id: `m${i}`, template: c.template, state: c.state, state_code: 0,
+          tags: c.tags, setpoints: c.setpoints, coils: c.coils } as any]))}
+        multiplier={MULTIPLIER}
+        onMeasured={(rows: any) => { (window as any).__measured = rows; }}
+      />
+    </div>
+  );
+}
+
 function Line() {
-  const picked = [0, 2, 6, 8, 10, 18, 20].map((i) => CASES[i]);
+  const key = new URLSearchParams(location.search).get("line") || "1";
+  const idxs = LINE_COMBOS[key] ?? LINE_COMBOS.mixed;
+  const picked = idxs.map((i) => CASES[i]);
   const snapshots: Record<string, any> = {};
   const devices = picked.map((c, i) => {
     const id = `d${String(i + 1).padStart(2, "0")}`;
@@ -155,7 +196,8 @@ function Line() {
 
 function App() {
   const q = new URLSearchParams(location.search);
-  if (q.get("line") === "1") return <Line />;
+  if (q.get("line") === "measure") return <Measure />;
+  if (q.get("line")) return <Line />;
   if (q.get("all") === "1") {
     return <div className="grid">{CASES.map((c, i) => <Cell c={c} key={i} />)}</div>;
   }

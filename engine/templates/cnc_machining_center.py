@@ -65,6 +65,35 @@ def _build_tags(modbus_base: int, opcua_folder: str) -> list[Tag]:
     return tags
 
 
+# ── pattern 0 的刀路:刻「NCUT」(校名縮寫)────────────────────────
+#
+# 字面朝向很容易寫錯,所以把上下緣具名:引擎的 pos_y 對到畫面的世界 Z,而相機在 +Z
+# 看向原點,所以**世界 +Z 在畫面上是往下**。字母的「上緣」在引擎座標因此是 y = -60。
+# 先前用 +60 當上緣,畫出來是上下鏡像的「И Ⅽ ∩ ⊥」。
+_GY_TOP, _GY_BOT = -60.0, 60.0        # 字面上緣 / 下緣(引擎 y,mm)
+_GLYPH_W, _GLYPH_GAP = 60.0, 40.0     # 字寬 / 字距 —— 四個字置中,總寬 360,在 ±220 行程內
+
+
+def _glyph_x(i: int) -> float:
+    """第 i 個字(由左至右)的左緣 x。四個字等距置中。"""
+    total = 4 * _GLYPH_W + 3 * _GLYPH_GAP
+    return -total / 2 + i * (_GLYPH_W + _GLYPH_GAP)
+
+
+def _ncut_strokes() -> list:
+    n, c, u, t = (_glyph_x(i) for i in range(4))
+    T, B, W = _GY_TOP, _GY_BOT, _GLYPH_W
+    return [
+        [(n, B), (n, T)], [(n, T), (n + W, B)], [(n + W, B), (n + W, T)],          # N
+        [(c + W, T), (c, T), (c, B), (c + W, B)],                                   # C
+        [(u, T), (u, B), (u + W, B), (u + W, T)],                                   # U
+        [(t, T), (t + W, T)], [(t + W / 2, T), (t + W / 2, B)],                     # T
+    ]
+
+
+_NCUT_STROKES = _ncut_strokes()
+
+
 def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device:
     cfg = cfg or {}
 
@@ -164,15 +193,7 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
             elif p < 0.75: return 150.0 - 300.0 * ((p-0.5)/0.25), 150.0, -50.0
             else: return -150.0, 150.0 - 300.0 * ((p-0.75)/0.25), -50.0
         else:
-            strokes = [
-                [(-220, -60), (-220, 60)],
-                [(-220, 60), (-140, -60)],
-                [(-140, -60), (-140, 60)],
-                [(-40, 60), (-100, 60), (-100, -60), (-40, -60)],
-                [(40, 60), (40, -60), (100, -60), (100, 60)],
-                [(140, 60), (220, 60)],
-                [(180, 60), (180, -60)]
-            ]
+            strokes = _NCUT_STROKES
             total_segments = len(strokes)
             seg_progress = progress * total_segments
             seg_idx = min(int(seg_progress), total_segments - 1)

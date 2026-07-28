@@ -18,7 +18,7 @@ park:
     mqtt: 6083
   companies:
     - id: t01-f1
-      name: "彭達仁老師 第1工廠"
+      name: "CNC 立式加工中心廠(彭達仁老師負責)"
       industry: machine_tool
       product: "CNC 立式加工中心"
       intro: "彭達仁老師指導的**合成**示範工廠;工具機加工 · CNC 立式加工中心。設備:CNC 加工中心。所有數據皆為模擬產生,非真實場域量測。"
@@ -26,7 +26,7 @@ park:
         - {id: t01-d001, template: cnc_machining_center}
 
     - id: t01-f2
-      name: "彭達仁老師 第2工廠"
+      name: "CNC 車銑複合廠(彭達仁老師負責)"
       industry: machine_tool
       product: "CNC 車銑複合"
       intro: "彭達仁老師指導的**合成**示範工廠;工具機加工 · CNC 車銑複合。設備:CNC 加工中心 + 六軸機械手臂。所有數據皆為模擬產生,非真實場域量測。"
@@ -35,7 +35,7 @@ park:
         - {id: t01-d003, template: robot_arm_6axis}
 
     - id: t01-f3
-      name: "彭達仁老師 第3工廠"
+      name: "五軸加工中心廠(彭達仁老師負責)"
       industry: machine_tool
       product: "五軸加工中心"
       intro: "彭達仁老師指導的**合成**示範工廠;工具機加工 · 五軸加工中心。設備:CNC 加工中心 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
@@ -44,7 +44,7 @@ park:
         - {id: t01-d005, template: conveyor}
 
     - id: t02-f1
-      name: "翁偉翰老師 第1工廠"
+      name: "小型風力發電廠(翁偉翰老師負責)"
       industry: green_energy
       product: "小型風力發電"
       intro: "翁偉翰老師指導的**合成**示範工廠;綠能發電 · 小型風力發電。設備:風力發電機 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
@@ -53,7 +53,7 @@ park:
         - {id: t02-d007, template: energy_meter}
 
     - id: t02-f2
-      name: "翁偉翰老師 第2工廠"
+      name: "廠區自發自用綠電廠(翁偉翰老師負責)"
       industry: green_energy
       product: "廠區自發自用綠電"
       intro: "翁偉翰老師指導的**合成**示範工廠;綠能發電 · 廠區自發自用綠電。設備:風力發電機。所有數據皆為模擬產生,非真實場域量測。"
@@ -61,7 +61,7 @@ park:
         - {id: t02-d008, template: wind_turbine}
 
     - id: t02-f3
-      name: "翁偉翰老師 第3工廠"
+      name: "風場運維示範廠(翁偉翰老師負責)"
       industry: green_energy
       product: "風場運維示範"
       intro: "翁偉翰老師指導的**合成**示範工廠;綠能發電 · 風場運維示範。設備:風力發電機 + 風力發電機 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
@@ -71,7 +71,7 @@ park:
         - {id: t02-d011, template: energy_meter}
 
     - id: t03-f1
-      name: "劉瑞弘老師 第1工廠"
+      name: "汽車鈑金件廠(劉瑞弘老師負責)"
       industry: metal_forming
       product: "汽車鈑金件"
       intro: "劉瑞弘老師指導的**合成**示範工廠;沖壓鈑金 · 汽車鈑金件。設備:沖壓機。所有數據皆為模擬產生,非真實場域量測。"
@@ -79,7 +79,7 @@ park:
         - {id: t03-d012, template: stamping_press}
 
     - id: t03-f2
-      name: "劉瑞弘老師 第2工廠"
+      name: "電子機殼沖壓廠(劉瑞弘老師負責)"
       industry: metal_forming
       product: "電子機殼沖壓"
       intro: "劉瑞弘老師指導的**合成**示範工廠;沖壓鈑金 · 電子機殼沖壓。設備:沖壓機 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
@@ -88,7 +88,7 @@ park:
         - {id: t03-d014, template: conveyor}
 
     - id: t03-f3
-      name: "劉瑞弘老師 第3工廠"
+      name: "五金沖壓件廠(劉瑞弘老師負責)"
       industry: metal_forming
       product: "五金沖壓件"
       intro: "劉瑞弘老師指導的**合成**示範工廠;沖壓鈑金 · 五金沖壓件。設備:沖壓機 + 六軸機械手臂。所有數據皆為模擬產生,非真實場域量測。"
@@ -97,7 +97,7 @@ park:
         - {id: t03-d016, template: robot_arm_6axis}
 
     - id: t04-f1
-      name: "陳智榮老師 第1工廠"
+      name: "家電外殼射出廠(陳智榮老師負責)"
       industry: plastics
       product: "家電外殼射出"
       intro: "陳智榮老師指導的**合成**示範工廠;塑膠射出 · 家電外殼射出。設備:射出成型機。所有數據皆為模擬產生,非真實場域量測。"
@@ -105,7 +105,7 @@ park:
         - {id: t04-d017, template: injection_molding}
 
     - id: t04-f2
-      name: "陳智榮老師 第2工廠"
+      name: "汽車內飾件廠(陳智榮老師負責)"
       industry: plastics
       product: "汽車內飾件"
       intro: "陳智榮老師指導的**合成**示範工廠;塑膠射出 · 汽車內飾件。設備:射出成型機 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
@@ -114,7 +114,7 @@ park:
         - {id: t04-d019, template: conveyor}
 
     - id: t04-f3
-      name: "陳智榮老師 第3工廠"
+      name: "精密齒輪射出廠(陳智榮老師負責)"
       industry: plastics
       product: "精密齒輪射出"
       intro: "陳智榮老師指導的**合成**示範工廠;塑膠射出 · 精密齒輪射出。設備:射出成型機 + 六軸機械手臂。所有數據皆為模擬產生,非真實場域量測。"
@@ -123,7 +123,7 @@ park:
         - {id: t04-d021, template: robot_arm_6axis}
 
     - id: t05-f1
-      name: "李坤穎老師 第1工廠"
+      name: "晶圓蝕刻製程廠(李坤穎老師負責)"
       industry: semiconductor
       product: "晶圓蝕刻製程"
       intro: "李坤穎老師指導的**合成**示範工廠;半導體製程 · 晶圓蝕刻製程。設備:半導體製程腔體。所有數據皆為模擬產生,非真實場域量測。"
@@ -131,7 +131,7 @@ park:
         - {id: t05-d022, template: semi_process_chamber}
 
     - id: t05-f2
-      name: "李坤穎老師 第2工廠"
+      name: "薄膜沉積製程廠(李坤穎老師負責)"
       industry: semiconductor
       product: "薄膜沉積製程"
       intro: "李坤穎老師指導的**合成**示範工廠;半導體製程 · 薄膜沉積製程。設備:半導體製程腔體 + AGV 搬運車。所有數據皆為模擬產生,非真實場域量測。"
@@ -140,7 +140,7 @@ park:
         - {id: t05-d024, template: agv_mobile_robot}
 
     - id: t05-f3
-      name: "李坤穎老師 第3工廠"
+      name: "封測前段製程廠(李坤穎老師負責)"
       industry: semiconductor
       product: "封測前段製程"
       intro: "李坤穎老師指導的**合成**示範工廠;半導體製程 · 封測前段製程。設備:半導體製程腔體 + 空壓機。所有數據皆為模擬產生,非真實場域量測。"
@@ -149,7 +149,7 @@ park:
         - {id: t05-d026, template: air_compressor}
 
     - id: t06-f1
-      name: "吳崇民老師 第1工廠"
+      name: "真空熱處理廠(吳崇民老師負責)"
       industry: heat_treat
       product: "真空熱處理"
       intro: "吳崇民老師指導的**合成**示範工廠;熱處理 · 真空熱處理。設備:熱處理爐。所有數據皆為模擬產生,非真實場域量測。"
@@ -157,7 +157,7 @@ park:
         - {id: t06-d027, template: heat_treat_furnace}
 
     - id: t06-f2
-      name: "吳崇民老師 第2工廠"
+      name: "滲碳淬火廠(吳崇民老師負責)"
       industry: heat_treat
       product: "滲碳淬火"
       intro: "吳崇民老師指導的**合成**示範工廠;熱處理 · 滲碳淬火。設備:熱處理爐 + AGV 搬運車。所有數據皆為模擬產生,非真實場域量測。"
@@ -166,7 +166,7 @@ park:
         - {id: t06-d029, template: agv_mobile_robot}
 
     - id: t06-f3
-      name: "吳崇民老師 第3工廠"
+      name: "退火軟化處理廠(吳崇民老師負責)"
       industry: heat_treat
       product: "退火軟化處理"
       intro: "吳崇民老師指導的**合成**示範工廠;熱處理 · 退火軟化處理。設備:熱處理爐 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
@@ -175,7 +175,7 @@ park:
         - {id: t06-d031, template: energy_meter}
 
     - id: t07-f1
-      name: "李榮茂老師 第1工廠"
+      name: "機械手臂整合廠(李榮茂老師負責)"
       industry: motion_robotics
       product: "機械手臂整合"
       intro: "李榮茂老師指導的**合成**示範工廠;自動化系統 · 機械手臂整合。設備:六軸機械手臂。所有數據皆為模擬產生,非真實場域量測。"
@@ -183,7 +183,7 @@ park:
         - {id: t07-d032, template: robot_arm_6axis}
 
     - id: t07-f2
-      name: "李榮茂老師 第2工廠"
+      name: "取放系統整合廠(李榮茂老師負責)"
       industry: motion_robotics
       product: "取放系統整合"
       intro: "李榮茂老師指導的**合成**示範工廠;自動化系統 · 取放系統整合。設備:六軸機械手臂 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
@@ -192,7 +192,7 @@ park:
         - {id: t07-d034, template: conveyor}
 
     - id: t07-f3
-      name: "李榮茂老師 第3工廠"
+      name: "視覺檢測工作站廠(李榮茂老師負責)"
       industry: motion_robotics
       product: "視覺檢測工作站"
       intro: "李榮茂老師指導的**合成**示範工廠;自動化系統 · 視覺檢測工作站。設備:六軸機械手臂 + CNC 加工中心。所有數據皆為模擬產生,非真實場域量測。"
@@ -201,7 +201,7 @@ park:
         - {id: t07-d036, template: cnc_machining_center}
 
     - id: t08-f1
-      name: "黃秋杰老師 第1工廠"
+      name: "廠內無人搬運廠(黃秋杰老師負責)"
       industry: logistics
       product: "廠內無人搬運"
       intro: "黃秋杰老師指導的**合成**示範工廠;智慧物流 · 廠內無人搬運。設備:AGV 搬運車 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
@@ -210,7 +210,7 @@ park:
         - {id: t08-d038, template: conveyor}
 
     - id: t08-f2
-      name: "黃秋杰老師 第2工廠"
+      name: "自動倉儲揀貨廠(黃秋杰老師負責)"
       industry: logistics
       product: "自動倉儲揀貨"
       intro: "黃秋杰老師指導的**合成**示範工廠;智慧物流 · 自動倉儲揀貨。設備:AGV 搬運車 + 輸送帶 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
@@ -220,7 +220,7 @@ park:
         - {id: t08-d041, template: energy_meter}
 
     - id: t08-f3
-      name: "黃秋杰老師 第3工廠"
+      name: "產線間物流整合廠(黃秋杰老師負責)"
       industry: logistics
       product: "產線間物流整合"
       intro: "黃秋杰老師指導的**合成**示範工廠;智慧物流 · 產線間物流整合。設備:AGV 搬運車 + AGV 搬運車 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
@@ -230,16 +230,16 @@ park:
         - {id: t08-d044, template: conveyor}
 
     - id: t08-f4
-      name: "黃秋杰老師 第4工廠"
+      name: "成品出貨緩衝區廠(黃秋杰老師負責)"
       industry: logistics
-      product: "廠內無人搬運"
-      intro: "黃秋杰老師指導的**合成**示範工廠;智慧物流 · 廠內無人搬運。設備:AGV 搬運車 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
+      product: "成品出貨緩衝區"
+      intro: "黃秋杰老師指導的**合成**示範工廠;智慧物流 · 成品出貨緩衝區。設備:AGV 搬運車 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: t08-d045, template: agv_mobile_robot}
         - {id: t08-d046, template: conveyor}
 
     - id: t09-f1
-      name: "吳俊毅老師 第1工廠"
+      name: "航太結構件廠(吳俊毅老師負責)"
       industry: precision_parts
       product: "航太結構件"
       intro: "吳俊毅老師指導的**合成**示範工廠;精密零件 · 航太結構件。設備:CNC 加工中心 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
@@ -248,7 +248,7 @@ park:
         - {id: t09-d048, template: conveyor}
 
     - id: t09-f2
-      name: "吳俊毅老師 第2工廠"
+      name: "自行車傳動件廠(吳俊毅老師負責)"
       industry: precision_parts
       product: "自行車傳動件"
       intro: "吳俊毅老師指導的**合成**示範工廠;精密零件 · 自行車傳動件。設備:CNC 加工中心 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
@@ -257,7 +257,7 @@ park:
         - {id: t09-d050, template: energy_meter}
 
     - id: t09-f3
-      name: "吳俊毅老師 第3工廠"
+      name: "工具機滾珠螺桿廠(吳俊毅老師負責)"
       industry: precision_parts
       product: "工具機滾珠螺桿"
       intro: "吳俊毅老師指導的**合成**示範工廠;精密零件 · 工具機滾珠螺桿。設備:CNC 加工中心 + 六軸機械手臂 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
@@ -267,7 +267,7 @@ park:
         - {id: t09-d053, template: conveyor}
 
     - id: t09-f4
-      name: "吳俊毅老師 第4工廠"
+      name: "醫療器械零件廠(吳俊毅老師負責)"
       industry: precision_parts
       product: "醫療器械零件"
       intro: "吳俊毅老師指導的**合成**示範工廠;精密零件 · 醫療器械零件。設備:CNC 加工中心 + 熱處理爐。所有數據皆為模擬產生,非真實場域量測。"
@@ -276,7 +276,7 @@ park:
         - {id: t09-d055, template: heat_treat_furnace}
 
     - id: t10-f1
-      name: "謝式娜老師 第1工廠"
+      name: "壓縮空氣站廠(謝式娜老師負責)"
       industry: facility
       product: "壓縮空氣站"
       intro: "謝式娜老師指導的**合成**示範工廠;廠務動力 · 壓縮空氣站。設備:空壓機 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
@@ -285,7 +285,7 @@ park:
         - {id: t10-d057, template: energy_meter}
 
     - id: t10-f2
-      name: "謝式娜老師 第2工廠"
+      name: "廠區能源管理廠(謝式娜老師負責)"
       industry: facility
       product: "廠區能源管理"
       intro: "謝式娜老師指導的**合成**示範工廠;廠務動力 · 廠區能源管理。設備:空壓機。所有數據皆為模擬產生,非真實場域量測。"
@@ -293,7 +293,7 @@ park:
         - {id: t10-d058, template: air_compressor}
 
     - id: t10-f3
-      name: "謝式娜老師 第3工廠"
+      name: "動力機房廠(謝式娜老師負責)"
       industry: facility
       product: "動力機房"
       intro: "謝式娜老師指導的**合成**示範工廠;廠務動力 · 動力機房。設備:空壓機 + 空壓機 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
@@ -303,16 +303,16 @@ park:
         - {id: t10-d061, template: energy_meter}
 
     - id: t10-f4
-      name: "謝式娜老師 第4工廠"
+      name: "廠務用電需量管理廠(謝式娜老師負責)"
       industry: facility
-      product: "壓縮空氣站"
-      intro: "謝式娜老師指導的**合成**示範工廠;廠務動力 · 壓縮空氣站。設備:空壓機 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
+      product: "廠務用電需量管理"
+      intro: "謝式娜老師指導的**合成**示範工廠;廠務動力 · 廠務用電需量管理。設備:空壓機 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: t10-d062, template: air_compressor}
         - {id: t10-d063, template: energy_meter}
 
     - id: t11-f1
-      name: "陳鵬仁老師 第1工廠"
+      name: "手機鏡頭模組廠(陳鵬仁老師負責)"
       industry: optics
       product: "手機鏡頭模組"
       intro: "陳鵬仁老師指導的**合成**示範工廠;光學元件 · 手機鏡頭模組。設備:半導體製程腔體 + CNC 加工中心。所有數據皆為模擬產生,非真實場域量測。"
@@ -321,7 +321,7 @@ park:
         - {id: t11-d065, template: cnc_machining_center}
 
     - id: t11-f2
-      name: "陳鵬仁老師 第2工廠"
+      name: "光學鍍膜廠(陳鵬仁老師負責)"
       industry: optics
       product: "光學鍍膜"
       intro: "陳鵬仁老師指導的**合成**示範工廠;光學元件 · 光學鍍膜。設備:半導體製程腔體 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
@@ -330,7 +330,7 @@ park:
         - {id: t11-d067, template: energy_meter}
 
     - id: t11-f3
-      name: "陳鵬仁老師 第3工廠"
+      name: "車用鏡頭元件廠(陳鵬仁老師負責)"
       industry: optics
       product: "車用鏡頭元件"
       intro: "陳鵬仁老師指導的**合成**示範工廠;光學元件 · 車用鏡頭元件。設備:CNC 加工中心 + 半導體製程腔體 + 空壓機。所有數據皆為模擬產生,非真實場域量測。"
@@ -340,10 +340,10 @@ park:
         - {id: t11-d070, template: air_compressor}
 
     - id: t11-f4
-      name: "陳鵬仁老師 第4工廠"
+      name: "光學檢測治具廠(陳鵬仁老師負責)"
       industry: optics
-      product: "手機鏡頭模組"
-      intro: "陳鵬仁老師指導的**合成**示範工廠;光學元件 · 手機鏡頭模組。設備:半導體製程腔體 + CNC 加工中心。所有數據皆為模擬產生,非真實場域量測。"
+      product: "光學檢測治具"
+      intro: "陳鵬仁老師指導的**合成**示範工廠;光學元件 · 光學檢測治具。設備:半導體製程腔體 + CNC 加工中心。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: t11-d071, template: semi_process_chamber}
         - {id: t11-d072, template: cnc_machining_center}

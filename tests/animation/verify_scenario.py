@@ -86,14 +86,32 @@ def check_structure(path: Path, park: dict) -> None:
 
 
 # ── 2. 每個 template 都有 3D 模型 ─────────────────────────
+def _ts_map_keys(src: str, name: str) -> set[str]:
+    """撈出 `const <name> ... = { a: ..., b: ... }` 的 key。
+
+    只吃到第一個對齊在行首的 `};` 為止 —— 先前是用「下一段註解的字串」當結尾,
+    那段註解一搬家整支測試就 crash。用括號結構當邊界穩得多。
+    """
+    i = src.index(f"const {name}")
+    end = src.index("\n};", i)
+    # 一行可能塞好幾筆(`a: 1, b: 2,`),所以不能只抓行首那個 key
+    return set(re.findall(r"(?:^|[{,])\s*([A-Za-z_]\w*)\s*:", src[i:end], re.M))
+
+
 def check_models(used: set[str]) -> None:
-    src = (WEB_WORLD / "FactoryLine3D.tsx").read_text(encoding="utf-8")
-    block = src[src.index("const MODELS"):src.index("/** 各機種在產線視圖中的縮放")]
-    mapped = set(re.findall(r"^\s*(\w+):", block, re.M))
+    mapped = _ts_map_keys((WEB_WORLD / "FactoryLine3D.tsx").read_text(encoding="utf-8"), "MODELS")
     missing = used - mapped
     (ok if not missing else fail)(
         f"場景用到的 {len(used)} 種 template 都有 3D 模型" if not missing
         else f"沒有 3D 模型的 template:{sorted(missing)}")
+
+    # 產線佈局表也要涵蓋 —— 少一筆就會用預設寬度,機台互相穿模或中間空一段
+    flow = (WEB_WORLD / "processFlow.ts").read_text(encoding="utf-8")
+    for tbl, why in [("ROLE", "製程角色"), ("LINE_SCALE", "產線縮放"), ("HALF_W", "佔地半寬")]:
+        miss = used - _ts_map_keys(flow, tbl)
+        (ok if not miss else fail)(
+            f"{len(used)} 種 template 都有 processFlow.{tbl}({why})" if not miss
+            else f"processFlow.{tbl} 缺:{sorted(miss)}")
 
 
 # ── 3. 綁定表宣告的 tag,引擎真的有發 ─────────────────────

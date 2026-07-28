@@ -116,6 +116,15 @@ jobs:
             exit 1
           }
 
+      # 廠內產線視圖:製程佈局(上游 → 手臂 → 出料)也要畫得出來且無 console error
+      - name: 產線佈局視圖
+        run: |
+          node preview/shotline.mjs "$GITHUB_WORKSPACE/artifacts/shots" | tee /tmp/shotline.out
+          grep -q "OK no page errors" /tmp/shotline.out || {
+            echo "::error::產線視圖出現 console error / pageerror"
+            exit 1
+          }
+
       - name: 動畫 ↔ 模擬資料一致性(35 項)
         run: node tests/animation/verify_animation.mjs
         working-directory: ${{ github.workspace }}

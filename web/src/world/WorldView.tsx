@@ -3,6 +3,7 @@ import { Application, Container, Graphics, Text } from "pixi.js";
 import { Park, Company, TelemetryMsg, getTeacherToken, setCoil, resetDevice } from "../api";
 import { darken } from "./machines";
 import FactoryLine3D from "./FactoryLine3D";
+import { layoutLine } from "./processFlow";
 
 // ── 俯瞰格狀佈局 ───────────────────────────────────────
 // STEP 拉大 → 公司間距更寬、道路更寬敞;GRID 隨之放大,俯瞰縮放在 recenter 自動配合。
@@ -92,6 +93,9 @@ export default function WorldView({
   const [focus, setFocus] = useState<string | null>(null);
   const [tip, setTip] = useState<{ x: number; y: number; c: Company } | null>(null);
   const [resetMsg, setResetMsg] = useState("");
+  // 說明卡預設展開(學生一進廠要先讀到這條產線在做什麼),但要能收起來 ——
+  // 卡片壓在 3D 畫面上,不收就永遠擋著機台。
+  const [infoOpen, setInfoOpen] = useState(true);
   const isTeacher = !!getTeacherToken();
   const hostRef = useRef<HTMLDivElement | null>(null);
   const appRef = useRef<Application | null>(null);
@@ -251,6 +255,7 @@ export default function WorldView({
   }, [park]);
 
   useEffect(() => { update(); }, [telemetry, selected, predicted, focus]);
+  useEffect(() => { setInfoOpen(true); }, [focus]);   // 換一間廠 → 說明卡重新展開
 
   function update() {
     const tel = telemetry; if (!tel || focus) return;
@@ -265,6 +270,10 @@ export default function WorldView({
   }
 
   const fc = focus ? park.companies.find((c) => c.id === focus) : null;
+  // 製程流向由「廠內實際有哪些設備」推出來,而不是寫死在場景檔 —— 設備換了說明就跟著換
+  const fcFlow = fc ? layoutLine(fc.device_ids.map((did) => ({
+    id: did, template: telemetry?.devices[did]?.template || "unknown",
+  }))) : null;
   return (
     <div style={{ position: "absolute", inset: 0 }}>
       <div ref={hostRef} style={{ position: "absolute", inset: 0 }} />
@@ -299,12 +308,29 @@ export default function WorldView({
             <button className="btn ghost" style={{ background: "rgba(255,255,255,0.8)" }} onClick={() => setFocus(null)}>← 返回俯瞰</button>
             <span style={{ color: "white", fontWeight: 600, textShadow: "0px 1px 3px rgba(0,0,0,0.8)" }}>🏭 {fc.name} · 廠內即時</span>
           </div>
-          <div className="card float" style={{ position: "absolute", top: 58, right: 16, width: 300, padding: "14px 16px", zIndex: 10 }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>{fc.name}</div>
-            {fc.product && <div style={{ color: "var(--accent)", fontSize: 12.5, margin: "6px 0" }}>主要產品:{fc.product}</div>}
-            {fc.intro && <div style={{ color: "var(--text-2)", fontSize: 12.5, lineHeight: 1.6 }}>{fc.intro}</div>}
-            <div className="mono" style={{ color: "var(--muted)", fontSize: 11, marginTop: 8 }}>廠內設備:{(fc.device_ids || []).join("、")}</div>
-            <div style={{ color: "var(--pred)", fontSize: 11, marginTop: 6 }}>⚠ 合成數據,非真實產線</div>
+          <div className="card float" style={{ position: "absolute", top: 58, right: 16, width: infoOpen ? 300 : 210,
+                        padding: "12px 14px", zIndex: 10, transition: "width .18s" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)", flex: 1 }}>{fc.name}</div>
+              <button className="btn ghost" title={infoOpen ? "收起說明(卡片會擋到機台)" : "展開說明"}
+                      style={{ padding: "0 7px", fontSize: 13, lineHeight: "20px", borderRadius: 6 }}
+                      onClick={() => setInfoOpen((v) => !v)}>{infoOpen ? "▾" : "▸"}</button>
+            </div>
+            {infoOpen && <>
+              {fc.product && <div style={{ color: "var(--accent)", fontSize: 12.5, margin: "6px 0" }}>主要產品:{fc.product}</div>}
+              {fc.intro && <div style={{ color: "var(--text-2)", fontSize: 12.5, lineHeight: 1.6 }}>{fc.intro}</div>}
+              {fcFlow?.flowText && (
+                <div style={{ marginTop: 9, padding: "7px 9px", borderRadius: 7,
+                              background: "rgba(90,158,90,.13)", color: "#3f6b3f", fontSize: 12.5, fontWeight: 600 }}>
+                  製程流向:{fcFlow.flowText}
+                </div>
+              )}
+              {fcFlow?.utilityText && (
+                <div style={{ color: "var(--muted)", fontSize: 11.5, marginTop: 5 }}>{fcFlow.utilityText}</div>
+              )}
+              <div className="mono" style={{ color: "var(--muted)", fontSize: 11, marginTop: 8 }}>廠內設備:{(fc.device_ids || []).join("、")}</div>
+              <div style={{ color: "var(--pred)", fontSize: 11, marginTop: 6 }}>⚠ 合成數據,非真實產線</div>
+            </>}
             
             {/* 廠內全部設備控制 (教師權限) */}
             {isTeacher && (

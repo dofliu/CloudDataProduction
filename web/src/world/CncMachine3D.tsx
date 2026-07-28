@@ -18,6 +18,11 @@ import {
 
 const MM_PER_UNIT = 50;               // 引擎 mm → 模型單位
 const MAX_TRAIL_POINTS = 4000;
+// 刻痕的相位間距。pattern 0 的切削路徑總長約 22 模型單位,1/0.0027 ≈ 370 顆,
+// 顆徑 0.13 → 略為重疊,連成實線。
+const PHASE_STEP = 0.0027;
+// 單幀最多補幾顆 —— 防止長時間卡頓後一次補上千顆
+const MAX_MARKS_PER_FRAME = 240;
 
 /** 冷卻液:只在真正下刀(pos_z < 0)時噴。 */
 const Coolant = ({ active }: { active: boolean }) => {
@@ -93,7 +98,52 @@ const Sparks = ({ active, position, wear }: { active: boolean; position: THREE.V
   );
 };
 
-export const CNCModel = ({ motion }: MachineProps) => {
+/**
+ * 產線視圖用的鈑金外殼。真實 CNC 是包起來的機箱,不是裸露的龍門 ——
+ * 廠內視圖要讀得出「這是一台加工中心」,細部刀路留給點進去的詳情頁看。
+ * 下游側(+X)敞開當出料口,手臂從那裡把工件取走(擺位見 processFlow.ts)。
+ */
+const Enclosure = ({ motion }: { motion: DeviceMotion }) => {
+  const W = 15, D = 15, H = 11, T = 0.45;          // 模型單位(外層還有 scale 0.5)
+  const panel = bodyColor(motion, "#9aa3a6");
+  return (
+    <group>
+      {/* 後牆 / 上游側牆 / 頂蓋 —— 下游側(+X)不封,留出料口 */}
+      <Box args={[W, H, T]} position={[0, H / 2, -D / 2]} castShadow receiveShadow>
+        <meshStandardMaterial color={panel} metalness={0.45} roughness={0.55} />
+      </Box>
+      <Box args={[T, H, D]} position={[-W / 2, H / 2, 0]} castShadow receiveShadow>
+        <meshStandardMaterial color={panel} metalness={0.45} roughness={0.55} />
+      </Box>
+      <Box args={[W, T, D]} position={[0, H, 0]} castShadow receiveShadow>
+        <meshStandardMaterial color={panel} metalness={0.4} roughness={0.6} />
+      </Box>
+      {/* 前面:下裙板 + 觀察窗(半透明,看得到裡面在動)+ 上樑 */}
+      <Box args={[W, 3, T]} position={[0, 1.5, D / 2]} castShadow receiveShadow>
+        <meshStandardMaterial color={panel} metalness={0.45} roughness={0.55} />
+      </Box>
+      <Box args={[W, 2, T]} position={[0, H - 1, D / 2]} castShadow receiveShadow>
+        <meshStandardMaterial color={panel} metalness={0.45} roughness={0.55} />
+      </Box>
+      <Box args={[W - 1.2, H - 6, 0.12]} position={[0, (H - 6) / 2 + 3, D / 2]}>
+        <meshStandardMaterial color="#bcd2d8" transparent opacity={0.26}
+                              metalness={0.1} roughness={0.15} depthWrite={false} />
+      </Box>
+      {/* 出料口框:標出工件從這一側離開 */}
+      <Box args={[T, H, T]} position={[W / 2, H / 2, -D / 2]} castShadow>
+        <meshStandardMaterial color="#6f777a" metalness={0.6} />
+      </Box>
+      <Box args={[T, H, T]} position={[W / 2, H / 2, D / 2]} castShadow>
+        <meshStandardMaterial color="#6f777a" metalness={0.6} />
+      </Box>
+    </group>
+  );
+};
+
+export const CNCModel = ({ motion, enclosed = false }: MachineProps & {
+  /** 產線視圖:加上鈑金外殼,讀起來才像一台機器 */
+  enclosed?: boolean;
+}) => {
   const gantryRef = useRef<THREE.Group>(null);        // Z 向(引擎 pos_y)
   const spindleHeadRef = useRef<THREE.Group>(null);   // X 向(引擎 pos_x)
   const drillRef = useRef<THREE.Group>(null);         // Y 向升降(引擎 pos_z)+ 主軸自轉
@@ -106,7 +156,7 @@ export const CNCModel = ({ motion }: MachineProps) => {
   const isCutting = useRef(false);
   const sparkPos = useRef(new THREE.Vector3());
   const lines = useRef(0);
-  const lastCutPos = useRef<THREE.Vector3 | null>(null);
+  const lastPhase = useRef(0);
   const dummy = useMemo(() => new THREE.Object3D(), []);
 
   useFrame((_, delta) => {
@@ -119,7 +169,7 @@ export const CNCModel = ({ motion }: MachineProps) => {
     const part = Math.round(tags.part_count ?? 0);
     if (part !== lastPart.current) {
       lastPart.current = part;
-      lines.current = 0; lastCutPos.current = null;
+      lines.current = 0;
       if (trailMeshRef.current) trailMeshRef.current.count = 0;
     }
 
@@ -150,24 +200,34 @@ export const CNCModel = ({ motion }: MachineProps) => {
     isCutting.current = running && pos.current.z < -0.5;
     sparkPos.current.set(pos.current.x, 1.25, pos.current.y);
 
-    if (isCutting.current) {
-      const pt = new THREE.Vector3(pos.current.x, 1.25, pos.current.y);
-      if (!lastCutPos.current) lastCutPos.current = pt.clone();
-      else if (lastCutPos.current.distanceTo(pt) > 0.08 && lines.current < MAX_TRAIL_POINTS) {
-        dummy.position.copy(pt);
-        dummy.scale.set(1.4, 0.5, 1.4);
-        dummy.updateMatrix();
-        if (trailMeshRef.current) {
+    // ── 刻痕:沿**相位**補點,不是沿畫面位置 ──────────────────
+    // 先前是「畫面位置移動超過門檻就放一顆」,那是 frame-rate 相依的:這個環境只有
+    // 約 9 fps,一幀就跨過大半個筆畫,結果一幀只放得到一顆 → 字變成散落的點。
+    // (原本球夠大才勉強連成線,但那又粗到把字糊掉。)
+    // 改成把這一幀走過的相位區間切細,逐點取同一條刀路曲線 —— 幀率再低,刻痕的
+    // 疏密都一樣,而且轉角不會被直線內插切掉。
+    if (running && trailMeshRef.current) {
+      let d = phase.current - lastPhase.current;
+      if (d < 0) d += 1;                       // 跨過相位 0 的那一幀
+      if (d > 0 && d < 0.5) {                  // >0.5 視為跳幀 / 重新鎖相,不補
+        const steps = Math.min(MAX_MARKS_PER_FRAME, Math.ceil(d / PHASE_STEP));
+        for (let k = 1; k <= steps && lines.current < MAX_TRAIL_POINTS; k++) {
+          const ph = (lastPhase.current + (d * k) / steps) % 1;
+          const [mx, my, mz] = cncToolPath(ph, pattern);
+          if (mz >= 0) continue;               // 抬刀段不留痕(語意同引擎的 pos_z<0)
+          dummy.position.set(mx / MM_PER_UNIT, 1.25, my / MM_PER_UNIT);
+          // 扁而窄:刻痕是「刀痕」不是「筆跡」。字高 120mm = 2.4 模型單位,
+          // 筆畫寬約 0.13(字高的 5%);先前是 0.42(17%),整個字糊成一團。
+          dummy.scale.set(1.3, 0.45, 1.3);
+          dummy.updateMatrix();
           trailMeshRef.current.setMatrixAt(lines.current, dummy.matrix);
-          trailMeshRef.current.instanceMatrix.needsUpdate = true;
-          trailMeshRef.current.count = lines.current + 1;
+          lines.current += 1;
         }
-        lines.current += 1;
-        lastCutPos.current.copy(pt);
+        trailMeshRef.current.instanceMatrix.needsUpdate = true;
+        trailMeshRef.current.count = lines.current;
       }
-    } else {
-      lastCutPos.current = null;
     }
+    lastPhase.current = phase.current;
 
     if (gantryRef.current) gantryRef.current.position.z = pos.current.y;
     if (spindleHeadRef.current) spindleHeadRef.current.position.x = pos.current.x;
@@ -189,6 +249,7 @@ export const CNCModel = ({ motion }: MachineProps) => {
   return (
     <Shake motion={motion}>
       <group scale={0.5}>
+        {enclosed && <Enclosure motion={motion} />}
         <Box args={[14, 0.5, 14]} position={[0, 0, 0]} receiveShadow>
           <meshStandardMaterial color="#c5bcae" roughness={0.7} metalness={0.2} />
         </Box>
@@ -197,7 +258,7 @@ export const CNCModel = ({ motion }: MachineProps) => {
         </Box>
 
         <instancedMesh ref={trailMeshRef} args={[undefined, undefined, MAX_TRAIL_POINTS]} castShadow receiveShadow>
-          <sphereGeometry args={[0.15, 8, 8]} />
+          <sphereGeometry args={[0.05, 6, 6]} />
           <meshStandardMaterial color="#7a6b58" roughness={0.9} metalness={0.4} />
         </instancedMesh>
 

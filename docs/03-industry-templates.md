@@ -40,7 +40,7 @@
 | joint_angle_1..6 | deg | 六軸角度 |
 | joint_current_1..6 | A | 各軸電流 |
 | joint_temp_1..6 | °C | 各軸溫度 |
-| tcp_x/y/z | mm | 末端位置 |
+| tcp_x/y/z | mm | 末端位置。**由 `forward_kinematics(joint_angle_1..6)` 算出** —— 學生從 Modbus 讀六軸角度自己算正運動學,答案必須與這三個值對得上(不變量:`atan2(tcp_y, tcp_x) ≡ joint_angle_1`,J1 是基座偏擺軸)|
 | vibration_rms | mm/s | 諧波減速機退化指標 |
 | cycle_count | count | 動作循環數 |
 

@@ -1,6 +1,6 @@
 # Roadmap · TODO · Known Issues(路線圖 · 待辦 · 已知限制)
 
-> 進度 Progress: **~100%**(P0–P4 + 上線硬化 + 產業庫擴充 + 課堂即時練習 + 學生監控台 + 4D 暖色 UI 重設計)· 更新 Updated: 2026-07-12
+> 進度 Progress: **~100%**(P0–P4 + 上線硬化 + 產業庫擴充 + 課堂即時練習 + 學生監控台 + 4D 暖色 UI 重設計 + 3D 動畫精準化與自動驗證)· 更新 Updated: 2026-07-28
 > 建置順序原始規劃見 [07-roadmap.md](07-roadmap.md);本檔為現況與後續。
 
 ---
@@ -32,33 +32,78 @@
 
 | **3D 設備動畫精準化** | 建立**動畫綁定契約**([docs/animation_binding.md](animation_binding.md)):每個會動的部位都必須對應一支具體 tag / setpoint / coil,前端不得重算引擎已算過的物理,做了時間換算就必須在畫面標示倍率。依此重寫全部機種 3D:① 修好 4 支**抓不到的 tag**(空壓機 `tank_pressure`→`outlet_pressure`、風機 `yaw_angle`→`pitch_angle`、電表 `voltage`/`current`→三相 `*_l1/l2/l3`、CNC `machining_pattern` 改讀 setpoint);② CNC 改吃引擎的 `pos_x/y/z` + 真 `cycle_time`(含相位鎖定),手臂改吃完整六軸 `joint_angle_1..6`(取放站由正運動學定位),沖壓改吃 `ram_position`;③ 新增 **`deviceMotion.ts` 資料橋**(狀態正規化 / 退化度 / delta-based 補間 / L3 時間換算)與 **`MachineFx`** 共用視覺語彙(柱燈 / 故障冒煙 / 依 `vibration_rms` 抖動 / 過熱輝光);④ 補上**製程腔體**與**熱處理爐** 3D(11 種 template 全覆蓋);⑤ 燈光 / 環境 / 陰影上移到 Canvas 層級(WebGL context lost 根因);⑥ **全面移除 CDN 相依**(drei `<Environment preset>` 抓 .hdr、`<Text>` 抓字型資料,LAN 無外網會整個 Canvas 崩掉)—— 改本地程序化環境貼圖 + CanvasTexture 文字牌;⑦ dev 預覽頁 `web/preview/models3d.html` + `shot3d.mjs` 自動截圖與 console 錯誤檢查 |
 
-| **動畫正確性自動驗證** | [tests/animation](../tests/animation/README.md):把 `engine.World.step()` 錄下的**真實 telemetry** 逐幀餵進瀏覽器裡真正的 3D 元件,讀回 three.js 場景中機構的**實際世界座標**,與引擎 tag 做線性回歸 + 還原誤差比對(能一次抓出接錯 tag / 軸向對調 / 換算比例錯 / 符號反了)。**20 項全數通過**:CNC 刀尖 `pos_x` 誤差 rms 0.62 mm(行程 ±220 mm,R² 0.99999)、抬刀 / 下刀判定 27/27 幀與 `pos_z` 正負號一致;手臂 `joint_angle_1` → J1 世界 yaw 最大偏差 0.00°;AGV 位置 max 誤差 0.00 m(R² 1.00000)、朝向 0.01°;輸送帶速率與 `belt_speed × 倍率` 完全一致;`run_enable=0` 後刀尖位移 0.00000。**驗證過程抓到並修好兩個真缺陷**:相位鎖定漏比 z 軸(刀路自交處會鎖到相反的抬刀 / 下刀相位)、鎖定增益非 delta-based(低 fps 機器刀尖固定落後);另修正 `visualPeriod` 原本會**加速**播放過慢循環的設計錯誤(加速會直接破壞畫面與 `pos_*` 的座標對應) |
+| **動畫正確性自動驗證** | [tests/animation](../tests/animation/README.md):把 `engine.World.step()` 錄下的**真實 telemetry** 逐幀餵進瀏覽器裡真正的 3D 元件,讀回 three.js 場景中機構的**實際世界座標**,與引擎 tag 做線性回歸 + 還原誤差比對(一次抓出接錯 tag / 軸向對調 / 換算比例錯 / 符號反了)。**35 項全數通過,11 種機型全覆蓋**;另有 `verify_scenario.py` 逐廠逐台不抽樣(102 廠 / 205 台)與 `shot3d` / `shotline` 的無 CDN + 無 console error 檢查。三套都接上 CI(`.github/workflows/verify.yml`)。**驗證抓到並修好的真缺陷**:① 手臂 `tcp_x/y/z` 與六軸角度**互相矛盾**(tcp 原本是一條與角度無關的參數式擺動,方位角與 J1 的相關係數 **−0.82** —— 手臂往左轉、回報的末端往右跑;改由 `forward_kinematics()` 算出後為 **+0.999993**);② CNC 相位鎖定漏比 z 軸(刀路自交處會鎖到相反的抬刀 / 下刀相位);③ 鎖定增益非 delta-based(低 fps 機器刀尖固定落後);④ 故障時柱燈**有一半的瞬間讀起來像警告**(severity 拉滿使黃燈恆亮,而紅燈在閃);⑤ CNC 刻字上下鏡像(`pos_y`→世界 Z,而世界 +Z 在畫面上是往下);⑥ 刻痕補點是 frame-rate 相依的(低幀率下字變成散落的點)。另修正 `visualPeriod` 原本會**加速**播放過慢循環的設計錯誤(加速會直接破壞畫面與 `pos_*` 的座標對應) |
+
+| **廠內產線製程佈局** | 廠內視圖不再把設備等距排一列各做各的,改依**製程角色**(產出 / 搬運 / 輸送 / 廠務)排成一條看得懂的線(`web/src/world/processFlow.ts`):相鄰工站邊靠邊、手臂轉 90° 讓**取件點對到上游機台出料口、放件點壓在輸送帶起點**、廠務退到後排不佔主線、地面畫料道與方向箭頭、畫面與說明卡寫出「製程流向:射出成型 → 手臂取放 → 輸送帶出料」(由實際設備推出來)。CNC 在產線視圖套鈑金外殼,裸露刀路留給詳情頁。各機種佔地半寬由 `preview/measure.mjs` 從真實場景量回來,不是估的。**⚠ 這是空間上的對位,不是引擎層的物料交接** —— 各設備節拍仍各自獨立 |
+
+| **場景產生器化** | `scenarios/*.yaml` 改由 `scenarios/scripts/gen_*.py` 產生(規則寫死、可重現):課堂版 65 廠 / 133 設備 / 46 種組合,示範版 37 廠 / 72 設備 / 32 種組合,11 種 template 兩份都全覆蓋。設備組合符合產業工程邏輯而非隨機湊。**公司名改為虛構**(合成資料掛真實廠商名等於對真實企業的不實陳述);示範版廠名改成「{產品線}廠({老師}負責)」,產生器加了廠名唯一性斷言 |
 
 兩個教學階段皆可開課。Both teaching stages are classroom-ready.
 
 ---
 
-## ⏳ 待辦 · TODO（依優先序 by priority）
+## ⏳ 待辦 · TODO(依優先序 by priority)
 
-1. **對外接入 External access** —— Cloudflare Tunnel(HTTP)+ Tailscale(原生協定),ACL 限校內 / 學生群組。
-   *暫緩,待能存取校內 5090 主機。Deferred until the on-campus 5090 host is accessible.*
-   說明見 [docs/部署_對外連線.md](部署_對外連線.md);設定檔骨架見 `deploy/cloudflared/`。
-7. **生產管理 KPI 自動批改 Production-mgmt KPIs** —— 目前準交率 / WIP / 瓶頸都能從 `/api/orders` 自算,但尚未像
-   其他作業一樣自動批改。後續:`/api/orders` 回傳 on-time% / 平均 WIP / 前置時間(平台算好 ground-truth)+
-   新增 `production` 作業型別(比照 `oee` / `events`)。見 [docs/雲端生產_概念與議題.md](雲端生產_概念與議題.md) §7。
-8. **字體離線化 Offline fonts** —— 4D UI 以 Google Fonts 載入 Lora / Noto Sans TC / JetBrains Mono;校內 LAN
-   無外網時會回退系統字體(版面 / 顏色不受影響)。若要離線也保證字體一致,可改自架字體檔(`web/public/fonts` +
-   `@font-face`)。Self-host fonts if the LAN has no internet and exact typography matters.
-   *註:3D 層已完全不依賴外網(見 Done 表「3D 設備動畫精準化」⑥),此項只剩 HTML 字體。*
-9. **動畫綁定契約落實到俯瞰層 Binding contract for the overview layer** —— [docs/animation_binding.md](animation_binding.md)
-   目前規範的是廠內 3D;PixiJS 俯瞰層(公司量體 / 燈號 / 煙囪)還是純裝飾動畫,未來可比照納管。
-2. **真 LLM 建廠 Real-LLM factory** —— ✅ 已完成:接 Gemini(REST,免 SDK)做自由描述、**一句話建多型別工廠**,
-   失敗自動回退規則式;輸出嚴格驗證(見 Done 表)。Done — Gemini via REST, multi-template, graceful fallback.
-4. **熱載入補完 Hot-add completeness** —— ✅ 已完成:三個原生協定 adapter(Modbus channel-mux / OPC-UA /
-   multi_port)於下一拍動態掛 slave / node / 專屬埠,NL/LLM 建的新設備即時可連、免重啟(見 Done 表)。
-5. **OPC-UA multi_port** —— 目前 multi_port 只做 Modbus;OPC-UA per-device endpoint 為進階選項(較重)。
-6. **更多產業 More templates** —— ✅ 已完成:半導體製程腔體、電表能源節點、**沖壓機**、**熱處理爐**(共 10 種)。
-   後續可再補:廢水 / 環控節點、鑄造、噴塗等。Wastewater/environmental, casting, coating next.
+### 1. 每週凍結資料包 Weekly frozen data packs ★最高優先
+
+**問題**:`scenarios/course_weeks.yaml` 的每週情境是**套用到正在跑的引擎**上的
+(教師控制台按「套用第 N 週情境」)。這代表平台必須持續開著才有當週資料 —— 對一學期
+18 週的課不現實(斷電、重啟、學期中改程式都會影響)。
+
+**方向**:把「每週情境」離線**預先產成凍結的資料包**,平台在不在線都不影響已發教材。
+零件其實都有了,缺的是把它們串起來的那一段:
+
+| 已有 | 缺 |
+|------|-----|
+| `tools/generate_dataset.py`(`--inject` / `--seed` / `--degradation-scale` / `--devices`) | 讀 `course_weeks.yaml` 的 glue —— 產生器目前只吃手打的 `--inject` |
+| `manifest.json` 記 seed + engine commit(可溯源、可重現) | 每週 × 每學號的批次產出與打包 |
+| `tools/make_assignment.py` / `grade_assignment.py`(每學號私有測試集 + 自動評分) | 週次 ↔ 作業 ↔ 練習題的綁定 |
+| `scenarios/classroom_exercises.yaml`(課堂即時練習題庫) | 練習題與「當週資料包」對應(目前練習是對線上活廠出的) |
+
+**另外兩個缺口**:
+- `course_weeks.yaml` 只定義了 **8 週**(W4–W8、W10、W11、W13),18 週規劃裡其餘上課週沒有條件。
+- **產出後要驗**:每份資料包都該自動檢查「這週要學生找的東西真的找得到」
+  (注入的故障在觀測窗內有沒有顯著到可偵測、標籤分佈會不會極端不平衡)。
+  沒驗就發下去,可能整週的題目是無解的。作法可比照 [ML基準實證](ML基準實證.md)。
+
+### 2. 其餘 template 的資料自洽性掃描 Cross-tag consistency sweep
+
+手臂的 `tcp` 缺陷(與六軸角度互相矛盾,相關係數 −0.82)是靠一個**物理不變量**抓到的。
+其餘 10 種 template 應該也有可查的不變量,例如:
+
+- 電表:`active_power ≈ √3 × V × I × power_factor`
+- 空壓機:`flow` 與 `motor_current` 的關係(濾網阻塞時兩者應脫鉤 —— 這正是要教的)
+- CNC:`part_count` 的增速應與 `cycle_time` 一致
+- 熱處理爐:`heating_power` 與 `furnace_temp` 對 setpoint 的追隨關係
+
+成本低、風險小,而且如果真的還有「兩套互相矛盾的資料」,那是**會直接教錯學生**的問題,
+優先度高於任何視覺改善。作法比照 `verify_scenario.py::check_kinematics`。
+
+### 3. 引擎層的物料流 Material flow in the engine
+
+目前廠內產線是**空間上的對位**:手臂的取件點對到上游機台的出料口,但兩者節拍各自獨立,
+不會出現「射出機一頂出、手臂就伸手」。要真連動得在引擎加產線 / 工件傳遞的概念。
+
+教學價值高(學生能學到節拍不匹配造成的堆料 / 斷料、瓶頸分析),但這是**引擎的架構性改動**,
+會連帶影響 OEE 與件數統計。建議等課程流程確定需要再做。
+
+### 4. 對外接入 External access
+
+Cloudflare Tunnel(HTTP)+ Tailscale(原生協定),ACL 限校內 / 學生群組。
+*暫緩,待能存取校內 5090 主機。* 見 [docs/部署_對外連線.md](部署_對外連線.md);骨架見 `deploy/cloudflared/`。
+
+### 5. 其他
+
+- **生產管理 KPI 自動批改** —— 準交率 / WIP / 前置時間都能從 `/api/orders` 自算,但尚未像其他作業
+  一樣自動批改。見 [雲端生產_概念與議題](雲端生產_概念與議題.md) §7。
+- **字體離線化** —— HTML 以 Google Fonts 載入 Lora / Noto Sans TC / JetBrains Mono,LAN 無外網會回退
+  系統字體(版面 / 顏色不受影響)。**3D 層已完全不依賴外網**,此項只剩 HTML 字體。
+- **動畫綁定契約落實到俯瞰層** —— [animation_binding.md](animation_binding.md) 目前規範廠內 3D;
+  PixiJS 俯瞰層(公司量體 / 燈號 / 煙囪)仍是純裝飾動畫,未來可比照納管。
+- **OPC-UA multi_port** —— 目前 multi_port 只做 Modbus;OPC-UA per-device endpoint 為進階選項(較重)。
+- **更多產業 template** —— 11 種已涵蓋主要教學需求;後續可補廢水 / 環控、鑄造、噴塗。
+
+> 已完成而從待辦移除:真 LLM 建廠、熱載入補完、產業庫擴充(10→11 種)。
 
 ---
 
@@ -78,12 +123,16 @@
   廠內視圖改 3D 後,原本的 2D「雙機上下料工作站」畫法已移除,c65 現在就是一般的多機台產線;
   上下料的搬運演示改由 **AGV 詳情場景**(兩個停靠站各有一支上下料手臂,節拍對齊引擎的 6 秒停靠)呈現。
   c65 屬**教師展示用**,不需要時可刪除該公司。Extra teacher-demo company; remove it if not needed.
-- **4D 字體 Fonts**:見上 TODO §8 —— LAN 無外網,HTML 會回退系統字體;**3D 層不受影響**(不依賴外網)。
+- **4D 字體 Fonts**:見上 TODO §5 —— LAN 無外網,HTML 會回退系統字體;**3D 層不受影響**(不依賴外網)。
 - **動畫的時間換算 Animation time scaling**:場景預設 `time_multiplier: 120`,多數設備的真實循環在牆鐘上
   只有零點幾秒,直接畫會變閃爍。因此週期性動作與高轉速件會夾在可讀區間並**在畫面標出倍率**
   (例:「動畫慢放 ×8」「轉速視覺 ×1/10667」)。**數值一律以點位為準,畫面節拍是換算後的**。
   這時 1 Hz 的 `pos_*` / `ram_position` 已低於該循環的 Nyquist,因此不做相位鎖定;
   倍率≈1(慢速 sim)時才會把畫面相位鎖回遙測。見 [docs/animation_binding.md](animation_binding.md) §1 鐵則三。
+- **每週情境需要活廠 Weekly scenarios need a live engine**:`scenarios/course_weeks.yaml` 的每週條件是
+  由教師控制台**套用到正在跑的引擎**上,平台沒開就沒有當週資料。離線作業目前走另一條路
+  (`tools/generate_dataset.py` 產凍結 CSV)。把兩者串起來、預先產出整學期的資料包是 TODO §1。
+  Weekly conditions are applied to the running engine; offline assignments use frozen CSVs instead.
 - **3D 層禁用 CDN 資源 No CDN in the 3D layer**:drei 的 `<Environment preset>`(抓 .hdr)與 `<Text>`
   (troika 抓字型資料,中文必抓)在無外網時會讓整個 Canvas 拋錯 / 文字消失。專案已改用本地程序化環境貼圖與
   CanvasTexture 文字牌;**新增 3D 元件時不要把這兩個 API 加回來**,`node preview/shot3d.mjs` 會攔到。

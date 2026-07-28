@@ -1,110 +1,127 @@
-import React, { useRef } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Box, Cylinder, Environment, ContactShadows, Text } from '@react-three/drei';
-import * as THREE from 'three';
+/**
+ * 風力發電機 3D(綁定表見 docs/animation_binding.md §4.7)。
+ *
+ * 修正:機艙原本繞 `tags.yaw_angle` 轉 —— 引擎沒有這支 tag。實際有的是
+ * `pitch_angle`(葉片槳距,0°=工作 / 88°=順槳停機),語意完全不同:它讓**葉片沿自身
+ * 長軸轉**,是「停機時葉片轉成順風面」這個關鍵動作。停機時學生應該看到葉片順槳 + 停轉,
+ * 而不是整個機艙偏航。
+ */
+import React, { useRef } from "react";
+import { useFrame } from "@react-three/fiber";
+import { Box, Cylinder } from "@react-three/drei";
+import * as THREE from "three";
+import MachineScene, { Readout, Row } from "./MachineScene";
+import { CanvasLabel, FX, FaultSmoke, HeatGlow, Shake, StatusBeacon, bodyColor } from "./MachineFx";
+import { DeviceMotion, MachineProps, approachAngleDeg, clamp01, scaleNote, visualSpin } from "./deviceMotion";
 
-export const WindTurbineModel = ({ state, tags }: { state: string, tags: Record<string, number> }) => {
+export const WindTurbineModel = ({ motion }: MachineProps) => {
   const rotorRef = useRef<THREE.Group>(null);
-  
-  const isRunning = state === 'running';
-  // tags.rotor_rpm usually around 10-20. Let's map it to visual rotation speed.
-  const rpm = tags.rotor_rpm || (isRunning ? 15 : 0);
-  const yaw = tags.yaw_angle || 0; // Rotate the whole nacelle
+  const bladeRefs = [useRef<THREE.Group>(null), useRef<THREE.Group>(null), useRef<THREE.Group>(null)];
+  const vaneRef = useRef<THREE.Group>(null);
+  const pitchRef = useRef(0);
 
-  useFrame((_, delta) => {
-    if (rotorRef.current) {
-      // 1 RPM = 2PI radians / 60 seconds
-      rotorRef.current.rotation.z -= (rpm * Math.PI * 2 / 60) * delta;
+  useFrame((st, delta) => {
+    const t = motion.tags;
+    // 轉速:6~15 rpm 本身很慢,但 sim ×120 之後在牆鐘上是 30 rev/s,仍需降頻(倍率已標示)
+    const spin = visualSpin(t.rotor_rpm ?? 0, motion.timeScale).value;
+    if (rotorRef.current) rotorRef.current.rotation.z -= spin * Math.PI * 2 * delta;
+
+    // 槳距角:0°=工作面迎風、88°=順槳。停機 / 故障時引擎會回 88°,葉片會轉平停下。
+    pitchRef.current = approachAngleDeg(pitchRef.current, t.pitch_angle ?? 0, 0.8, delta);
+    for (const r of bladeRefs) if (r.current) r.current.rotation.y = THREE.MathUtils.degToRad(pitchRef.current);
+
+    // 風向袋擺動幅度綁 wind_speed(m/s):風大擺得兇
+    if (vaneRef.current) {
+      const ws = clamp01((t.wind_speed ?? 0) / 25);
+      vaneRef.current.rotation.z = Math.sin(st.clock.elapsedTime * 3.8) * 0.35 * ws;
     }
   });
 
-  const baseColor = "#dddddd";
-  const bladeColor = "#ffffff";
-  const faultColor = "#c85a4a";
-  const towerColor = state === 'fault' ? faultColor : baseColor;
+  const tower = bodyColor(motion, "#dddddd");
+  const feathered = (motion.tags.pitch_angle ?? 0) > 45;
 
   return (
-    <group position={[0, -1, 0]}>
-      {/* Tower Base */}
-      <Cylinder args={[1.5, 2.0, 1, 32]} position={[0, 0.5, 0]} castShadow receiveShadow>
-        <meshStandardMaterial color="#666" />
-      </Cylinder>
+    <Shake motion={motion} amount={0.5}>
+      <group position={[0, -1, 0]}>
+        <Cylinder args={[1.5, 2, 1, 32]} position={[0, 0.5, 0]} castShadow receiveShadow>
+          <meshStandardMaterial color="#666666" />
+        </Cylinder>
+        <Cylinder args={[0.8, 1.5, 14, 32]} position={[0, 8, 0]} castShadow receiveShadow>
+          <meshStandardMaterial color={tower} />
+        </Cylinder>
 
-      {/* Tall Tower */}
-      <Cylinder args={[0.8, 1.5, 14, 32]} position={[0, 8, 0]} castShadow receiveShadow>
-        <meshStandardMaterial color={towerColor} />
-      </Cylinder>
+        <group position={[0, 15, 0]}>
+          <Box args={[2, 2, 4.5]} position={[0, 0, -1]} castShadow receiveShadow>
+            <meshStandardMaterial color="#dddddd" />
+          </Box>
+          {/* 齒輪箱 / 發電機發熱 */}
+          <HeatGlow motion={motion} position={[0, 0, -1]} radius={2.4} />
 
-      {/* Nacelle & Rotor (Yaw control rotates this part around Y) */}
-      <group position={[0, 15, 0]} rotation={[0, THREE.MathUtils.degToRad(yaw), 0]}>
-        
-        {/* Nacelle (Generator Housing) */}
-        <Box args={[2, 2, 4.5]} position={[0, 0, -1]} castShadow receiveShadow>
-          <meshStandardMaterial color={baseColor} />
-        </Box>
-        
-        {/* Hub / Rotor Center */}
-        <group position={[0, 0, 1.5]} ref={rotorRef}>
-          <Cylinder args={[0.6, 0.8, 1.5, 16]} rotation={[Math.PI / 2, 0, 0]} castShadow receiveShadow>
-             <meshStandardMaterial color="#ccc" />
-          </Cylinder>
-
-          {/* 3 Blades */}
-          {[0, 1, 2].map((i) => {
-            const angle = (i * Math.PI * 2) / 3;
-            return (
-              <group key={i} rotation={[0, 0, angle]}>
-                {/* Blade geometry: we can use a flattened cylinder or box */}
-                <Box args={[0.5, 10, 0.1]} position={[0, 5.5, 0]} castShadow receiveShadow>
-                  <meshStandardMaterial color={bladeColor} />
-                </Box>
+          <group position={[0, 0, 1.5]} ref={rotorRef}>
+            {/* 驗證探針:轉子中心 + 轉子上一點 —— 兩點連線的夾角變化即轉速 */}
+            <object3D name="probe:rotor_hub" />
+            <object3D name="probe:rotor_mark" position={[0, 6, 0]} />
+            <Cylinder args={[0.6, 0.8, 1.5, 16]} rotation={[Math.PI / 2, 0, 0]} castShadow receiveShadow>
+              <meshStandardMaterial color="#cccccc" />
+            </Cylinder>
+            {[0, 1, 2].map((i) => (
+              <group key={i} rotation={[0, 0, (i * Math.PI * 2) / 3]}>
+                {/* 內層 group 繞葉片長軸(Y)轉 = 槳距 */}
+                <group ref={bladeRefs[i]} position={[0, 5.5, 0]}>
+                  <Box args={[0.5, 10, 0.12]} castShadow receiveShadow>
+                    <meshStandardMaterial color="#ffffff" />
+                  </Box>
+                  {/* 驗證探針:葉片前緣 —— 繞葉片長軸的位移量即槳距角 */}
+                  {i === 0 && <object3D name="probe:blade_edge" position={[0.5, 0, 0]} />}
+                </group>
               </group>
-            );
-          })}
-        </group>
+            ))}
+          </group>
 
-        {/* Data display on Nacelle */}
-        <group position={[1.1, 0, -1]} rotation={[0, Math.PI / 2, 0]}>
-          <Text fontSize={0.5} color="#333" anchorX="center" anchorY="middle" position={[0, 0, 0]}>
-            {`${rpm.toFixed(1)} RPM`}
-          </Text>
-        </group>
-        <group position={[-1.1, 0, -1]} rotation={[0, -Math.PI / 2, 0]}>
-          <Text fontSize={0.5} color="#333" anchorX="center" anchorY="middle" position={[0, 0, 0]}>
-            {`${rpm.toFixed(1)} RPM`}
-          </Text>
+          {/* 風向袋:靠風速擺動,讓「有風但不發電」一眼看得出來 */}
+          <group position={[0, 1.4, -3.2]} ref={vaneRef}>
+            <Box args={[0.08, 1.0, 0.08]} position={[0, 0.5, 0]}><meshStandardMaterial color="#8a7c63" /></Box>
+            <Box args={[0.9, 0.35, 0.04]} position={[0.5, 1.0, 0]}><meshStandardMaterial color={FX.warn} /></Box>
+          </group>
+
+          <StatusBeacon motion={motion} position={[1.3, -1.0, -2.2]} scale={1.2} />
+          <FaultSmoke motion={motion} position={[0, 1.2, -1]} />
         </group>
       </group>
-    </group>
+      {feathered && (
+        <CanvasLabel text="葉片順槳 pitch 88°" position={[0, 12.6, 3]} height={1.0} color={FX.warn} />
+      )}
+    </Shake>
   );
 };
 
-export default function WindTurbine3D({ state, tags }: { state: string, tags?: Record<string, number> }) {
+export default function WindTurbine3D({ motion, debug }: MachineProps) {
+  const spin = visualSpin(motion.tags.rotor_rpm ?? 0, motion.timeScale);
   return (
-    <Canvas shadows camera={{ position: [15, 15, 25], fov: 40 }} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block" }}>
-      <OrbitControls 
-        enablePan={true}
-        enableZoom={true}
-        enableRotate={true}
-        target={[0, 10, 0]}
-        maxPolarAngle={Math.PI / 2 - 0.05} 
-      />
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[20, 30, 20]} intensity={1.0} castShadow shadow-bias={-0.0001} />
-      <pointLight position={[-10, 15, 10]} intensity={0.5} />
-      
-      <WindTurbineModel state={state} tags={tags || {}} />
-      
-      <ContactShadows position={[0, -0.99, 0]} opacity={0.4} scale={40} blur={3} far={20} />
-      
-      {/* For a wind turbine, an outdoor environment might be nicer, but warehouse matches the factory. */}
-      <Environment preset="city" />
-
-      {/* Ground */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1, 0]} receiveShadow>
-        <planeGeometry args={[100, 100]} />
-        <meshStandardMaterial color="#6a8a5a" roughness={1.0} /> {/* Grass-like color for outdoor turbine */}
-      </mesh>
-    </Canvas>
+    <MachineScene camera={[15, 15, 25]} fov={40} target={[0, 10, 0]} env="outdoor"
+                  ground="#6a8a5a" groundSize={100} shadowScale={40} note={scaleNote(spin)}
+                  overlay={<TurbineReadout motion={motion} />}>
+      <WindTurbineModel motion={motion} />
+      {debug as React.ReactNode}
+    </MachineScene>
   );
+}
+
+function TurbineReadout({ motion }: { motion: DeviceMotion }) {
+  const t = motion.tags;
+  const rows: Row[] = [
+    ["WIND", `${(t.wind_speed ?? 0).toFixed(1)} m/s`],
+    ["ROTOR", `${(t.rotor_rpm ?? 0).toFixed(1)} rpm`],
+    ["PITCH", `${(t.pitch_angle ?? 0).toFixed(1)} °`, (t.pitch_angle ?? 0) > 45],
+    ["POWER", `${(t.power_output ?? 0).toFixed(0)} kW`],
+    ["GEARBOX", `${(t.gearbox_temp ?? 0).toFixed(1)} °C`, (t.gearbox_temp ?? 0) > 80],
+    ["GENERATOR", `${(t.generator_temp ?? 0).toFixed(1)} °C`, (t.generator_temp ?? 0) > 80],
+    ["NACELLE", `${(t.nacelle_temp ?? 0).toFixed(1)} °C`],
+    ["VIB", `${(t.vibration_rms ?? 0).toFixed(2)} mm/s`, (t.vibration_rms ?? 0) > 4.5],
+    ["ENERGY", `${(t.total_energy ?? 0).toFixed(0)} kWh`],
+  ];
+  const hint = (t.pitch_angle ?? 0) > 45 && (t.wind_speed ?? 0) > 4
+    ? "有風但葉片順槳 → 機組被停機或故障(非無風)"
+    : clamp01(motion.severity) > 0.5 ? "⚠ 振動 + 齒輪箱溫升 → gearbox_wear" : undefined;
+  return <Readout rows={rows} hint={hint} />;
 }

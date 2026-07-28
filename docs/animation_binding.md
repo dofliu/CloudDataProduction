@@ -1,0 +1,281 @@
+# 設備動畫綁定契約 · Animation Binding Contract
+
+> 目的:讓 2D / 3D 動畫**精準呈現設備當下的動作、狀態與資料**,而不是「看起來很忙」的裝飾。
+> 本檔是前端動畫的唯一依據。任何人(或任何 AI)要改動畫,先改這張表,再改程式碼。
+> 相關:[02-simulation-engine.md](02-simulation-engine.md)(訊號怎麼來)、[03-industry-templates.md](03-industry-templates.md)(產業型別)。
+
+---
+
+## 0. 三條鐵則
+
+1. **只畫引擎給的東西**。動畫的每一個會動的部位,都必須對應 `snapshot.tags` /
+   `snapshot.setpoints` / `snapshot.coils` / `snapshot.state` 的某個具體欄位。
+   找不到欄位的動作,不可以憑空捏造 —— 要嘛去引擎補 tag,要嘛不要畫。
+2. **前端不重算引擎已經算過的物理**。引擎算好的位置 / 角度 / 相位(`pos_x`、`ram_position`、
+   `joint_angle_*`…)一律直接用。前端只做「兩次遙測之間的補間」,不做第二套模擬。
+3. **視覺換算必須標示**。人眼看不了 8000 rpm,也看不清 0.4 秒一次的加工循環。
+   做了降頻 / 慢放的地方,**畫面上要寫出換算倍率**,學生才知道「畫面被縮放、但資料沒有」。
+
+---
+
+## 1. 綁定等級
+
+| 等級 | 意義 | 例子 | 驗收方式 |
+|------|------|------|----------|
+| **L1 直接映射** | 畫面幾何量 = 資料值(僅換單位) | `pos_x`(mm)→ 主軸座 X;`ram_position`(mm)→ 滑塊高度;`joint_angle_3`(deg)→ 第 3 軸角度 | 用 Modbus 讀該 tag,值應與畫面位置一致 |
+| **L2 比例映射** | 連續量 → 視覺強度,單調遞增、值域明確 | `vibration_rms` → 機台抖動振幅;`spindle_temp` → 主軸發熱輝光 | 值變大,視覺一定變強;不可反轉 |
+| **L3 時間換算** | 因顯示極限而降頻 / 慢放 | 主軸 8000 rpm → 畫面 ≤1.5 rev/s;加工循環 0.4 s → 畫面 4 s | **畫面必須標出倍率**,例如「主軸 ×1/89」「循環 慢放 ×10」 |
+
+> L3 是誠信底線。專案鐵則二說「數據必須誠實」,動畫同理:可以縮放,不可以假裝沒縮放。
+
+---
+
+## 2. 通用狀態語彙(所有設備一致)
+
+前端把 `state` + `coils.run_enable` 正規化成一組旗標(見 `web/src/world/deviceMotion.ts`):
+
+| 旗標 | 來源 | 視覺表現 |
+|------|------|----------|
+| `running` | `state ∈ {running, moving, charging, tool_change}` 且未故障 | 機構運轉、柱燈綠 |
+| `idle` | `state ∈ {idle, maintenance, blocked}` | 機構停止、柱燈黃(恆亮) |
+| `fault` | `state == fault`(或 `alarm`) | 機構立即停止、柱燈紅**閃爍**、機台冒煙、主色轉警示紅 |
+| `stopped` | `coils.run_enable == false` | 機構停止、柱燈黃**慢閃**(與自然待機區分) |
+| `charging` | `state == charging`(AGV) | 停於充電站、電池圖示脈動 |
+
+退化(健康度)則走三個 0..1 的連續量,由觀測 tag 反推(不碰 ground-truth):
+
+| 量 | 來源 tag | 視覺 |
+|----|----------|------|
+| `severity` | `vibration_rms`(門檻見 §4) | 機台整體抖動振幅、柱燈由綠轉黃 |
+| `heat` | 該機種主要溫度 tag | 熱源部位 emissive 輝光 |
+| `wear` | 該機種指標型退化 tag(`tool_wear` / `burr_rate` / `particle_count` …) | 加工火花變多變紅、工件品質外觀 |
+
+**severity 通用門檻**:`warn = 4.5 mm/s`、`fault = 11 mm/s`(對應引擎各 template 的
+`base + 10~12 × (1-health)^1.8`)。`severity = clamp((vib - warn) / (fault - warn), 0, 1)`。
+
+---
+
+## 3. 時間軸
+
+- 遙測 1 Hz;渲染 60 fps。中間一律用 **delta-based 指數趨近**
+  `x += (target - x) × (1 - exp(-dt/τ))`,不可以用 `x += (target-x) × 0.4`
+  (那是 frame-rate 相依的,144 Hz 螢幕會跑得比 60 Hz 快)。
+- `sim_clock` 倍率由 `TelemetryMsg.multiplier` 提供(場景預設 `time_multiplier: 120`)。
+  週期性動作的**牆鐘週期** = `sim 週期 / multiplier`。
+- 可讀區間:`MIN_PERIOD = 3.0 s`、`MAX_PERIOD = 20.0 s`。超出即夾住,並標示倍率(L3)。
+- 旋轉:`MAX_SPIN = 1.5 rev/s`。超出即降頻,並標示倍率(L3)。
+
+---
+
+## 4. 逐機種綁定表
+
+> 「引擎欄位」欄若標 ⚙ 表示是 **setpoint**(在 `snapshot.setpoints`,不在 `tags`)。
+
+### 4.1 `cnc_machining_center` — CNC 加工中心
+
+| 視覺元素 | 引擎欄位 | 等級 | 映射 |
+|----------|----------|------|------|
+| 龍門 Z 向(前後) | `pos_y` (mm, ±220) | L1 | `/50` → 模型單位 |
+| 主軸座 X 向(左右) | `pos_x` (mm, ±220) | L1 | `/50` |
+| 主軸頭升降 | `pos_z` (mm, +50 抬刀 / −50 下刀) | L1 | `/50` |
+| 加工圖樣 | ⚙ `machining_pattern` (0=CNC 字樣 / 1=圓 / 2=方) | L1 | 決定刀路;相位以 `pos_*` 反推鎖定 |
+| 循環週期 | `cycle_time` (s, 45→60 隨刀具鈍化變長) | L3 | 牆鐘週期 = `cycle_time / multiplier`,夾在 3~20 s |
+| 主軸旋轉 | `spindle_speed` (rpm) | L3 | 降頻至 ≤1.5 rev/s,標示倍率 |
+| 切削中(火花 / 刻痕 / 冷卻液) | `pos_z < 0` | L1 | 引擎的 z<0 就是下刀切削 |
+| 刻痕重置 | `part_count` 變動 | L1 | 換新件 → 清空刻痕 |
+| 火花密度 / 顏色 | `tool_wear` (0→100 %) | L2 | 刀越鈍火花越多越紅 |
+| 主軸發熱輝光 | `spindle_temp` (25→90 °C) | L2 | |
+| 機台抖動 | `vibration_rms` (0.15→13 mm/s) | L2 | |
+| 柱燈 / 冒煙 / 停轉 | `state`、`coils.run_enable` | L1 | §2 |
+
+### 4.2 `robot_arm_6axis` — 六軸機械手臂
+
+| 視覺元素 | 引擎欄位 | 等級 | 映射 |
+|----------|----------|------|------|
+| J1~J6 關節角 | `joint_angle_1..6` (deg) | L1 | **六軸全用**,不再由 J1 合成 |
+| 夾爪開合 / 工件在手 | 由 `joint_angle_2`(俯衝角)過取放點推得 | L1 | 引擎 `_KEYFRAMES` 的 idx 1 / 4 是下探點 |
+| 末端位置校驗 | `tcp_x/y/z` (mm) | L1 | 用於除錯顯示 |
+| 循環計數 | `cycle_count` | L1 | |
+| 關節發熱 | `joint_temp_1..6` (°C) | L2 | 取最大值 |
+| 機身抖動 | `vibration_rms` (0.1→12) | L2 | |
+
+### 4.3 `agv_mobile_robot` — AGV 搬運車
+
+| 視覺元素 | 引擎欄位 | 等級 | 映射 |
+|----------|----------|------|------|
+| 車體位置 | `pos_x`, `pos_y` (m, 2~18 × 2~12 矩形路線) | L1 | 1 m = 1 模型單位 |
+| 車頭朝向 | `heading` (deg) | L1 | wrap-aware 補間 |
+| 輪子轉動 | `speed` (m/s) | L1 | 角速度 = v / r |
+| 載貨方塊 | `payload` (kg, 0 / 30) | L1 | >0 顯示 |
+| 電量顯示 / 低電紅字 | `battery_soc` (%) | L1 | |
+| 充電站脈動 | `state == charging` | L1 | |
+| 馬達發熱 | `motor_temp` (°C) | L2 | |
+
+### 4.4 `conveyor` — 輸送帶
+
+| 視覺元素 | 引擎欄位 | 等級 | 映射 |
+|----------|----------|------|------|
+| 皮帶捲動 / 工件前進 | `belt_speed` (m/s, ~1.0) | L1 | 1 m/s = 1 模型單位/s |
+| 馬達負載輝光 | `motor_current` (A, 5→7) | L2 | |
+| 機身抖動 | `vibration_rms` (0→2) | L2 | 門檻較低:warn 1.2 / fault 2.0 |
+
+### 4.5 `stamping_press` — 沖壓機
+
+| 視覺元素 | 引擎欄位 | 等級 | 映射 |
+|----------|----------|------|------|
+| 滑塊高度 | `ram_position` (mm, 0~120) | L1 | **直接用**,不再自己跑 sin |
+| 行程節拍 | `stroke_rate` (spm) | L3 | 牆鐘週期 = `60/spm / multiplier`,夾住並標示 |
+| 下死點火花 | `ram_position < 8 mm` | L1 | |
+| 累積行程數 | `stroke_count` | L1 | |
+| 噸位錶 | `tonnage` (ton, ~200) | L1 | |
+| 毛邊(工件外觀) | `burr_rate` (%, 0.5→15) | L2 | 毛邊越高工件邊緣越毛躁 / 變色 |
+| 潤滑警示 | `lubrication_pressure` (bar, 3→1.5) | L2 | 低於 2.0 亮黃 |
+| 模具發熱 | `die_temp` (°C) | L2 | |
+| 機身抖動 | `vibration_rms` (0.15→12) | L2 | |
+
+### 4.6 `injection_molding` — 射出成型機
+
+| 視覺元素 | 引擎欄位 | 等級 | 映射 |
+|----------|----------|------|------|
+| 循環相位(鎖模 / 射出 / 冷卻 / 開模 / 頂出) | `injection_pressure`(90→160 bar 為射出段)+ `clamping_force` | L1 | 由兩者反推相位 |
+| 循環週期 | `cycle_time` (s, 隨螺桿磨耗變長) | L3 | 牆鐘週期 = `cycle_time / multiplier`,夾住並標示 |
+| 螺桿轉動 | `screw_speed` (rpm, 120~160) | L3 | 降頻標示 |
+| 熔膠顏色 / 料管發熱 | `barrel_temp_1..4` (°C, 225~240) | L2 | |
+| 鎖模力錶 | `clamping_force` (ton) | L1 | |
+| 累積模數 | `shot_count` | L1 | |
+| 液壓油溫輝光 | `oil_temp` (°C) | L2 | |
+| 機身抖動 | `vibration_rms` (0.12→11) | L2 | |
+
+### 4.7 `wind_turbine` — 風力發電機
+
+| 視覺元素 | 引擎欄位 | 等級 | 映射 |
+|----------|----------|------|------|
+| 轉子轉速 | `rotor_rpm` (rpm, 6~15) | L1 | 6~15 rpm 直接畫得出來,不需降頻 |
+| 葉片槳距角 | `pitch_angle` (deg, 0=工作 / 88=順槳停機) | L1 | **原本誤用不存在的 `yaw_angle`** |
+| 風速風向指示 | `wind_speed` (m/s, 0~28) | L1 | |
+| 發電量顯示 | `power_output` (kW) | L1 | |
+| 機艙 / 齒輪箱發熱 | `generator_temp`, `gearbox_temp` (°C) | L2 | |
+| 塔架擺動 | `vibration_rms` (0.8→12) | L2 | |
+
+### 4.8 `air_compressor` — 空壓機
+
+| 視覺元素 | 引擎欄位 | 等級 | 映射 |
+|----------|----------|------|------|
+| 壓力錶指針 | `outlet_pressure` (bar, 5~9) | L1 | **原本誤用不存在的 `tank_pressure`** |
+| 壓力設定點紅線 | ⚙ `pressure_setpoint` (bar) | L1 | 指針 vs 目標一眼可比 |
+| 飛輪 / 皮帶轉動 | `state == running` + `motor_current` | L3 | 1500 rpm 降頻標示 |
+| 活塞往復 | 同上 | L3 | 與飛輪同相位 |
+| 出風流量粒子 | `flow` (m³/min, 0~8) | L2 | |
+| 馬達發熱 | `motor_temp` (°C) | L2 | |
+| 濾網阻塞警示 | `motor_current` 高但 `flow` 低 | L2 | 兩訊號交叉,對應 `filter_clog` |
+| 機身抖動 | `vibration_rms` (0.12→11) | L2 | |
+
+### 4.9 `energy_meter` — 智慧電表
+
+| 視覺元素 | 引擎欄位 | 等級 | 映射 |
+|----------|----------|------|------|
+| 有效功率讀數 | `active_power` (kW, 30~220) | L1 | |
+| 三相電壓 | `voltage_l1/l2/l3` (V, ~380) | L1 | **原本誤用不存在的 `voltage`**;三相分開顯示 |
+| 三相電流 | `current_l1/l2/l3` (A) | L1 | **原本誤用不存在的 `current`**;三相長條圖看不平衡 |
+| 功因 | `power_factor` (0.6~0.99) | L1 | <0.85 亮黃、<0.75 亮紅 |
+| 累積電能 | `energy_total` (kWh) | L1 | |
+| 負載率長條 | `active_power / 220` | L2 | |
+
+### 4.10 `semi_process_chamber` — 半導體製程腔體(新增 3D)
+
+| 視覺元素 | 引擎欄位 | 等級 | 映射 |
+|----------|----------|------|------|
+| 電漿輝光強度 | `rf_power` (W, 0~1500) | L2 | |
+| 腔壓顯示 / 抽氣粒子 | `chamber_pressure` (mTorr, 5~65) | L1 | |
+| 三路 MFC 氣體流線 | `gas_flow_1/2/3` (sccm, 50/30/15) | L1 | 三條線寬度分別對應 |
+| 真空泵轉動 / 電流錶 | `vacuum_pump_current` (A, 6~15) | L1 + L3 | 錶 L1、轉動 L3 |
+| 泵浦發熱 | `pump_temp` (°C) | L2 | |
+| 微粒污染(良率殺手) | `particle_count` (1/wafer, 4→70) | L2 | 腔內飄浮微粒數量與顏色 |
+| 產出節拍 | `throughput` (wph) | L3 | 晶圓搬運動畫節拍 |
+| 累積片數 | `wafer_count` | L1 | |
+
+### 4.11 `heat_treat_furnace` — 熱處理爐(新增 3D)
+
+| 視覺元素 | 引擎欄位 | 等級 | 映射 |
+|----------|----------|------|------|
+| 爐膛火光顏色 / 強度 | `furnace_temp` (°C, 30~900) | L2 | 900 °C = 亮橘白 |
+| 爐溫讀數 + 設定點 900 °C 對照 | `furnace_temp` | L1 | 到不了設定點 = 加熱元件老化 |
+| 爐內溫差熱斑 | `temp_uniformity` (°C, 4→39) | L2 | 越大爐內色塊越不均 |
+| 加熱功率條 | `heating_power` (kW, 60~93) | L1 | |
+| 元件電流錶 | `element_current` (A, 120~160) | L1 | |
+| 保護氣氛流線 | `atmosphere_flow` (L/min, 2~40) | L1 | |
+| 殘氧警示 | `oxygen_ppm` (ppm, 8→230) | L2 | >100 ppm 亮紅(密封洩漏) |
+| 累積能耗 | `energy_kwh` | L1 | |
+
+---
+
+## 5. 實作結構
+
+```
+web/src/world/
+├── deviceMotion.ts      # ★ 資料橋:狀態正規化 / 健康度 / 時間換算 / delta 補間
+├── MachineScene.tsx     # 共用 Canvas 外殼(燈光 / 環境 / 地板 / 控制器)——只在這裡出現一次
+├── MachineFx.tsx        # 共用視覺語彙:柱燈 / 故障冒煙 / 抖動 / 換算倍率標示
+├── FactoryLine3D.tsx    # 廠內產線:一個 Canvas 擺 N 台(燈光只有一組)
+└── <Xxx>3D.tsx          # 每機種:export <Xxx>Model(純幾何,不含燈光)+ default(單機 Canvas)
+```
+
+**規則**:`<Xxx>Model` 內部**不得**出現 `<Environment>`、`<ContactShadows>`、`<ambientLight>`、
+`<directionalLight>`、`<pointLight>`。這些只屬於 Canvas 層級 —— 否則 `FactoryLine3D` 放 N 台就會
+建 N 份環境貼圖與陰影 render target,直接把 WebGL context 打爆。
+
+---
+
+## 6. 自動驗收
+
+契約不是寫給人看爽的 —— [tests/animation](../tests/animation/README.md) 有一套端到端測試,
+把 `engine.World.step()` 錄下來的**真實 telemetry** 一格一格餵進瀏覽器裡真正的 3D 元件,
+再讀出 three.js 場景中機構的**實際世界座標**回來,與引擎的 tag 做線性回歸與還原誤差比對。
+
+```bash
+python3 tests/animation/capture_frames.py web/preview
+cd web && npx vite &
+node tests/animation/verify_animation.mjs        # 失敗回傳 exit 1
+```
+
+最近一次結果:**27 項全數通過,11 種機型全覆蓋**。關鍵數字:
+
+| 綁定 | 還原誤差 | 相關性 |
+|------|----------|--------|
+| CNC `pos_x` → 刀尖世界 X | max 1.60 / rms 0.62 mm(行程 ±220 mm) | R² 0.99999 |
+| CNC `pos_y` → 刀尖世界 Z | max 4.59 / rms 1.24 mm | R² 0.99929 |
+| CNC `pos_z` → 刀尖世界 Y | rms 3.56 mm;**抬刀 / 下刀 27/27 幀與正負號一致** | R² 0.98429 |
+| 手臂 `joint_angle_1` → J1 世界 yaw | **最大偏差 0.00°**(90.5° 掃程) | — |
+| 手臂 `joint_angle_2` → TCP 高度 | 單調下降 | R² 0.9995 |
+| AGV `pos_x` / `pos_y` → 車體世界座標 | **max 0.00 m** | **R² 1.00000** |
+| AGV `heading` → 車頭方位角 | **最大偏差 0.01°** | — |
+| 沖壓機 `ram_position` → 滑塊行程 | 3.000 / 3.0 單位 + 畫面標「動畫慢放 ×3.2」 | — |
+| 輸送帶 `belt_speed` → 前進速率 | ×1 → 0.9976(契約 0.9976);×120 → 3.0000(契約 3.0000) | — |
+| 風機 `rotor_rpm` / `pitch_angle` | 轉子 2.6 s 轉 169°;pitch −0.08°(未超額定,正確) | — |
+| 空壓機 `outlet_pressure` → 錶針角度 | −26.95 °/bar(契約 −27) | **R² 1.0000** |
+| 電表 `current_l1/l2/l3` → 三相長條 | max 0.04 A | R² 0.99995 |
+| 熱處理爐 `heating_power` → 功率條 | 單調遞增 | **R² 1.0000** |
+| 射出機 開模行程 | 1.966 / 2.0 單位 | — |
+| 製程腔體 晶圓貫通行程 | 6.715 / 6.8 單位 | — |
+| `run_enable=0` → 刀尖靜止 | **位移 0.00000**(停機前 1.199) | — |
+
+另有場景層驗證 [`verify_scenario.py`](../tests/animation/verify_scenario.py) —— **不抽樣**,
+把 `class_park`(65 廠 / 133 台)與 `default_park`(37 廠 / 72 台)整個載進引擎逐台檢查:
+結構、3D 模型覆蓋、**本綁定表宣告的 72 個 tag 引擎是否真的有發**、跑 60 拍無 NaN/Inf、
+producer 都運轉過、累積量只增不減。兩份場景皆全數通過。
+
+**改動畫之後請重跑這套測試**;它同時是「3D 層不得依賴 CDN」的回歸防線
+(`node preview/shot3d.mjs` 會攔到)。
+
+## 7. 人工驗收清單
+
+改完動畫後逐項對:
+
+- [ ] 每個會動的部位都能在本檔 §4 找到對應欄位。
+- [ ] 前端沒有任何一段程式在重算引擎已經算過的物理量。
+- [ ] 所有補間都是 delta-based(搜 `* 0.4)` 這類 frame-rate 相依寫法應為 0)。
+- [ ] 所有 L3 換算都在畫面上標示了倍率。
+- [ ] `state = fault` 時機構真的停下來,而不只是換顏色。
+- [ ] `coils.run_enable = false` 時畫面看得出是「被停機」而非「剛好待機」。
+- [ ] Model 元件內沒有燈光 / 環境 / 陰影。
+- [ ] `npx tsc -b` 通過。

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Application, Container, Graphics, Text } from "pixi.js";
-import { Park, Company, TelemetryMsg, colorOf, worstState, getTeacherToken, setCoil, resetDevice } from "../api";
-import { darken, solveArm, drawStation } from "./machines";
+import { Park, Company, TelemetryMsg, getTeacherToken, setCoil, resetDevice } from "../api";
+import { darken } from "./machines";
+import FactoryLine3D from "./FactoryLine3D";
 
 // ── 俯瞰格狀佈局 ───────────────────────────────────────
 // STEP 拉大 → 公司間距更寬、道路更寬敞;GRID 隨之放大,俯瞰縮放在 recenter 自動配合。
@@ -77,33 +78,10 @@ function drawTree(g: Graphics, cx: number, cy: number, s: number) {
   g.circle(cx + 2.4 * s, cy - 13 * s, 2.4 * s).fill({ color: 0x9fc07a, alpha: 0.55 });            // 高光
 }
 
-interface DeviceVisual { container: Container; ring: Graphics; pulse: Graphics; kind: string; }
-interface Station { id: string; template: string; container: Container; art: Graphics; ring: Graphics; }
+// 俯瞰層仍是 PixiJS(公司量體 / 燈號 / 煙囪);廠內層已全面改 3D(FactoryLine3D)。
+// 先前 2D 廠內產線的 Station / Flow / Part / TendingCell 等結構已隨之移除。
 interface Smoke { g: Graphics; x: number; y: number; vy: number; life: number; max: number; }
 type Pt = { x: number; y: number };
-// 產線工件:沿 waypoints 走的小方塊(feed=機台→手臂 pickup;belt=輸送帶→出口)
-interface Part { g: Graphics; pts: Pt[]; seg: number; t: number; speed: number; kind: "feed" | "belt"; done?: boolean; }
-// 產線編排:機台輸出 → (手臂夾取) → 輸送帶 → 出口。純視覺,走 animT(實時),與遙測節流脫鉤。
-interface Flow {
-  beltA: Pt; beltB: Pt; pickup: Pt; drop: Pt;
-  machines: { id: string; output: Pt }[];
-  pickerId: string | null;         // 擔任搬運的手臂(有產出機台時才指派)
-  parts: Part[]; layer: Container;
-  lastFeed: number; feedInterval: number; dropCycle: number;
-}
-// 雙機上下料工作站:兩台 CNC + 中央手臂在兩機間夾持搬運工件(移植原型 drawCell)
-interface TendingCell {
-  armId: string; leftId: string; rightId: string;
-  armArt: Graphics;                 // 手臂 IK 畫在這(手臂站 container 的 art,原點=armBase)
-  doorL: Pt; doorR: Pt; home: Pt;   // 相對 armBase 的局部座標
-  fence: Graphics; part: Graphics;  // 安全圍籬 + 被搬運/待取的工件(world 座標)
-  leftDoorW: Pt; rightDoorW: Pt;    // 門口 world 座標(畫待取件用)
-}
-const ARM_CYCLE = 4.5;             // 搬運手臂一個夾取-放置循環秒數(實時)
-const ease = (x: number) => x * x * (3 - 2 * x);
-const lerpPt = (a: Pt, b: Pt, f: number): Pt => ({ x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f });
-
-import FactoryLine3D from "./FactoryLine3D";
 
 export default function WorldView({
   park, telemetry, selected, onSelect, predicted,
@@ -119,7 +97,6 @@ export default function WorldView({
   const appRef = useRef<Application | null>(null);
   const worldRef = useRef<Container | null>(null);
   const lightsRef = useRef<Record<string, Graphics>>({});
-  const devicesRef = useRef<Record<string, DeviceVisual>>({});
   const chimneysRef = useRef<{ x: number; y: number }[]>([]);
   const smokeRef = useRef<Smoke[]>([]);
   const fxRef = useRef<Container | null>(null);
@@ -268,7 +245,7 @@ export default function WorldView({
     const onResize = () => { if (ready && app.renderer) { app.renderer.resize(host.clientWidth || 800, host.clientHeight || 600); recenter(); } };
     window.addEventListener("resize", onResize);
     return () => { cancelled = true; window.removeEventListener("resize", onResize);
-      lightsRef.current = {}; devicesRef.current = {}; chimneysRef.current = []; smokeRef.current = [];
+      lightsRef.current = {}; chimneysRef.current = []; smokeRef.current = [];
       worldRef.current = null; appRef.current = null; fxRef.current = null;
       if (ready) safeDestroy(); };
   }, [park]);
@@ -307,9 +284,10 @@ export default function WorldView({
       )}
       {/* 廠內 3D 動畫 - 保持掛載以避免 WebGL Context Lost，僅透過 CSS 顯示/隱藏 */}
       <div style={{ position: "absolute", inset: 0, zIndex: 1, pointerEvents: fc ? "auto" : "none", opacity: fc ? 1 : 0, visibility: fc ? "visible" : "hidden", transition: "opacity 0.3s, visibility 0.3s" }}>
-        <FactoryLine3D 
-          devices={fc ? fc.device_ids.map(did => ({ id: did, template: telemetry?.devices[did]?.template || "unknown" })) : []}
+        <FactoryLine3D
+          devices={fc ? fc.device_ids.map((did) => ({ id: did, template: telemetry?.devices[did]?.template || "unknown" })) : []}
           snapshots={telemetry?.devices || {}}
+          multiplier={telemetry?.multiplier ?? 1}
           onDeviceClick={onSelect}
         />
       </div>

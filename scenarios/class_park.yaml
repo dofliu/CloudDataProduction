@@ -1,6 +1,9 @@
-# 課堂場景(60+ 人可各認一間公司,期中前個人作業)。
-# ⚠ 全為合成(synthetic)教學資料,非任何真實公司產線;公司名為教學代號。
-# 每間至少 1 台 producer(會生產/退化),部分配 1 台公用設備。協定定址由引擎自動配。
+# 課堂場景(64 廠一人一廠 + 1 間教師示範廠)。
+# ⚠ 全為合成(synthetic)教學資料,非任何真實公司產線。
+#   公司名為**虛構**廠商 —— 這些廠會故障、數據全是模擬產生的,
+#   掛真實廠商名字會變成對真實企業的不實陳述(CLAUDE.md 鐵則二)。
+#
+# 本檔由 scenarios/scripts/gen_class_park.py 產生,要調組合請改那支再重跑。
 park:
   name: "智慧工業區 · 課堂版(64 廠 + 上下料示範)"
   sim:
@@ -13,545 +16,589 @@ park:
 
   companies:
     - id: c01
-      name: "教學廠 01"
+      name: "昇泰精機"
       industry: machine_tool
-      product: "CNC 加工中心"
-      intro: "課堂教學用合成廠(#01);主力 CNC 加工中心。"
+      product: "CNC 立式加工中心"
+      intro: "課堂教學用**合成**工廠(#01);工具機加工 · CNC 立式加工中心。設備:CNC 加工中心。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d001, template: cnc_machining_center}
 
     - id: c02
-      name: "教學廠 02"
-      industry: machine_tool
-      product: "CNC 車銑複合"
-      intro: "課堂教學用合成廠(#02);主力 CNC 車銑複合。"
+      name: "鴻鋒工業"
+      industry: metal_forming
+      product: "電子機殼沖壓"
+      intro: "課堂教學用**合成**工廠(#02);沖壓鈑金 · 電子機殼沖壓。設備:沖壓機。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d002, template: cnc_machining_center}
+        - {id: d002, template: stamping_press}
 
     - id: c03
-      name: "教學廠 03"
-      industry: plastics
-      product: "塑膠射出成型機"
-      intro: "課堂教學用合成廠(#03);主力 塑膠射出成型機。"
+      name: "群曜科技"
+      industry: semiconductor
+      product: "封測前段製程"
+      intro: "課堂教學用**合成**工廠(#03);半導體製程 · 封測前段製程。設備:半導體製程腔體。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d003, template: injection_molding}
-        - {id: d004, template: energy_meter}
+        - {id: d003, template: semi_process_chamber}
 
     - id: c04
-      name: "教學廠 04"
-      industry: motion_robotics
-      product: "六軸機械手臂"
-      intro: "課堂教學用合成廠(#04);主力 六軸機械手臂。"
+      name: "巨鼎金屬"
+      industry: metal_forming
+      product: "散熱片沖壓"
+      intro: "課堂教學用**合成**工廠(#04);沖壓鈑金 · 散熱片沖壓。設備:沖壓機 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d005, template: robot_arm_6axis}
+        - {id: d004, template: stamping_press}
+        - {id: d005, template: conveyor}
 
     - id: c05
-      name: "教學廠 05"
-      industry: metal_forming
-      product: "沖壓機"
-      intro: "課堂教學用合成廠(#05);主力 沖壓機。"
+      name: "東昇精密"
+      industry: machine_tool
+      product: "CNC 立式加工中心"
+      intro: "課堂教學用**合成**工廠(#05);工具機加工 · CNC 立式加工中心。設備:CNC 加工中心 + 六軸機械手臂。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d006, template: stamping_press}
+        - {id: d006, template: cnc_machining_center}
+        - {id: d007, template: robot_arm_6axis}
 
     - id: c06
-      name: "教學廠 06"
-      industry: heat_treat
-      product: "熱處理爐"
-      intro: "課堂教學用合成廠(#06);主力 熱處理爐。"
+      name: "立捷自動化"
+      industry: motion_robotics
+      product: "取放系統整合"
+      intro: "課堂教學用**合成**工廠(#06);自動化系統 · 取放系統整合。設備:六軸機械手臂。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d007, template: heat_treat_furnace}
-        - {id: d008, template: agv_mobile_robot}
+        - {id: d008, template: robot_arm_6axis}
 
     - id: c07
-      name: "教學廠 07"
-      industry: semiconductor
-      product: "半導體製程腔體"
-      intro: "課堂教學用合成廠(#07);主力 半導體製程腔體。"
+      name: "光鼎光電"
+      industry: optics
+      product: "手機鏡頭模組"
+      intro: "課堂教學用**合成**工廠(#07);光學元件 · 手機鏡頭模組。設備:半導體製程腔體 + CNC 加工中心。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d009, template: semi_process_chamber}
-
-    - id: c08
-      name: "教學廠 08"
-      industry: machine_tool
-      product: "CNC 加工中心"
-      intro: "課堂教學用合成廠(#08);主力 CNC 加工中心。"
-      devices:
         - {id: d010, template: cnc_machining_center}
 
-    - id: c09
-      name: "教學廠 09"
-      industry: machine_tool
-      product: "CNC 車銑複合"
-      intro: "課堂教學用合成廠(#09);主力 CNC 車銑複合。"
+    - id: c08
+      name: "台曜熱處理"
+      industry: heat_treat
+      product: "時效硬化處理"
+      intro: "課堂教學用**合成**工廠(#08);熱處理 · 時效硬化處理。設備:熱處理爐。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d011, template: cnc_machining_center}
-        - {id: d012, template: air_compressor}
+        - {id: d011, template: heat_treat_furnace}
+
+    - id: c09
+      name: "宏程塑膠"
+      industry: plastics
+      product: "家電外殼射出"
+      intro: "課堂教學用**合成**工廠(#09);塑膠射出 · 家電外殼射出。設備:射出成型機。所有數據皆為模擬產生,非真實場域量測。"
+      devices:
+        - {id: d012, template: injection_molding}
 
     - id: c10
-      name: "教學廠 10"
-      industry: plastics
-      product: "塑膠射出成型機"
-      intro: "課堂教學用合成廠(#10);主力 塑膠射出成型機。"
+      name: "永勤機械"
+      industry: machine_tool
+      product: "CNC 車銑複合"
+      intro: "課堂教學用**合成**工廠(#10);工具機加工 · CNC 車銑複合。設備:CNC 加工中心 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d013, template: injection_molding}
+        - {id: d013, template: cnc_machining_center}
+        - {id: d014, template: conveyor}
 
     - id: c11
-      name: "教學廠 11"
-      industry: motion_robotics
-      product: "六軸機械手臂"
-      intro: "課堂教學用合成廠(#11);主力 六軸機械手臂。"
-      devices:
-        - {id: d014, template: robot_arm_6axis}
-
-    - id: c12
-      name: "教學廠 12"
+      name: "旭鋼實業"
       industry: metal_forming
-      product: "沖壓機"
-      intro: "課堂教學用合成廠(#12);主力 沖壓機。"
+      product: "五金沖壓件"
+      intro: "課堂教學用**合成**工廠(#11);沖壓鈑金 · 五金沖壓件。設備:沖壓機 + 六軸機械手臂。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d015, template: stamping_press}
-        - {id: d016, template: energy_meter}
+        - {id: d016, template: robot_arm_6axis}
+
+    - id: c12
+      name: "宇鴻塑膠"
+      industry: plastics
+      product: "醫材塑件"
+      intro: "課堂教學用**合成**工廠(#12);塑膠射出 · 醫材塑件。設備:射出成型機 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
+      devices:
+        - {id: d017, template: injection_molding}
+        - {id: d018, template: conveyor}
 
     - id: c13
-      name: "教學廠 13"
-      industry: heat_treat
-      product: "熱處理爐"
-      intro: "課堂教學用合成廠(#13);主力 熱處理爐。"
-      devices:
-        - {id: d017, template: heat_treat_furnace}
-
-    - id: c14
-      name: "教學廠 14"
-      industry: semiconductor
-      product: "半導體製程腔體"
-      intro: "課堂教學用合成廠(#14);主力 半導體製程腔體。"
-      devices:
-        - {id: d018, template: semi_process_chamber}
-
-    - id: c15
-      name: "教學廠 15"
-      industry: machine_tool
-      product: "CNC 加工中心"
-      intro: "課堂教學用合成廠(#15);主力 CNC 加工中心。"
+      name: "鉅程精密"
+      industry: precision_parts
+      product: "航太結構件"
+      intro: "課堂教學用**合成**工廠(#13);精密零件 · 航太結構件。設備:CNC 加工中心 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d019, template: cnc_machining_center}
-        - {id: d020, template: agv_mobile_robot}
+        - {id: d020, template: conveyor}
+
+    - id: c14
+      name: "華晟能源"
+      industry: green_energy
+      product: "廠區自發自用綠電"
+      intro: "課堂教學用**合成**工廠(#14);綠能發電 · 廠區自發自用綠電。設備:風力發電機 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
+      devices:
+        - {id: d021, template: wind_turbine}
+        - {id: d022, template: energy_meter}
+
+    - id: c15
+      name: "信達物流科技"
+      industry: logistics
+      product: "產線間物流整合"
+      intro: "課堂教學用**合成**工廠(#15);智慧物流 · 產線間物流整合。設備:AGV 搬運車 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
+      devices:
+        - {id: d023, template: agv_mobile_robot}
+        - {id: d024, template: conveyor}
 
     - id: c16
-      name: "教學廠 16"
+      name: "大衛精機"
       industry: machine_tool
-      product: "CNC 車銑複合"
-      intro: "課堂教學用合成廠(#16);主力 CNC 車銑複合。"
+      product: "精密模具加工"
+      intro: "課堂教學用**合成**工廠(#16);工具機加工 · 精密模具加工。設備:CNC 加工中心 + 空壓機。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d021, template: cnc_machining_center}
+        - {id: d025, template: cnc_machining_center}
+        - {id: d026, template: air_compressor}
 
     - id: c17
-      name: "教學廠 17"
+      name: "聯泰射出"
       industry: plastics
-      product: "塑膠射出成型機"
-      intro: "課堂教學用合成廠(#17);主力 塑膠射出成型機。"
+      product: "家電外殼射出"
+      intro: "課堂教學用**合成**工廠(#17);塑膠射出 · 家電外殼射出。設備:射出成型機 + 六軸機械手臂。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d022, template: injection_molding}
+        - {id: d027, template: injection_molding}
+        - {id: d028, template: robot_arm_6axis}
 
     - id: c18
-      name: "教學廠 18"
-      industry: motion_robotics
-      product: "六軸機械手臂"
-      intro: "課堂教學用合成廠(#18);主力 六軸機械手臂。"
+      name: "金揚沖壓"
+      industry: metal_forming
+      product: "電子機殼沖壓"
+      intro: "課堂教學用**合成**工廠(#18);沖壓鈑金 · 電子機殼沖壓。設備:沖壓機 + 空壓機。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d023, template: robot_arm_6axis}
-        - {id: d024, template: air_compressor}
+        - {id: d029, template: stamping_press}
+        - {id: d030, template: air_compressor}
 
     - id: c19
-      name: "教學廠 19"
-      industry: metal_forming
-      product: "沖壓機"
-      intro: "課堂教學用合成廠(#19);主力 沖壓機。"
+      name: "創鋒智能"
+      industry: motion_robotics
+      product: "視覺檢測工作站"
+      intro: "課堂教學用**合成**工廠(#19);自動化系統 · 視覺檢測工作站。設備:六軸機械手臂 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d025, template: stamping_press}
+        - {id: d031, template: robot_arm_6axis}
+        - {id: d032, template: conveyor}
 
     - id: c20
-      name: "教學廠 20"
-      industry: heat_treat
-      product: "熱處理爐"
-      intro: "課堂教學用合成廠(#20);主力 熱處理爐。"
+      name: "晶源半導體"
+      industry: semiconductor
+      product: "化合物半導體製程"
+      intro: "課堂教學用**合成**工廠(#20);半導體製程 · 化合物半導體製程。設備:半導體製程腔體 + AGV 搬運車。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d026, template: heat_treat_furnace}
+        - {id: d033, template: semi_process_chamber}
+        - {id: d034, template: agv_mobile_robot}
 
     - id: c21
-      name: "教學廠 21"
-      industry: semiconductor
-      product: "半導體製程腔體"
-      intro: "課堂教學用合成廠(#21);主力 半導體製程腔體。"
-      devices:
-        - {id: d027, template: semi_process_chamber}
-        - {id: d028, template: energy_meter}
-
-    - id: c22
-      name: "教學廠 22"
-      industry: machine_tool
-      product: "CNC 加工中心"
-      intro: "課堂教學用合成廠(#22);主力 CNC 加工中心。"
-      devices:
-        - {id: d029, template: cnc_machining_center}
-
-    - id: c23
-      name: "教學廠 23"
-      industry: machine_tool
-      product: "CNC 車銑複合"
-      intro: "課堂教學用合成廠(#23);主力 CNC 車銑複合。"
-      devices:
-        - {id: d030, template: cnc_machining_center}
-
-    - id: c24
-      name: "教學廠 24"
-      industry: plastics
-      product: "塑膠射出成型機"
-      intro: "課堂教學用合成廠(#24);主力 塑膠射出成型機。"
-      devices:
-        - {id: d031, template: injection_molding}
-        - {id: d032, template: agv_mobile_robot}
-
-    - id: c25
-      name: "教學廠 25"
-      industry: motion_robotics
-      product: "六軸機械手臂"
-      intro: "課堂教學用合成廠(#25);主力 六軸機械手臂。"
-      devices:
-        - {id: d033, template: robot_arm_6axis}
-
-    - id: c26
-      name: "教學廠 26"
-      industry: metal_forming
-      product: "沖壓機"
-      intro: "課堂教學用合成廠(#26);主力 沖壓機。"
-      devices:
-        - {id: d034, template: stamping_press}
-
-    - id: c27
-      name: "教學廠 27"
+      name: "正茂熱工"
       industry: heat_treat
-      product: "熱處理爐"
-      intro: "課堂教學用合成廠(#27);主力 熱處理爐。"
+      product: "真空熱處理"
+      intro: "課堂教學用**合成**工廠(#21);熱處理 · 真空熱處理。設備:熱處理爐 + AGV 搬運車。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d035, template: heat_treat_furnace}
-        - {id: d036, template: air_compressor}
+        - {id: d036, template: agv_mobile_robot}
 
-    - id: c28
-      name: "教學廠 28"
-      industry: semiconductor
-      product: "半導體製程腔體"
-      intro: "課堂教學用合成廠(#28);主力 半導體製程腔體。"
+    - id: c22
+      name: "鼎新精密"
+      industry: precision_parts
+      product: "自行車傳動件"
+      intro: "課堂教學用**合成**工廠(#22);精密零件 · 自行車傳動件。設備:CNC 加工中心 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d037, template: semi_process_chamber}
+        - {id: d037, template: cnc_machining_center}
+        - {id: d038, template: energy_meter}
 
-    - id: c29
-      name: "教學廠 29"
-      industry: machine_tool
-      product: "CNC 加工中心"
-      intro: "課堂教學用合成廠(#29);主力 CNC 加工中心。"
+    - id: c23
+      name: "宏泰動力"
+      industry: facility
+      product: "廠區能源管理"
+      intro: "課堂教學用**合成**工廠(#23);廠務動力 · 廠區能源管理。設備:空壓機 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d038, template: cnc_machining_center}
-
-    - id: c30
-      name: "教學廠 30"
-      industry: machine_tool
-      product: "CNC 車銑複合"
-      intro: "課堂教學用合成廠(#30);主力 CNC 車銑複合。"
-      devices:
-        - {id: d039, template: cnc_machining_center}
+        - {id: d039, template: air_compressor}
         - {id: d040, template: energy_meter}
 
-    - id: c31
-      name: "教學廠 31"
-      industry: plastics
-      product: "塑膠射出成型機"
-      intro: "課堂教學用合成廠(#31);主力 塑膠射出成型機。"
+    - id: c24
+      name: "清風綠能"
+      industry: green_energy
+      product: "風場運維示範"
+      intro: "課堂教學用**合成**工廠(#24);綠能發電 · 風場運維示範。設備:風力發電機。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d041, template: injection_molding}
+        - {id: d041, template: wind_turbine}
 
-    - id: c32
-      name: "教學廠 32"
+    - id: c25
+      name: "捷晟自動化"
       industry: motion_robotics
-      product: "六軸機械手臂"
-      intro: "課堂教學用合成廠(#32);主力 六軸機械手臂。"
+      product: "機械手臂整合"
+      intro: "課堂教學用**合成**工廠(#25);自動化系統 · 機械手臂整合。設備:六軸機械手臂 + CNC 加工中心。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d042, template: robot_arm_6axis}
+        - {id: d043, template: cnc_machining_center}
+
+    - id: c26
+      name: "順昌工具機"
+      industry: machine_tool
+      product: "CNC 車銑複合"
+      intro: "課堂教學用**合成**工廠(#26);工具機加工 · CNC 車銑複合。設備:CNC 加工中心 + CNC 加工中心 + 六軸機械手臂。所有數據皆為模擬產生,非真實場域量測。"
+      devices:
+        - {id: d044, template: cnc_machining_center}
+        - {id: d045, template: cnc_machining_center}
+        - {id: d046, template: robot_arm_6axis}
+
+    - id: c27
+      name: "凱鈺光學"
+      industry: optics
+      product: "車用鏡頭元件"
+      intro: "課堂教學用**合成**工廠(#27);光學元件 · 車用鏡頭元件。設備:半導體製程腔體 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
+      devices:
+        - {id: d047, template: semi_process_chamber}
+        - {id: d048, template: energy_meter}
+
+    - id: c28
+      name: "廣鑫金屬"
+      industry: metal_forming
+      product: "散熱片沖壓"
+      intro: "課堂教學用**合成**工廠(#28);沖壓鈑金 · 散熱片沖壓。設備:沖壓機 + 輸送帶 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
+      devices:
+        - {id: d049, template: stamping_press}
+        - {id: d050, template: conveyor}
+        - {id: d051, template: energy_meter}
+
+    - id: c29
+      name: "志程塑膠"
+      industry: plastics
+      product: "家電外殼射出"
+      intro: "課堂教學用**合成**工廠(#29);塑膠射出 · 家電外殼射出。設備:射出成型機 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
+      devices:
+        - {id: d052, template: injection_molding}
+        - {id: d053, template: energy_meter}
+
+    - id: c30
+      name: "均豪製程"
+      industry: semiconductor
+      product: "薄膜沉積製程"
+      intro: "課堂教學用**合成**工廠(#30);半導體製程 · 薄膜沉積製程。設備:半導體製程腔體 + 空壓機。所有數據皆為模擬產生,非真實場域量測。"
+      devices:
+        - {id: d054, template: semi_process_chamber}
+        - {id: d055, template: air_compressor}
+
+    - id: c31
+      name: "岡田精機"
+      industry: machine_tool
+      product: "五軸加工中心"
+      intro: "課堂教學用**合成**工廠(#31);工具機加工 · 五軸加工中心。設備:CNC 加工中心 + 輸送帶 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
+      devices:
+        - {id: d056, template: cnc_machining_center}
+        - {id: d057, template: conveyor}
+        - {id: d058, template: energy_meter}
+
+    - id: c32
+      name: "興隆熱處理"
+      industry: heat_treat
+      product: "時效硬化處理"
+      intro: "課堂教學用**合成**工廠(#32);熱處理 · 時效硬化處理。設備:熱處理爐 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
+      devices:
+        - {id: d059, template: heat_treat_furnace}
+        - {id: d060, template: energy_meter}
 
     - id: c33
-      name: "教學廠 33"
-      industry: metal_forming
-      product: "沖壓機"
-      intro: "課堂教學用合成廠(#33);主力 沖壓機。"
+      name: "智運倉儲"
+      industry: logistics
+      product: "產線間物流整合"
+      intro: "課堂教學用**合成**工廠(#33);智慧物流 · 產線間物流整合。設備:AGV 搬運車 + 輸送帶 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d043, template: stamping_press}
-        - {id: d044, template: agv_mobile_robot}
+        - {id: d061, template: agv_mobile_robot}
+        - {id: d062, template: conveyor}
+        - {id: d063, template: energy_meter}
 
     - id: c34
-      name: "教學廠 34"
-      industry: heat_treat
-      product: "熱處理爐"
-      intro: "課堂教學用合成廠(#34);主力 熱處理爐。"
+      name: "力麒精密"
+      industry: precision_parts
+      product: "自行車傳動件"
+      intro: "課堂教學用**合成**工廠(#34);精密零件 · 自行車傳動件。設備:CNC 加工中心 + 六軸機械手臂 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d045, template: heat_treat_furnace}
+        - {id: d064, template: cnc_machining_center}
+        - {id: d065, template: robot_arm_6axis}
+        - {id: d066, template: conveyor}
 
     - id: c35
-      name: "教學廠 35"
-      industry: semiconductor
-      product: "半導體製程腔體"
-      intro: "課堂教學用合成廠(#35);主力 半導體製程腔體。"
+      name: "華通氣力"
+      industry: facility
+      product: "廠區能源管理"
+      intro: "課堂教學用**合成**工廠(#35);廠務動力 · 廠區能源管理。設備:空壓機。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d046, template: semi_process_chamber}
+        - {id: d067, template: air_compressor}
 
     - id: c36
-      name: "教學廠 36"
-      industry: machine_tool
-      product: "CNC 加工中心"
-      intro: "課堂教學用合成廠(#36);主力 CNC 加工中心。"
+      name: "藍天風電"
+      industry: green_energy
+      product: "風場運維示範"
+      intro: "課堂教學用**合成**工廠(#36);綠能發電 · 風場運維示範。設備:風力發電機 + 風力發電機 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d047, template: cnc_machining_center}
-        - {id: d048, template: air_compressor}
+        - {id: d068, template: wind_turbine}
+        - {id: d069, template: wind_turbine}
+        - {id: d070, template: energy_meter}
 
     - id: c37
-      name: "教學廠 37"
+      name: "盛群機械"
       industry: machine_tool
-      product: "CNC 車銑複合"
-      intro: "課堂教學用合成廠(#37);主力 CNC 車銑複合。"
+      product: "CNC 立式加工中心"
+      intro: "課堂教學用**合成**工廠(#37);工具機加工 · CNC 立式加工中心。設備:CNC 加工中心。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d049, template: cnc_machining_center}
+        - {id: d071, template: cnc_machining_center}
 
     - id: c38
-      name: "教學廠 38"
-      industry: plastics
-      product: "塑膠射出成型機"
-      intro: "課堂教學用合成廠(#38);主力 塑膠射出成型機。"
+      name: "和昌沖壓"
+      industry: metal_forming
+      product: "電子機殼沖壓"
+      intro: "課堂教學用**合成**工廠(#38);沖壓鈑金 · 電子機殼沖壓。設備:沖壓機 + 沖壓機 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d050, template: injection_molding}
+        - {id: d072, template: stamping_press}
+        - {id: d073, template: stamping_press}
+        - {id: d074, template: conveyor}
 
     - id: c39
-      name: "教學廠 39"
-      industry: motion_robotics
-      product: "六軸機械手臂"
-      intro: "課堂教學用合成廠(#39);主力 六軸機械手臂。"
+      name: "耀陽射出"
+      industry: plastics
+      product: "精密齒輪射出"
+      intro: "課堂教學用**合成**工廠(#39);塑膠射出 · 精密齒輪射出。設備:射出成型機 + 六軸機械手臂 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d051, template: robot_arm_6axis}
-        - {id: d052, template: energy_meter}
+        - {id: d075, template: injection_molding}
+        - {id: d076, template: robot_arm_6axis}
+        - {id: d077, template: conveyor}
 
     - id: c40
-      name: "教學廠 40"
-      industry: metal_forming
-      product: "沖壓機"
-      intro: "課堂教學用合成廠(#40);主力 沖壓機。"
+      name: "宸曜科技"
+      industry: semiconductor
+      product: "化合物半導體製程"
+      intro: "課堂教學用**合成**工廠(#40);半導體製程 · 化合物半導體製程。設備:半導體製程腔體 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d053, template: stamping_press}
+        - {id: d078, template: semi_process_chamber}
+        - {id: d079, template: energy_meter}
 
     - id: c41
-      name: "教學廠 41"
+      name: "三和熱工"
       industry: heat_treat
-      product: "熱處理爐"
-      intro: "課堂教學用合成廠(#41);主力 熱處理爐。"
+      product: "真空熱處理"
+      intro: "課堂教學用**合成**工廠(#41);熱處理 · 真空熱處理。設備:熱處理爐 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d054, template: heat_treat_furnace}
+        - {id: d080, template: heat_treat_furnace}
+        - {id: d081, template: conveyor}
 
     - id: c42
-      name: "教學廠 42"
-      industry: semiconductor
-      product: "半導體製程腔體"
-      intro: "課堂教學用合成廠(#42);主力 半導體製程腔體。"
+      name: "翔宇自動化"
+      industry: motion_robotics
+      product: "取放系統整合"
+      intro: "課堂教學用**合成**工廠(#42);自動化系統 · 取放系統整合。設備:六軸機械手臂 + 空壓機。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d055, template: semi_process_chamber}
-        - {id: d056, template: agv_mobile_robot}
+        - {id: d082, template: robot_arm_6axis}
+        - {id: d083, template: air_compressor}
 
     - id: c43
-      name: "教學廠 43"
-      industry: machine_tool
-      product: "CNC 加工中心"
-      intro: "課堂教學用合成廠(#43);主力 CNC 加工中心。"
+      name: "明鏡光電"
+      industry: optics
+      product: "手機鏡頭模組"
+      intro: "課堂教學用**合成**工廠(#43);光學元件 · 手機鏡頭模組。設備:CNC 加工中心 + 半導體製程腔體 + 空壓機。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d057, template: cnc_machining_center}
+        - {id: d084, template: cnc_machining_center}
+        - {id: d085, template: semi_process_chamber}
+        - {id: d086, template: air_compressor}
 
     - id: c44
-      name: "教學廠 44"
-      industry: machine_tool
-      product: "CNC 車銑複合"
-      intro: "課堂教學用合成廠(#44);主力 CNC 車銑複合。"
+      name: "長弘精密"
+      industry: precision_parts
+      product: "醫療器械零件"
+      intro: "課堂教學用**合成**工廠(#44);精密零件 · 醫療器械零件。設備:CNC 加工中心 + 熱處理爐。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d058, template: cnc_machining_center}
+        - {id: d087, template: cnc_machining_center}
+        - {id: d088, template: heat_treat_furnace}
 
     - id: c45
-      name: "教學廠 45"
-      industry: plastics
-      product: "塑膠射出成型機"
-      intro: "課堂教學用合成廠(#45);主力 塑膠射出成型機。"
+      name: "大成動能"
+      industry: facility
+      product: "動力機房"
+      intro: "課堂教學用**合成**工廠(#45);廠務動力 · 動力機房。設備:空壓機 + 空壓機 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d059, template: injection_molding}
-        - {id: d060, template: air_compressor}
+        - {id: d089, template: air_compressor}
+        - {id: d090, template: air_compressor}
+        - {id: d091, template: energy_meter}
 
     - id: c46
-      name: "教學廠 46"
-      industry: motion_robotics
-      product: "六軸機械手臂"
-      intro: "課堂教學用合成廠(#46);主力 六軸機械手臂。"
+      name: "啟睿智造"
+      industry: machine_tool
+      product: "CNC 車銑複合"
+      intro: "課堂教學用**合成**工廠(#46);工具機加工 · CNC 車銑複合。設備:CNC 加工中心 + 六軸機械手臂。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d061, template: robot_arm_6axis}
+        - {id: d092, template: cnc_machining_center}
+        - {id: d093, template: robot_arm_6axis}
 
     - id: c47
-      name: "教學廠 47"
+      name: "鋼承工業"
       industry: metal_forming
-      product: "沖壓機"
-      intro: "課堂教學用合成廠(#47);主力 沖壓機。"
+      product: "五金沖壓件"
+      intro: "課堂教學用**合成**工廠(#47);沖壓鈑金 · 五金沖壓件。設備:沖壓機。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d062, template: stamping_press}
+        - {id: d094, template: stamping_press}
 
     - id: c48
-      name: "教學廠 48"
-      industry: heat_treat
-      product: "熱處理爐"
-      intro: "課堂教學用合成廠(#48);主力 熱處理爐。"
+      name: "聚立高分子"
+      industry: plastics
+      product: "醫材塑件"
+      intro: "課堂教學用**合成**工廠(#48);塑膠射出 · 醫材塑件。設備:射出成型機 + 射出成型機 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d063, template: heat_treat_furnace}
-        - {id: d064, template: energy_meter}
+        - {id: d095, template: injection_molding}
+        - {id: d096, template: injection_molding}
+        - {id: d097, template: energy_meter}
 
     - id: c49
-      name: "教學廠 49"
+      name: "南科製程"
       industry: semiconductor
-      product: "半導體製程腔體"
-      intro: "課堂教學用合成廠(#49);主力 半導體製程腔體。"
+      product: "晶圓蝕刻製程"
+      intro: "課堂教學用**合成**工廠(#49);半導體製程 · 晶圓蝕刻製程。設備:半導體製程腔體 + 半導體製程腔體 + AGV 搬運車。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d065, template: semi_process_chamber}
+        - {id: d098, template: semi_process_chamber}
+        - {id: d099, template: semi_process_chamber}
+        - {id: d100, template: agv_mobile_robot}
 
     - id: c50
-      name: "教學廠 50"
-      industry: machine_tool
-      product: "CNC 加工中心"
-      intro: "課堂教學用合成廠(#50);主力 CNC 加工中心。"
+      name: "恆溫熱處理"
+      industry: heat_treat
+      product: "滲碳淬火"
+      intro: "課堂教學用**合成**工廠(#50);熱處理 · 滲碳淬火。設備:熱處理爐 + 熱處理爐 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d066, template: cnc_machining_center}
+        - {id: d101, template: heat_treat_furnace}
+        - {id: d102, template: heat_treat_furnace}
+        - {id: d103, template: energy_meter}
 
     - id: c51
-      name: "教學廠 51"
-      industry: machine_tool
-      product: "CNC 車銑複合"
-      intro: "課堂教學用合成廠(#51);主力 CNC 車銑複合。"
+      name: "捷通物流"
+      industry: logistics
+      product: "產線間物流整合"
+      intro: "課堂教學用**合成**工廠(#51);智慧物流 · 產線間物流整合。設備:AGV 搬運車 + AGV 搬運車 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d067, template: cnc_machining_center}
-        - {id: d068, template: agv_mobile_robot}
+        - {id: d104, template: agv_mobile_robot}
+        - {id: d105, template: agv_mobile_robot}
+        - {id: d106, template: conveyor}
 
     - id: c52
-      name: "教學廠 52"
-      industry: plastics
-      product: "塑膠射出成型機"
-      intro: "課堂教學用合成廠(#52);主力 塑膠射出成型機。"
+      name: "威剛精機"
+      industry: machine_tool
+      product: "精密模具加工"
+      intro: "課堂教學用**合成**工廠(#52);工具機加工 · 精密模具加工。設備:CNC 加工中心 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d069, template: injection_molding}
+        - {id: d107, template: cnc_machining_center}
+        - {id: d108, template: conveyor}
 
     - id: c53
-      name: "教學廠 53"
-      industry: motion_robotics
-      product: "六軸機械手臂"
-      intro: "課堂教學用合成廠(#53);主力 六軸機械手臂。"
+      name: "元鼎金屬"
+      industry: metal_forming
+      product: "汽車鈑金件"
+      intro: "課堂教學用**合成**工廠(#53);沖壓鈑金 · 汽車鈑金件。設備:沖壓機 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d070, template: robot_arm_6axis}
+        - {id: d109, template: stamping_press}
+        - {id: d110, template: conveyor}
 
     - id: c54
-      name: "教學廠 54"
-      industry: metal_forming
-      product: "沖壓機"
-      intro: "課堂教學用合成廠(#54);主力 沖壓機。"
+      name: "百川射出"
+      industry: plastics
+      product: "汽車內飾件"
+      intro: "課堂教學用**合成**工廠(#54);塑膠射出 · 汽車內飾件。設備:射出成型機。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d071, template: stamping_press}
-        - {id: d072, template: air_compressor}
+        - {id: d111, template: injection_molding}
 
     - id: c55
-      name: "教學廠 55"
-      industry: heat_treat
-      product: "熱處理爐"
-      intro: "課堂教學用合成廠(#55);主力 熱處理爐。"
+      name: "原晶科技"
+      industry: semiconductor
+      product: "封測前段製程"
+      intro: "課堂教學用**合成**工廠(#55);半導體製程 · 封測前段製程。設備:半導體製程腔體。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d073, template: heat_treat_furnace}
+        - {id: d112, template: semi_process_chamber}
 
     - id: c56
-      name: "教學廠 56"
-      industry: semiconductor
-      product: "半導體製程腔體"
-      intro: "課堂教學用合成廠(#56);主力 半導體製程腔體。"
+      name: "火頌熱工"
+      industry: heat_treat
+      product: "時效硬化處理"
+      intro: "課堂教學用**合成**工廠(#56);熱處理 · 時效硬化處理。設備:熱處理爐。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d074, template: semi_process_chamber}
+        - {id: d113, template: heat_treat_furnace}
 
     - id: c57
-      name: "教學廠 57"
-      industry: machine_tool
-      product: "CNC 加工中心"
-      intro: "課堂教學用合成廠(#57);主力 CNC 加工中心。"
+      name: "展翼綠電"
+      industry: green_energy
+      product: "風場運維示範"
+      intro: "課堂教學用**合成**工廠(#57);綠能發電 · 風場運維示範。設備:風力發電機 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d075, template: cnc_machining_center}
-        - {id: d076, template: energy_meter}
+        - {id: d114, template: wind_turbine}
+        - {id: d115, template: energy_meter}
 
     - id: c58
-      name: "教學廠 58"
-      industry: machine_tool
-      product: "CNC 車銑複合"
-      intro: "課堂教學用合成廠(#58);主力 CNC 車銑複合。"
+      name: "智臂機器人"
+      industry: motion_robotics
+      product: "取放系統整合"
+      intro: "課堂教學用**合成**工廠(#58);自動化系統 · 取放系統整合。設備:六軸機械手臂 + 六軸機械手臂 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d077, template: cnc_machining_center}
+        - {id: d116, template: robot_arm_6axis}
+        - {id: d117, template: robot_arm_6axis}
+        - {id: d118, template: conveyor}
 
     - id: c59
-      name: "教學廠 59"
-      industry: plastics
-      product: "塑膠射出成型機"
-      intro: "課堂教學用合成廠(#59);主力 塑膠射出成型機。"
+      name: "清源氣站"
+      industry: facility
+      product: "廠區能源管理"
+      intro: "課堂教學用**合成**工廠(#59);廠務動力 · 廠區能源管理。設備:空壓機 + 智慧電表。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d078, template: injection_molding}
+        - {id: d119, template: air_compressor}
+        - {id: d120, template: energy_meter}
 
     - id: c60
-      name: "教學廠 60"
-      industry: motion_robotics
-      product: "六軸機械手臂"
-      intro: "課堂教學用合成廠(#60);主力 六軸機械手臂。"
+      name: "澄光學儀"
+      industry: optics
+      product: "車用鏡頭元件"
+      intro: "課堂教學用**合成**工廠(#60);光學元件 · 車用鏡頭元件。設備:半導體製程腔體 + CNC 加工中心。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d079, template: robot_arm_6axis}
-        - {id: d080, template: agv_mobile_robot}
+        - {id: d121, template: semi_process_chamber}
+        - {id: d122, template: cnc_machining_center}
 
     - id: c61
-      name: "教學廠 61"
-      industry: metal_forming
-      product: "沖壓機"
-      intro: "課堂教學用合成廠(#61);主力 沖壓機。"
+      name: "鋒鏵精密"
+      industry: precision_parts
+      product: "航太結構件"
+      intro: "課堂教學用**合成**工廠(#61);精密零件 · 航太結構件。設備:CNC 加工中心 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d081, template: stamping_press}
+        - {id: d123, template: cnc_machining_center}
+        - {id: d124, template: conveyor}
 
     - id: c62
-      name: "教學廠 62"
-      industry: heat_treat
-      product: "熱處理爐"
-      intro: "課堂教學用合成廠(#62);主力 熱處理爐。"
+      name: "勝弘工具機"
+      industry: machine_tool
+      product: "CNC 車銑複合"
+      intro: "課堂教學用**合成**工廠(#62);工具機加工 · CNC 車銑複合。設備:CNC 加工中心 + 空壓機。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d082, template: heat_treat_furnace}
+        - {id: d125, template: cnc_machining_center}
+        - {id: d126, template: air_compressor}
 
     - id: c63
-      name: "教學廠 63"
-      industry: semiconductor
-      product: "半導體製程腔體"
-      intro: "課堂教學用合成廠(#63);主力 半導體製程腔體。"
+      name: "永固沖壓"
+      industry: metal_forming
+      product: "五金沖壓件"
+      intro: "課堂教學用**合成**工廠(#63);沖壓鈑金 · 五金沖壓件。設備:沖壓機 + 六軸機械手臂。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d083, template: semi_process_chamber}
-        - {id: d084, template: air_compressor}
+        - {id: d127, template: stamping_press}
+        - {id: d128, template: robot_arm_6axis}
 
     - id: c64
-      name: "教學廠 64"
-      industry: machine_tool
-      product: "CNC 加工中心"
-      intro: "課堂教學用合成廠(#64);主力 CNC 加工中心。"
+      name: "環宇智慧工廠"
+      industry: logistics
+      product: "廠內無人搬運"
+      intro: "課堂教學用**合成**工廠(#64);智慧物流 · 廠內無人搬運。設備:AGV 搬運車 + 輸送帶。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d085, template: cnc_machining_center}
+        - {id: d129, template: agv_mobile_robot}
+        - {id: d130, template: conveyor}
 
-    # 上下料示範廠:2 台 CNC + 1 支手臂,進廠內可看手臂在兩機間夾持搬運工件的完整節拍。
     - id: c65
-      name: "上下料示範廠"
+      name: "上下料示範廠(教師展示)"
       industry: machine_tool
-      product: "CNC 上下料自動化"
-      intro: "教學示範:雙 CNC + 六軸手臂上下料工作站;手臂在兩機之間夾持搬運工件。"
+      product: "CNC 上下料自動化工作站"
+      intro: "教師展示用:雙 CNC + 六軸手臂上下料工作站。不屬於一人一廠的個人作業範圍。"
       devices:
-        - {id: d086, template: cnc_machining_center}
-        - {id: d087, template: cnc_machining_center}
-        - {id: d088, template: robot_arm_6axis}
+        - {id: d131, template: cnc_machining_center}
+        - {id: d132, template: cnc_machining_center}
+        - {id: d133, template: robot_arm_6axis}

@@ -1,2 +1,5 @@
 bundle.js
 *.png
+frames.json
+frames_*.json
+_*.mjs

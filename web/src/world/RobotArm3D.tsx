@@ -1,157 +1,175 @@
-import React, { useRef, useState } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Box, Cylinder, Environment, ContactShadows } from '@react-three/drei';
-import * as THREE from 'three';
+/**
+ * 六軸機械手臂 3D(綁定表見 docs/animation_binding.md §4.2)。
+ *
+ * 六軸角度**全部**直接吃引擎的 joint_angle_1..6(L1)。先前版本只用 J1,再自行合成
+ * J2/J3/J5 —— 那是對著舊版引擎寫的;引擎後來改成 _KEYFRAMES 六點取放,J2/J3 是真值,
+ * 前端再合成就會與 Modbus 讀值不符。現在移除合成邏輯。
+ *
+ * 控制器的關節零位與 mesh 骨架零位不同(真實世界也是:controller 的 DH 零位 ≠ CAD 零位),
+ * 因此每軸套一組**固定**校正 JOINT_CAL(度)。這是換座標系,不是改資料 ——
+ * 角度的變化量與 telemetry 完全 1:1,只有原點平移。
+ *
+ * 取放站的位置由同一套正運動學(fk)在引擎 _KEYFRAMES 的下探姿態上算出,所以夾爪必定
+ * 落在檯面上;不必手調座標。反過來說,若教師對某軸注入 encoder_drift,畫面就會看到手臂
+ * 「夾偏」—— 那正是要教的。
+ */
+import React, { useMemo, useRef, useState } from "react";
+import { useFrame } from "@react-three/fiber";
+import { Box, Cylinder } from "@react-three/drei";
+import * as THREE from "three";
+import MachineScene, { Readout, Row } from "./MachineScene";
+import { FaultSmoke, HeatGlow, Shake, StatusBeacon, bodyColor } from "./MachineFx";
+import { DeviceMotion, MachineProps, approachAngleDeg, clamp01, scaleNote } from "./deviceMotion";
 
-export const RobotArmModel = ({ state, tags }: { state: string, tags: Record<string, number> }) => {
-  const j1Ref = useRef<THREE.Group>(null);
-  const j2Ref = useRef<THREE.Group>(null);
-  const j3Ref = useRef<THREE.Group>(null);
-  const j4Ref = useRef<THREE.Group>(null);
-  const j5Ref = useRef<THREE.Group>(null);
-  const j6Ref = useRef<THREE.Group>(null);
+// 骨架尺寸(必須與下方 mesh 一致,fk 才算得準)
+const SHOULDER_Y = 2.0, L_UPPER = 3.2, L_FORE = 3.4, L_WRIST = 1.4;
+// 控制器零位 → mesh 零位的校正(度)。調到「下探姿態時手腕朝下、端點落在料台高度」。
+const JOINT_CAL = { j2: 40, j3: 15, j5: 25 };
+// 引擎 _KEYFRAMES 的「下探」姿態(engine/templates/robot_arm_6axis.py)
+const KF_PICK = { j1: -45, j2: 15, j3: 50, j5: 25 };
+const KF_PLACE = { j1: 45, j2: 15, j3: 50, j5: 25 };
 
-  // Target angles from telemetry (in degrees)
-  const targetAngles = useRef([0, 0, 0, 0, 0, 0]);
-  const currentAngles = useRef([0, 0, 0, 0, 0, 0]);
-  const [boxState, setBoxState] = useState<'at_pick' | 'in_gripper' | 'at_place'>('at_pick');
-  const boxStateRef = useRef<'at_pick' | 'in_gripper' | 'at_place'>('at_pick');
+/** 正運動學:回傳夾爪端點的世界座標(model 內座標,尚未套外層 -1 位移)。 */
+function fk(j1: number, j2: number, j3: number, j5: number): [number, number, number] {
+  const D = Math.PI / 180;
+  const c2 = (j2 + JOINT_CAL.j2) * D;
+  const c3 = c2 + (j3 + JOINT_CAL.j3) * D;
+  const c5 = c3 + (j5 + JOINT_CAL.j5) * D;
+  let x = 0, y = SHOULDER_Y;
+  x += -Math.sin(c2) * L_UPPER; y += Math.cos(c2) * L_UPPER;
+  x += -Math.sin(c3) * L_FORE; y += Math.cos(c3) * L_FORE;
+  x += -Math.sin(c5) * L_WRIST; y += Math.cos(c5) * L_WRIST;
+  const a = j1 * D;
+  return [x * Math.cos(a), y, -x * Math.sin(a)];
+}
 
-  useFrame(() => {
-    // Read tags
-    const rawJ1 = tags.joint_angle_1 || 0;
-    
-    // Instead of using the raw J2/J3 (which in the old backend just wave in the air),
-    // we use J1's left/right sweep to synthesize a perfect visual Pick & Place trajectory 
-    // that reaches the floor stations correctly!
-    const sweepProgress = Math.min(1, Math.abs(rawJ1 / 60)); 
-    // sweepProgress: 0 (middle) -> 1 (far ends of the arc)
+const PICK_POS = fk(KF_PICK.j1, KF_PICK.j2, KF_PICK.j3, KF_PICK.j5);
+const PLACE_POS = fk(KF_PLACE.j1, KF_PLACE.j2, KF_PLACE.j3, KF_PLACE.j5);
 
-    targetAngles.current[0] = rawJ1;
-    targetAngles.current[1] = 0 + sweepProgress * 40;    // J2 bends shoulder down to 40 deg
-    targetAngles.current[2] = 30 + sweepProgress * 97;   // J3 bends elbow to 127 deg
-    targetAngles.current[3] = tags.joint_angle_4 || 0;
-    targetAngles.current[4] = 0 + sweepProgress * 13;    // J5 keeps gripper vertical
-    targetAngles.current[5] = tags.joint_angle_6 || 0;
+/** 在網址加 ?fkdebug=1 會畫出 fk() 算出的取放點,用來核對骨架與運動學是否一致(dev)。 */
+const FK_DEBUG = typeof location !== "undefined" && new URLSearchParams(location.search).get("fkdebug") === "1";
 
-    // Smooth interpolation
-    for (let i = 0; i < 6; i++) {
-      currentAngles.current[i] += (targetAngles.current[i] - currentAngles.current[i]) * 0.15;
+export const RobotArmModel = ({ motion }: MachineProps) => {
+  const refs = {
+    j1: useRef<THREE.Group>(null), j2: useRef<THREE.Group>(null), j3: useRef<THREE.Group>(null),
+    j4: useRef<THREE.Group>(null), j5: useRef<THREE.Group>(null), j6: useRef<THREE.Group>(null),
+  };
+  const cur = useRef([0, 0, 0, 0, 0, 0]);
+  const holdingRef = useRef(false);
+  const [holding, setHolding] = useState(false);
+  const [side, setSide] = useState(-1);
+
+  useFrame((_, delta) => {
+    const t = motion.tags;
+    const target = [
+      t.joint_angle_1 ?? 0, t.joint_angle_2 ?? 0, t.joint_angle_3 ?? 0,
+      t.joint_angle_4 ?? 0, t.joint_angle_5 ?? 0, t.joint_angle_6 ?? 0,
+    ];
+    // 故障 / 停機 → 引擎的 pre_step 不再推進,角度會凍在最後一筆:直接讓它停住即可
+    const tau = 0.12;
+    for (let i = 0; i < 6; i++) cur.current[i] = approachAngleDeg(cur.current[i], target[i], tau, delta);
+
+    const D = THREE.MathUtils.degToRad;
+    const [a1, a2, a3, a4, a5, a6] = cur.current;
+    if (refs.j1.current) refs.j1.current.rotation.y = D(a1);
+    if (refs.j2.current) refs.j2.current.rotation.z = D(a2 + JOINT_CAL.j2);
+    if (refs.j3.current) refs.j3.current.rotation.z = D(a3 + JOINT_CAL.j3);
+    if (refs.j4.current) refs.j4.current.rotation.x = D(a4);
+    if (refs.j5.current) refs.j5.current.rotation.z = D(a5 + JOINT_CAL.j5);
+    if (refs.j6.current) refs.j6.current.rotation.x = D(a6);
+
+    // 夾取 / 放置事件由真實角度推得:J2 > 5° 是「下探」姿態,J1 的正負決定在哪一站
+    const down = a2 > 5;
+    if (motion.running && down) {
+      const nextHold = a1 < 0;
+      if (nextHold !== holdingRef.current) { holdingRef.current = nextHold; setHolding(nextHold); }
     }
-
-    // Pick & Place State Machine
-    if (state === 'running') {
-      // J1 swings from -60 (Pick) to +60 (Place)
-      if (currentAngles.current[0] < -50) {
-        if (boxStateRef.current === 'at_pick') boxStateRef.current = 'in_gripper';
-      } else if (currentAngles.current[0] > 50) {
-        if (boxStateRef.current === 'in_gripper') boxStateRef.current = 'at_place';
-      } else if (currentAngles.current[0] < 0 && boxStateRef.current === 'at_place') {
-        // Arm crossing center back towards left -> spawn new box at pick station
-        boxStateRef.current = 'at_pick';
-      }
-    } else {
-      boxStateRef.current = 'at_pick';
-    }
-    
-    if (boxState !== boxStateRef.current) {
-      setBoxState(boxStateRef.current);
-    }
-
-    // Apply rotations (convert deg to rad)
-    if (j1Ref.current) j1Ref.current.rotation.y = THREE.MathUtils.degToRad(currentAngles.current[0]);
-    if (j2Ref.current) j2Ref.current.rotation.z = THREE.MathUtils.degToRad(currentAngles.current[1]);
-    if (j3Ref.current) j3Ref.current.rotation.z = THREE.MathUtils.degToRad(currentAngles.current[2]);
-    if (j4Ref.current) j4Ref.current.rotation.x = THREE.MathUtils.degToRad(currentAngles.current[3]);
-    if (j5Ref.current) j5Ref.current.rotation.z = THREE.MathUtils.degToRad(currentAngles.current[4]);
-    if (j6Ref.current) j6Ref.current.rotation.x = THREE.MathUtils.degToRad(currentAngles.current[5]);
+    if (!motion.running && holdingRef.current === false) { /* 停機保持現狀 */ }
+    const s = a1 < 0 ? -1 : 1;
+    setSide((prev) => (prev === s ? prev : s));
   });
 
-  const baseColor = "#444444";
-  const armColor = state === 'fault' ? "#c85a4a" : "#e68a00";
+  const armColor = bodyColor(motion, "#e68a00");
   const jointColor = "#222222";
 
   return (
-    <group position={[0, -1, 0]}>
-      {/* Base */}
-      <Cylinder args={[1.5, 2, 1, 32]} position={[0, 0.5, 0]} castShadow receiveShadow>
-        <meshStandardMaterial color={baseColor} metalness={0.5} roughness={0.5} />
-      </Cylinder>
-
-      {/* Joint 1 (Y-axis rotation) */}
-      <group ref={j1Ref} position={[0, 1, 0]}>
-        <Cylinder args={[1.2, 1.5, 1.5, 32]} position={[0, 0.75, 0]} castShadow receiveShadow>
-          <meshStandardMaterial color={armColor} />
+    <Shake motion={motion} amount={0.7}>
+      <group position={[0, -1, 0]}>
+        <Cylinder args={[1.5, 2, 1, 32]} position={[0, 0.5, 0]} castShadow receiveShadow>
+          <meshStandardMaterial color="#444444" metalness={0.5} roughness={0.5} />
         </Cylinder>
-        
-        {/* Joint 2 (Z-axis rotation) */}
-        <group position={[0, 1.25, 0]}>
-          {/* Joint cylinder visual */}
-          <Cylinder args={[0.8, 0.8, 2, 32]} rotation={[Math.PI / 2, 0, 0]} castShadow receiveShadow>
-            <meshStandardMaterial color={jointColor} metalness={0.6} />
+
+        <group ref={refs.j1} position={[0, 1, 0]}>
+          <Cylinder args={[1.1, 1.4, 1.2, 32]} position={[0, 0.6, 0]} castShadow receiveShadow>
+            <meshStandardMaterial color={armColor} />
           </Cylinder>
 
-          <group ref={j2Ref}>
-            {/* Lower Arm */}
-            <Box args={[1.2, 4, 1.2]} position={[0, 2, 0]} castShadow receiveShadow>
-              <meshStandardMaterial color={armColor} />
-            </Box>
+          {/* J2 肩部樞紐 —— 局部 y = 1.0,加上外層 j1 的 1.0 → SHOULDER_Y = 2.0 */}
+          <group position={[0, 1.0, 0]}>
+            <Cylinder args={[0.7, 0.7, 1.7, 32]} rotation={[Math.PI / 2, 0, 0]} castShadow receiveShadow>
+              <meshStandardMaterial color={jointColor} metalness={0.6} />
+            </Cylinder>
+            <HeatGlow motion={motion} radius={1.2} />
 
-            {/* Joint 3 (Z-axis rotation) */}
-            <group position={[0, 4, 0]}>
-              <Cylinder args={[0.7, 0.7, 1.6, 32]} rotation={[Math.PI / 2, 0, 0]} castShadow receiveShadow>
-                <meshStandardMaterial color={jointColor} metalness={0.6} />
-              </Cylinder>
+            {/* 驗證探針:各軸樞紐(用來核對關節角是否直接來自 joint_angle_n) */}
+            <object3D name="probe:j2_pivot" />
+            <group ref={refs.j2}>
+              {/* 上臂 L_UPPER */}
+              <Box args={[1.1, L_UPPER, 1.1]} position={[0, L_UPPER / 2, 0]} castShadow receiveShadow>
+                <meshStandardMaterial color={armColor} />
+              </Box>
 
-              <group ref={j3Ref}>
-                {/* Upper Arm Base */}
-                <Box args={[1, 1, 1]} position={[0, 0.5, 0]} castShadow receiveShadow>
-                  <meshStandardMaterial color={armColor} />
-                </Box>
+              <group position={[0, L_UPPER, 0]}>
+                <Cylinder args={[0.62, 0.62, 1.4, 32]} rotation={[Math.PI / 2, 0, 0]} castShadow receiveShadow>
+                  <meshStandardMaterial color={jointColor} metalness={0.6} />
+                </Cylinder>
 
-                {/* Joint 4 (X-axis rotation) */}
-                <group position={[0, 1, 0]}>
-                  <group ref={j4Ref}>
-                    <Cylinder args={[0.5, 0.5, 3.5, 16]} position={[0, 1.75, 0]} castShadow receiveShadow>
-                      <meshStandardMaterial color={armColor} />
-                    </Cylinder>
+                <group ref={refs.j3}>
+                  {/* 前臂 = 0.9(肘座)+ 2.5(臂管)= L_FORE 3.4 */}
+                  <Box args={[0.9, 0.9, 0.9]} position={[0, 0.45, 0]} castShadow receiveShadow>
+                    <meshStandardMaterial color={armColor} />
+                  </Box>
 
-                    {/* Joint 5 (Z-axis rotation) */}
-                    <group position={[0, 3.5, 0]}>
-                      <Cylinder args={[0.6, 0.6, 1.2, 16]} rotation={[Math.PI / 2, 0, 0]} castShadow receiveShadow>
-                        <meshStandardMaterial color={jointColor} metalness={0.6} />
+                  <group position={[0, 0.9, 0]}>
+                    <group ref={refs.j4}>
+                      <Cylinder args={[0.44, 0.44, 2.5, 16]} position={[0, 1.25, 0]} castShadow receiveShadow>
+                        <meshStandardMaterial color={armColor} />
                       </Cylinder>
-                      
-                      <group ref={j5Ref}>
-                        <Box args={[0.8, 1, 0.8]} position={[0, 0.5, 0]} castShadow receiveShadow>
-                          <meshStandardMaterial color={armColor} />
-                        </Box>
 
-                        {/* Joint 6 (X-axis rotation) */}
-                        <group position={[0, 1, 0]}>
-                          <group ref={j6Ref}>
-                            {/* Wrist / Tool flange */}
-                            <Cylinder args={[0.4, 0.4, 0.2, 16]} position={[0, 0.1, 0]} castShadow receiveShadow>
-                              <meshStandardMaterial color={baseColor} metalness={0.8} roughness={0.2} />
-                            </Cylinder>
-                            
-                            {/* Gripper */}
-                            <group position={[0, 0.2, 0]}>
-                              <Box args={[0.8, 0.2, 0.2]} position={[0, 0.1, 0]} castShadow receiveShadow>
-                                <meshStandardMaterial color={jointColor} />
-                              </Box>
-                              <Box args={[0.1, 0.6, 0.2]} position={[-0.35, 0.4, 0]} castShadow receiveShadow>
-                                <meshStandardMaterial color={jointColor} />
-                              </Box>
-                              <Box args={[0.1, 0.6, 0.2]} position={[0.35, 0.4, 0]} castShadow receiveShadow>
-                                <meshStandardMaterial color={jointColor} />
-                              </Box>
-                              {/* Item being held (dynamically toggled) */}
-                              {boxState === 'in_gripper' && (
-                                <Box args={[0.6, 0.6, 0.6]} position={[0, 0.5, 0]} castShadow receiveShadow>
-                                  <meshStandardMaterial color="#3a8a3a" />
+                      <group position={[0, 2.5, 0]}>
+                        <Cylinder args={[0.52, 0.52, 1.05, 16]} rotation={[Math.PI / 2, 0, 0]} castShadow receiveShadow>
+                          <meshStandardMaterial color={jointColor} metalness={0.6} />
+                        </Cylinder>
+
+                        <group ref={refs.j5}>
+                          {/* 腕部 = 0.85 + 0.18 + 0.38 ≈ L_WRIST 1.4 */}
+                          <Box args={[0.7, 0.85, 0.7]} position={[0, 0.425, 0]} castShadow receiveShadow>
+                            <meshStandardMaterial color={armColor} />
+                          </Box>
+
+                          <group position={[0, 0.85, 0]}>
+                            <group ref={refs.j6}>
+                              <Cylinder args={[0.36, 0.36, 0.18, 16]} position={[0, 0.09, 0]} castShadow receiveShadow>
+                                <meshStandardMaterial color="#444444" metalness={0.8} roughness={0.2} />
+                              </Cylinder>
+                              <group position={[0, 0.18, 0]}>
+                                <Box args={[0.7, 0.16, 0.2]} position={[0, 0.08, 0]} castShadow receiveShadow>
+                                  <meshStandardMaterial color={jointColor} />
                                 </Box>
-                              )}
+                                <Box args={[0.1, 0.5, 0.2]} position={[holding ? -0.2 : -0.32, 0.33, 0]} castShadow receiveShadow>
+                                  <meshStandardMaterial color={jointColor} />
+                                </Box>
+                                <Box args={[0.1, 0.5, 0.2]} position={[holding ? 0.2 : 0.32, 0.33, 0]} castShadow receiveShadow>
+                                  <meshStandardMaterial color={jointColor} />
+                                </Box>
+                                {/* 驗證探針:夾爪中心(= fk() 的端點)*/}
+                                <object3D name="probe:tcp" position={[0, 0.38, 0]} />
+                                {holding && (
+                                  <Box args={[0.5, 0.5, 0.5]} position={[0, 0.38, 0]} castShadow receiveShadow>
+                                    <meshStandardMaterial color="#3a8a3a" />
+                                  </Box>
+                                )}
+                              </group>
                             </group>
                           </group>
                         </group>
@@ -163,80 +181,78 @@ export const RobotArmModel = ({ state, tags }: { state: string, tags: Record<str
             </group>
           </group>
         </group>
-      </group>
 
-      {/* Pick & Place Stations (Left and Right) */}
-      {/* Pick Station (Left: Positive Z, Positive X when rotated by J1?) 
-          Actually let's just place them statically on the ground.
-          J1 rotates around Y. Left is approximately X=-3, Z=3 depending on camera.
-          Let's just put them relative to the base. */}
-      
-      {/* Pick Station (Left: J1=-60, Z is positive) */}
-      <group position={[-1.76, 0.5, 3.05]}>
-        <Box args={[1.5, 1, 1.5]} castShadow receiveShadow>
-          <meshStandardMaterial color="#666" />
-        </Box>
-        {boxState === 'at_pick' && (
-          <Box args={[0.6, 0.6, 0.6]} position={[0, 0.8, 0]} castShadow receiveShadow>
-            <meshStandardMaterial color="#3a8a3a" />
-          </Box>
+        {/* 取放站:位置由 fk() 在引擎 keyframe 姿態上算出,夾爪必定落在站上 */}
+        <Station pos={PICK_POS} showBox={!holding} />
+        <Station pos={PLACE_POS} showBox={!holding && side > 0} />
+        {FK_DEBUG && (
+          <>
+            <mesh position={PICK_POS}><sphereGeometry args={[0.18, 12, 10]} /><meshBasicMaterial color="#ff0000" /></mesh>
+            <mesh position={PLACE_POS}><sphereGeometry args={[0.18, 12, 10]} /><meshBasicMaterial color="#0000ff" /></mesh>
+          </>
         )}
-      </group>
 
-      {/* Place Station (Right: J1=+60, Z is negative) */}
-      <group position={[-1.76, 0.5, -3.05]}>
-        <Box args={[1.5, 1, 1.5]} castShadow receiveShadow>
-          <meshStandardMaterial color="#666" />
-        </Box>
-        {boxState === 'at_place' && (
-          <Box args={[0.6, 0.6, 0.6]} position={[0, 0.8, 0]} castShadow receiveShadow>
-            <meshStandardMaterial color="#3a8a3a" />
-          </Box>
-        )}
+        <StatusBeacon motion={motion} position={[2.6, 0, 1.6]} scale={1.4} />
+        <FaultSmoke motion={motion} position={[0, 3, 0]} />
       </group>
-    </group>
+    </Shake>
   );
 };
 
-export default function RobotArm3D({ state, tags }: { state: string, tags?: Record<string, number> }) {
+/** 取放輸送台:檯面高度由 fk() 算出的夾爪端點高度反推,夾爪必定落在檯面上。 */
+function Station({ pos, showBox }: { pos: [number, number, number]; showBox: boolean }) {
+  const top = Math.max(0.4, pos[1] - 0.3);
   return (
-    <Canvas shadows camera={{ position: [12, 10, 12], fov: 45 }} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block" }}>
-      <OrbitControls 
-        enablePan={true}
-        enableZoom={true}
-        enableRotate={true}
-        target={[0, 4, 0]}
-        maxPolarAngle={Math.PI / 2 - 0.05} 
-      />
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[10, 20, 10]} intensity={1} castShadow shadow-bias={-0.0001} />
-      <pointLight position={[-10, 10, -10]} intensity={0.5} />
-      
-      <RobotModelWrapper state={state} tags={tags || {}} />
-      
-      <ContactShadows position={[0, -0.99, 0]} opacity={0.6} scale={30} blur={2} far={10} />
-      <Environment preset="warehouse" />
-
-      {/* Floor */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1, 0]} receiveShadow>
-        <planeGeometry args={[50, 50]} />
-        <meshStandardMaterial color="#e0e0e0" roughness={0.8} />
-      </mesh>
-    </Canvas>
+    <group position={[pos[0], 0, pos[2]]}>
+      {/* 四支腳 */}
+      {[[-0.6, -0.6], [0.6, -0.6], [-0.6, 0.6], [0.6, 0.6]].map((p, i) => (
+        <Box key={i} args={[0.16, top, 0.16]} position={[p[0], top / 2, p[1]]} castShadow receiveShadow>
+          <meshStandardMaterial color="#8d949a" metalness={0.5} />
+        </Box>
+      ))}
+      {/* 檯面 */}
+      <Box args={[1.7, 0.18, 1.7]} position={[0, top, 0]} castShadow receiveShadow>
+        <meshStandardMaterial color="#5f676c" metalness={0.55} roughness={0.5} />
+      </Box>
+      {/* 滾輪 */}
+      {[-0.55, -0.18, 0.18, 0.55].map((z, i) => (
+        <Cylinder key={i} args={[0.09, 0.09, 1.6, 12]} rotation={[0, 0, Math.PI / 2]}
+                  position={[0, top + 0.16, z]} castShadow>
+          <meshStandardMaterial color="#3a4145" metalness={0.7} />
+        </Cylinder>
+      ))}
+      {showBox && (
+        <Box args={[0.6, 0.6, 0.6]} position={[0, top + 0.52, 0]} castShadow receiveShadow>
+          <meshStandardMaterial color="#3a8a3a" />
+        </Box>
+      )}
+    </group>
   );
 }
 
-const RobotModelWrapper = ({ state, tags }: { state: string, tags: Record<string, number> }) => {
+export default function RobotArm3D({ motion, debug }: MachineProps) {
   return (
-    <>
-      <RobotArmModel state={state} tags={tags} />
-      {/* Surrounding props to give sense of scale */}
-      <Box args={[2, 1, 2]} position={[4, -0.5, 0]} receiveShadow castShadow>
-        <meshStandardMaterial color="#666" />
-      </Box>
-      <Box args={[1.5, 1.5, 1.5]} position={[-4, -0.25, 2]} receiveShadow castShadow>
-        <meshStandardMaterial color="#777" />
-      </Box>
-    </>
+    <MachineScene camera={[13, 8.5, 1.5]} fov={45} target={[-2, 2.2, 0]} env="warehouse"
+                  groundSize={50} shadowScale={30} note={scaleNote()}
+                  overlay={<JointReadout motion={motion} />}>
+      <RobotArmModel motion={motion} />
+      {debug as React.ReactNode}
+    </MachineScene>
   );
-};
+}
+
+/** 六軸即時角度 —— 學生可拿它跟 OPC-UA 的 joint_angle_n 一格一格對照。 */
+function JointReadout({ motion }: { motion: DeviceMotion }) {
+  const t = motion.tags;
+  const temps = [1, 2, 3, 4, 5, 6].map((i) => t[`joint_temp_${i}`] ?? 0);
+  const rows: Row[] = [
+    ...[1, 2, 3, 4, 5, 6].map((i) => [`J${i} ANGLE`, `${(t[`joint_angle_${i}`] ?? 0).toFixed(1)} °`] as Row),
+    ["TCP X/Y/Z", `${(t.tcp_x ?? 0).toFixed(0)} / ${(t.tcp_y ?? 0).toFixed(0)} / ${(t.tcp_z ?? 0).toFixed(0)}`],
+    ["JOINT T max", `${Math.max(...temps).toFixed(1)} °C`, clamp01(motion.heat) > 0.6],
+    ["VIB", `${(t.vibration_rms ?? 0).toFixed(2)} mm/s`, (t.vibration_rms ?? 0) > 4.5],
+    ["CYCLES", `${Math.round(t.cycle_count ?? 0)}`],
+  ];
+  const hint = clamp01(motion.severity) > 0.5
+    ? "⚠ 振動 + 各軸電流升高 → reducer_wear 退化" : undefined;
+  return <Readout rows={rows} hint={hint} />;
+}

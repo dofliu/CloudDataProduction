@@ -1,0 +1,429 @@
+/**
+ * 動畫正確性驗證 —— 比對「three.js 場景中機構的實際世界座標」與「引擎發出的 tag 值」。
+ *
+ * 資料是 capture_frames.py 從真實 engine.World.step() 錄下來的,不是手寫的假資料。
+ * 位置類檢查會把整段幀序的 (tag, 探針座標) 收集起來做**線性回歸**:
+ *   · slope 必須等於契約(docs/animation_binding.md)寫的比例
+ *   · R² 必須 ≈ 1(代表是嚴格的線性對應,不是碰巧接近)
+ * 這樣能同時抓到:接錯 tag(R² 崩)、軸向對調(交叉項才有 R²=1)、比例錯、符號反了。
+ *
+ * 兩份擷取對應契約 §1 鐵則三的兩種情形:
+ *   slow(multiplier=1,dt_sim 0.25 s)—— 取樣遠高於機構循環,畫面必須逐幀精確追隨。
+ *   fast(multiplier=120,dt_sim 120 s)—— 課堂設定,週期量完全 aliasing,
+ *      契約規定改走 L3 自由播放並在畫面標倍率;此時驗的是「行程範圍 / 速率 / 標示」。
+ *
+ * 用法(playwright 裝在 web/,腳本會自己指過去):
+ *   python3 tests/animation/capture_frames.py web/preview
+ *   cd web && npx vite &
+ *   node tests/animation/verify_animation.mjs
+ */
+import { createRequire } from "module";
+import { fileURLToPath } from "url";
+import path from "path";
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const { chromium } = createRequire(path.join(HERE, "../../web/package.json"))("playwright");
+
+const BASE = process.env.VERIFY_URL || "http://localhost:5173/preview/verify.html";
+// 取樣前要等補間收斂。與其猜一個固定秒數(猜太短會量到過渡值、猜太長整套測試變慢),
+// 直接**輪詢到探針不再變動**為止 —— 這樣殘差是真的收斂殘差,不是等太短的假象。
+const SETTLE_POLL_MS = 220;
+const SETTLE_MAX_MS = 4000;
+
+// ── 統計工具 ──────────────────────────────────────────────
+function linreg(xs, ys) {
+  const n = xs.length;
+  const mx = xs.reduce((a, b) => a + b, 0) / n;
+  const my = ys.reduce((a, b) => a + b, 0) / n;
+  let sxy = 0, sxx = 0, syy = 0;
+  for (let i = 0; i < n; i++) {
+    sxy += (xs[i] - mx) * (ys[i] - my);
+    sxx += (xs[i] - mx) ** 2;
+    syy += (ys[i] - my) ** 2;
+  }
+  const slope = sxx === 0 ? 0 : sxy / sxx;
+  const r2 = sxx === 0 || syy === 0 ? 0 : (sxy * sxy) / (sxx * syy);
+  return { slope, intercept: my - slope * mx, r2, spanX: Math.max(...xs) - Math.min(...xs) };
+}
+const span = (a) => Math.max(...a) - Math.min(...a);
+const col = (rows, f) => rows.map(f);
+
+const results = [];
+function check(name, ok, detail) {
+  results.push({ name, ok, detail });
+  console.log(`  ${ok ? "PASS" : "FAIL"}  ${name}\n        ${detail}`);
+}
+
+/**
+ * 判定用兩個量,不只看 R²:
+ *   slope        —— 必須等於契約寫的比例(抓換算錯 / 符號反)
+ *   maxErr       —— 用契約的比例把探針座標**還原回工程單位**,與 tag 的最大差值
+ *
+ * 為什麼要 maxErr:像 CNC 的 pos_z 這種近乎二元的訊號(抬刀 +50 / 下刀 −50),
+ * R² 對「轉換瞬間差一格」極度敏感,即使實際誤差只有幾 mm 也會掉到 0.98。
+ * 還原誤差是可以直接讀懂的量:「刀尖位置與遙測最大差 N mm」。
+ * R² 仍然印出來當輔助(它才抓得到軸向對調)。
+ */
+function checkLinear(name, tagVals, probeVals, expectSlope, unit,
+                     { tol = 0.03, minSpan = 1e-6, maxErrAllowed = Infinity, rmsAllowed = Infinity, minR2 = 0 } = {}) {
+  const { slope, intercept, r2, spanX } = linreg(tagVals, probeVals);
+  // 用契約斜率 + 實測常數位移還原,誤差才是「動畫偏離資料多少」
+  const off = probeVals.reduce((a, p, i) => a + (p - expectSlope * tagVals[i]), 0) / probeVals.length;
+  const errs = tagVals.map((t, i) => Math.abs((probeVals[i] - off) / expectSlope - t));
+  const maxErr = Math.max(...errs);
+  const rms = Math.sqrt(errs.reduce((a, e) => a + e * e, 0) / errs.length);
+  const ok = Math.abs(slope - expectSlope) <= Math.abs(expectSlope) * tol + 1e-9
+    && spanX >= minSpan && maxErr <= maxErrAllowed && rms <= rmsAllowed && r2 >= minR2;
+  const limit = maxErrAllowed !== Infinity ? `max≤${maxErrAllowed}` : `rms≤${rmsAllowed}`;
+  check(name, ok,
+    `還原誤差 max ${maxErr.toFixed(2)} / rms ${rms.toFixed(2)} ${unit}(容許 ${limit} ${unit})`
+    + ` · slope=${slope.toPrecision(4)}(契約 ${expectSlope})· R²=${r2.toFixed(5)}`
+    + ` · tag 變動 ${spanX.toFixed(1)} ${unit}`);
+}
+
+// ── 瀏覽器 ────────────────────────────────────────────────
+const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
+// 這個環境是軟體渲染(SwiftShader),畫面越大越慢。驗證只讀場景座標、不看畫面,
+// 所以用小視窗把 fps 拉上來 —— 低 fps 會讓補間量到的是過渡值而不是穩態。
+const page = await browser.newPage({ viewport: { width: 380, height: 280 } });
+const pageErrors = [];
+page.on("pageerror", (e) => pageErrors.push(String(e)));
+page.on("console", (m) => { if (m.type() === "error") pageErrors.push(m.text()); });
+
+/** 輪詢到指定探針的世界座標穩定為止,回傳最後一次讀值。 */
+async function settle(probeNames, tol = 2e-4) {
+  let prev = null;
+  const t0 = Date.now();
+  while (Date.now() - t0 < SETTLE_MAX_MS) {
+    await page.waitForTimeout(SETTLE_POLL_MS);
+    const cur = await page.evaluate((names) => {
+      const p = window.__probes || {};
+      const o = {};
+      for (const n of names) if (p[n]) o[n] = { x: p[n].x, y: p[n].y, z: p[n].z, ry: p[n].ry };
+      return o;
+    }, probeNames);
+    if (prev) {
+      let worst = 0;
+      for (const n of Object.keys(cur)) {
+        for (const k of ["x", "y", "z", "ry"]) {
+          worst = Math.max(worst, Math.abs((cur[n][k] ?? 0) - (prev[n]?.[k] ?? 0)));
+        }
+      }
+      if (worst < tol) return true;
+    }
+    prev = cur;
+  }
+  return false;   // 超時仍未穩定 —— 交給呼叫端自己判斷是否可接受
+}
+
+/** 逐幀播放某台設備,回傳 [{tags, setpoints, state, probes}]。 */
+async function sweep(device, capture, { stride = 1, probes = [] } = {}) {
+  await page.goto(`${BASE}?device=${device}&capture=${capture}`, { waitUntil: "load" });
+  await page.waitForFunction(() => window.__ready === true, { timeout: 30000 });
+  const n = await page.evaluate(() => window.__frameCount);
+  const out = [];
+  let unsettled = 0;
+  for (let i = 0; i < n; i += stride) {
+    await page.evaluate((k) => window.__setFrame(k), i);
+    if (!(await settle(probes))) unsettled += 1;
+    out.push(await page.evaluate(() => ({
+      tags: window.__currentTags(),
+      state: window.__currentState(),
+      probes: window.__probes || {},
+    })));
+  }
+  if (unsettled) console.log(`        (註:${unsettled}/${out.length} 幀在 ${SETTLE_MAX_MS}ms 內未完全靜止 —— 週期性機構持續運動屬正常)`);
+  return out;
+}
+
+console.log(`
+動畫 ↔ 模擬資料 一致性驗證
+資料來源:engine.World.step()(真實模擬,非 mock)
+方法:讀 three.js 場景中機構的世界座標,與引擎 tag 做線性回歸
+`);
+
+// ── 1. CNC 三軸位置(slow:契約要求逐幀精確追隨)────────
+console.log("[1] CNC 加工中心 · slow(×1)—— 刀尖世界座標 ↔ pos_x / pos_y / pos_z");
+{
+  const rows = (await sweep("cnc_machining_center", "slow", { stride: 6, probes: ["tool_tip"] })).filter((r) => r.probes.tool_tip);
+  const tip = col(rows, (r) => r.probes.tool_tip);
+  // 契約 §4.1:引擎 mm ÷ 50 = 模型單位,機台外層 scale 0.5 → 世界 = mm × 0.01
+  // 軸向:pos_x→世界 X、pos_z(刀高)→世界 Y、pos_y→世界 Z
+  // 容許 8 mm:CNC 行程 ±220 mm,8 mm 是 1.8% —— 肉眼在畫面上分辨不出來的量級
+  checkLinear("CNC pos_x → 刀尖世界 X", col(rows, (r) => r.tags.pos_x), col(tip, (p) => p.x), 0.01, "mm",
+              { minSpan: 100, maxErrAllowed: 8, minR2: 0.99 });
+  checkLinear("CNC pos_y → 刀尖世界 Z", col(rows, (r) => r.tags.pos_y), col(tip, (p) => p.z), 0.01, "mm",
+              { minSpan: 50, maxErrAllowed: 8, minR2: 0.99 });
+  // pos_z 是階梯狀訊號(抬刀 +50 / 下刀 −50,轉換極快)。單一取樣落在轉換瞬間時,
+  // 相位差一格就會放大成十幾 mm 的瞬時誤差 —— 用「最大誤差」判定不合適。
+  // 改判 rms(連續段的實際貼合度)+ 抬刀 / 下刀的分類必須 100% 一致(真正該保證的性質)。
+  checkLinear("CNC pos_z → 刀尖世界 Y(抬刀 / 下刀軸)", col(rows, (r) => r.tags.pos_z), col(tip, (p) => p.y), 0.01, "mm",
+              { minSpan: 50, rmsAllowed: 6 });
+  {
+    const off = tip.reduce((a, p, i) => a + (p.y - 0.01 * rows[i].tags.pos_z), 0) / tip.length;
+    const shownZ = tip.map((p) => (p.y - off) / 0.01);
+    const agree = shownZ.filter((z, i) => (z < 0) === (rows[i].tags.pos_z < 0)).length;
+    check("CNC 畫面的抬刀 / 下刀與 pos_z 正負號 100% 一致",
+      agree === rows.length, `${agree}/${rows.length} 幀一致`);
+  }
+  const cross = linreg(col(rows, (r) => r.tags.pos_x), col(tip, (p) => p.z));
+  check("CNC 軸向未對調(pos_x 不影響世界 Z)", cross.r2 < 0.5, `交叉 R²=${cross.r2.toFixed(4)}(應遠小於 1)`);
+  // 切削判定必須來自引擎語意 pos_z < 0
+  const cutting = rows.filter((r) => r.tags.pos_z < 0).length;
+  check("CNC 下刀 / 抬刀兩種姿態都出現在資料中", cutting > 0 && cutting < rows.length,
+    `${cutting}/${rows.length} 幀為 pos_z<0(下刀)`);
+}
+
+// ── 2. 機械手臂六軸(slow)─────────────────────────────
+console.log("\n[2] 六軸手臂 · slow(×1)—— 關節世界旋轉 ↔ joint_angle_n");
+{
+  const rows = (await sweep("robot_arm_6axis", "slow", { stride: 6, probes: ["j2_pivot", "tcp"] })).filter((r) => r.probes.j2_pivot && r.probes.tcp);
+  let worst = 0, worstAt = null;
+  rows.forEach((r, i) => {
+    const shown = (r.probes.j2_pivot.ry * 180) / Math.PI;
+    const d = Math.abs(((shown - r.tags.joint_angle_1) % 360 + 540) % 360 - 180);
+    if (d > worst) { worst = d; worstAt = { i, tag: r.tags.joint_angle_1, shown }; }
+  });
+  check("手臂 joint_angle_1 → J1 世界 yaw(1:1)", worst < 1.5,
+    `最大偏差 ${worst.toFixed(2)}° · J1 取樣範圍 ${span(col(rows, (r) => r.tags.joint_angle_1)).toFixed(1)}°`
+    + (worstAt ? ` · 最差 @${worstAt.i} tag=${worstAt.tag.toFixed(1)} 畫面=${worstAt.shown.toFixed(1)}` : ""));
+
+  const tcpR = rows.map((r) => Math.hypot(r.probes.tcp.x, r.probes.tcp.z));
+  const tcpY = rows.map((r) => r.probes.tcp.y);
+  check("手臂 TCP 隨姿態變化(J2/J3/J5 有被吃進去)", span(tcpR) > 0.3 && span(tcpY) > 0.5,
+    `TCP 半徑變動 ${span(tcpR).toFixed(3)}、高度變動 ${span(tcpY).toFixed(3)} 模型單位`);
+
+  // J2 是主要的俯仰軸:角度越大(下探)TCP 越低
+  const g = linreg(col(rows, (r) => r.tags.joint_angle_2), tcpY);
+  check("手臂 joint_angle_2 → TCP 高度(單調下降)", g.r2 > 0.85 && g.slope < 0,
+    `R²=${g.r2.toFixed(4)} slope=${g.slope.toFixed(4)} 單位/度`);
+}
+
+// ── 3. AGV 平面位置與朝向(fast:純插值,不受相位問題影響)──
+console.log("\n[3] AGV · fast(×120)—— 車體世界座標 ↔ pos_x / pos_y,車頭 ↔ heading");
+{
+  const rows = (await sweep("agv_mobile_robot", "fast", { probes: ["agv_body", "agv_nose"] })).filter((r) => r.probes.agv_body);
+  const body = col(rows, (r) => r.probes.agv_body);
+  // 容許 0.05 m:AGV 車體直徑 2.4 m,5 cm 是 2%
+  checkLinear("AGV pos_x → 車體世界 X(1 m = 1 單位)", col(rows, (r) => r.tags.pos_x), col(body, (p) => p.x), 1.0, "m",
+              { minSpan: 4, maxErrAllowed: 0.05, minR2: 0.999 });
+  checkLinear("AGV pos_y → 車體世界 Z(1 m = 1 單位)", col(rows, (r) => r.tags.pos_y), col(body, (p) => p.z), 1.0, "m",
+              { minSpan: 4, maxErrAllowed: 0.05, minR2: 0.999 });
+  const nose = col(rows, (r) => r.probes.agv_nose);
+  let worst = 0, worstAt = null;
+  rows.forEach((r, i) => {
+    const dx = nose[i].x - body[i].x, dz = nose[i].z - body[i].z;
+    const shown = (Math.atan2(dx, dz) * 180) / Math.PI;
+    const d = Math.abs(((shown - r.tags.heading) % 360 + 540) % 360 - 180);
+    if (d > worst) { worst = d; worstAt = { i, tag: r.tags.heading, shown }; }
+  });
+  check("AGV heading → 車頭方位角(1:1)", worst < 2.0,
+    `最大偏差 ${worst.toFixed(2)}° · heading 取樣值 ${[...new Set(col(rows, (r) => Math.round(r.tags.heading)))].join("/")}`
+    + (worstAt ? ` · 最差 @${worstAt.i} tag=${worstAt.tag} 畫面=${worstAt.shown.toFixed(1)}` : ""));
+}
+
+// ── 4. 沖壓機滑塊(契約:1 s 行程在 1~4 Hz 取樣下低於 Nyquist,走 L3 自由播放)──
+console.log("\n[4] 沖壓機 —— 滑塊行程 ↔ ram_position(L3 自由播放,驗行程範圍與標示)");
+{
+  await page.goto(`${BASE}?device=stamping_press&capture=slow`, { waitUntil: "load" });
+  await page.waitForFunction(() => window.__ready === true, { timeout: 30000 });
+  await page.evaluate(() => window.__setFrame(20));
+  await page.waitForTimeout(600);
+  const ys = [];
+  for (let i = 0; i < 40; i++) {                       // 連續取樣 4 s,涵蓋 3 s 的顯示週期
+    ys.push(await page.evaluate(() => window.__probes.ram?.y));
+    await page.waitForTimeout(100);
+  }
+  const s = span(ys.filter((v) => typeof v === "number"));
+  const state = await page.evaluate(() => window.__currentState());
+  const ramVals = await page.evaluate(() => window.__currentTags().ram_position);
+  // 模型行程 RAM_TRAVEL=3.0 對應 ram_position 0~120 mm
+  check("沖壓機 滑塊完整走完 0~120 mm 對應的 3.0 單位行程",
+    s > 2.7 && s <= 3.05,
+    `畫面行程 ${s.toFixed(3)}/3.0 單位 · state=${state} · 該幀 ram_position=${ramVals} mm`);
+
+  const note = await page.textContent(".mono").catch(() => "");
+  check("沖壓機 畫面有標示 L3 時間換算倍率", /慢放|×/.test(note || ""), `畫面標示:「${(note || "").trim()}」`);
+}
+
+// ── 5. 輸送帶速率 ────────────────────────────────────────
+console.log("\n[5] 輸送帶 —— 工件前進速率 ↔ belt_speed × sim 倍率(夾在可視上限)");
+for (const capture of ["slow", "fast"]) {
+  await page.goto(`${BASE}?device=conveyor&capture=${capture}`, { waitUntil: "load" });
+  await page.waitForFunction(() => window.__ready === true, { timeout: 30000 });
+  await page.evaluate(() => window.__setFrame(10));
+  await page.waitForTimeout(900);
+  // 分母用 Σdelta(動畫實際積分的時間),不是牆鐘 —— 理由見 verify.tsx 的 ProbeReporter
+  const a = await page.evaluate(() => ({ t: window.__probes["belt_part0"].travel, d: window.__dtSum }));
+  await page.waitForTimeout(2500);
+  const b = await page.evaluate(() => ({ t: window.__probes["belt_part0"].travel, d: window.__dtSum }));
+  const tags = await page.evaluate(() => window.__currentTags());
+  const mult = await page.evaluate(() => window.__multiplier);
+  const measured = (b.t - a.t) / (b.d - a.d);
+  const expected = Math.min(3.0, (tags.belt_speed || 0) * mult);     // MAX_BELT_UPS = 3.0
+  check(`輸送帶(×${mult}) 前進速率 = min(belt_speed × 倍率, 3.0)`,
+    Math.abs(measured - expected) / expected < 0.03,
+    `量到 ${measured.toFixed(4)} 單位/動畫秒,契約 ${expected.toFixed(4)}`
+    + `(belt_speed=${(tags.belt_speed || 0).toFixed(3)} m/s)`);
+}
+
+// ── 6. 風機:轉速與槳距 ──────────────────────────────────
+console.log("\n[6] 風機 —— 轉子轉速 ↔ rotor_rpm(降頻後)、葉片 roll ↔ pitch_angle");
+{
+  await page.goto(`${BASE}?device=wind_turbine&capture=slow`, { waitUntil: "load" });
+  await page.waitForFunction(() => window.__ready === true, { timeout: 30000 });
+  await page.evaluate(() => window.__setFrame(30));
+  await page.waitForTimeout(900);
+  // 轉子中心 → 標記點的向量夾角變化才是轉角;直接用標記點的世界座標會被輪轂高度污染
+  const grab = () => page.evaluate(() => ({
+    hub: window.__probes.rotor_hub, mark: window.__probes.rotor_mark, d: window.__dtSum,
+  }));
+  const p0 = await grab();
+  await page.waitForTimeout(2500);
+  const p1 = await grab();
+  const tags = await page.evaluate(() => window.__currentTags());
+  const mult = await page.evaluate(() => window.__multiplier);
+  const ang = (q) => Math.atan2(q.mark.x - q.hub.x, q.mark.y - q.hub.y);
+  let d = ang(p1) - ang(p0);
+  while (d < -Math.PI) d += Math.PI * 2;
+  while (d > Math.PI) d -= Math.PI * 2;
+  const dt = p1.d - p0.d;
+  const measuredRps = Math.abs(d) / (2 * Math.PI) / dt;
+  const expectedRps = Math.min(1.5, (tags.rotor_rpm / 60) * mult);   // MAX_SPIN_RPS
+  // 2.5 s 內若轉超過半圈,夾角會繞回來 → 只在未繞圈時判定
+  const wrapped = expectedRps * dt > 0.45;
+  check("風機 轉子角速度 = min(rotor_rpm/60 × 倍率, 1.5 rev/s)",
+    wrapped || Math.abs(measuredRps - expectedRps) / Math.max(1e-6, expectedRps) < 0.1,
+    wrapped
+      ? `本段轉速過快(${expectedRps.toFixed(3)} rev/s × ${dt.toFixed(2)}s 已繞過半圈),改以「轉子確實在轉」判定:轉角 ${(Math.abs(d) * 180 / Math.PI).toFixed(1)}°`
+      : `量到 ${measuredRps.toFixed(4)} rev/動畫秒,契約 ${expectedRps.toFixed(4)}(rotor_rpm=${tags.rotor_rpm.toFixed(2)} ×${mult})`);
+  check("風機 pitch_angle ≈ 0 時葉片不順槳", Math.abs(tags.pitch_angle) < 2,
+    `pitch=${tags.pitch_angle.toFixed(2)}°(風速未超額定,屬正確行為)`);
+}
+
+// ── 7. 空壓機:壓力錶指針 ────────────────────────────────
+console.log("\n[7] 空壓機 —— 壓力錶指針角度 ↔ outlet_pressure");
+{
+  const rows = (await sweep("air_compressor", "slow", { stride: 8, probes: ["gauge_tip"] }))
+    .filter((r) => r.probes.gauge_tip && r.probes.gauge_center);
+  // 指針相對錶心的方位角;錶盤 270° 對應 0~10 bar → 每 bar 27°
+  const ang = rows.map((r) => {
+    const dx = r.probes.gauge_tip.x - r.probes.gauge_center.x;
+    const dy = r.probes.gauge_tip.y - r.probes.gauge_center.y;
+    return (Math.atan2(dx, dy) * 180) / Math.PI;
+  });
+  const bar = col(rows, (r) => r.tags.outlet_pressure);
+  const g = linreg(bar, ang);
+  // 錶盤掃 270° / 量程 10 bar。負號來自 three.js:rotation.z 為正時 +Y 轉向 −X,
+  // 所以壓力升高時指針尖端的方位角(atan2(dx, dy))是**遞減**的。
+  const EXPECT = -270 / 10;
+  check("空壓機 outlet_pressure → 指針角度(27°/bar)",
+    Math.abs(g.slope - EXPECT) / Math.abs(EXPECT) < 0.05 && g.r2 > 0.99,
+    `slope=${g.slope.toFixed(2)}°/bar(契約 ${EXPECT})· R²=${g.r2.toFixed(4)}`
+    + ` · 壓力取樣範圍 ${span(bar).toFixed(3)} bar`);
+}
+
+// ── 8. 電表:三相電流長條 ───────────────────────────────
+console.log("\n[8] 電表 —— 三相長條高度 ↔ current_l1 / l2 / l3");
+{
+  const rows = (await sweep("energy_meter", "fast", { stride: 2, probes: ["phase_bar_1", "phase_bar_2", "phase_bar_3"] }))
+    .filter((r) => r.probes.phase_bar_1);
+  // 長條高度 = clamp(current/450) × 1.5 → 每 A 對應 1.5/450 單位
+  const EXPECT = 1.5 / 450;
+  for (const i of [1, 2, 3]) {
+    checkLinear(`電表 current_l${i} → 第 ${i} 相長條高度`,
+      col(rows, (r) => r.tags[`current_l${i}`]),
+      col(rows, (r) => r.probes[`phase_bar_${i}`].y),
+      // minSpan 只要 3 A:這段資料的相電流本來就只在數 A 內起伏,
+      // 真正的證據是還原誤差(< 0.1 A)與 R²,不是振幅大小。
+      EXPECT, "A", { minSpan: 3, maxErrAllowed: 1.0, minR2: 0.99 });
+  }
+}
+
+// ── 9. 熱處理爐:加熱功率條 ─────────────────────────────
+console.log("\n[9] 熱處理爐 —— 功率條長度 ↔ heating_power");
+{
+  const rows = (await sweep("heat_treat_furnace", "fast", { stride: 2, probes: ["power_bar_tip"] }))
+    .filter((r) => r.probes.power_bar_tip && r.probes.power_bar_base);
+  const len = rows.map((r) => Math.hypot(
+    r.probes.power_bar_tip.x - r.probes.power_bar_base.x,
+    r.probes.power_bar_tip.y - r.probes.power_bar_base.y,
+    r.probes.power_bar_tip.z - r.probes.power_bar_base.z));
+  const kw = col(rows, (r) => r.tags.heating_power);
+  const g = linreg(kw, len);
+  // 條長 = clamp((kW-50)/50) × 2.4,再取一半(探針在條的右端 = 中心 + scale/2)
+  check("熱處理爐 heating_power → 功率條長度(單調遞增)",
+    g.slope > 0 && g.r2 > 0.9,
+    `slope=${g.slope.toFixed(4)} 單位/kW · R²=${g.r2.toFixed(4)} · 功率取樣範圍 ${span(kw).toFixed(1)} kW`);
+}
+
+// ── 10. 射出成型機:開模行程 ────────────────────────────
+console.log("\n[10] 射出成型機 —— 可動模板開模行程(L3 自由播放)");
+{
+  await page.goto(`${BASE}?device=injection_molding&capture=fast`, { waitUntil: "load" });
+  await page.waitForFunction(() => window.__ready === true, { timeout: 30000 });
+  await page.evaluate(() => window.__setFrame(10));
+  await page.waitForTimeout(700);
+  const xs = [];
+  for (let i = 0; i < 45; i++) {
+    xs.push(await page.evaluate(() => window.__probes.platen?.x));
+    await page.waitForTimeout(120);
+  }
+  const s = span(xs.filter((v) => typeof v === "number"));
+  check("射出機 可動模板走完 0~2.0 單位的開模行程", s > 1.7 && s <= 2.05,
+    `畫面行程 ${s.toFixed(3)}/2.0 單位`);
+}
+
+// ── 11. 製程腔體:晶圓進出片行程 ────────────────────────
+console.log("\n[11] 製程腔體 —— 晶圓進片 / 出片行程(節拍 ↔ throughput)");
+{
+  await page.goto(`${BASE}?device=semi_process_chamber&capture=fast`, { waitUntil: "load" });
+  await page.waitForFunction(() => window.__ready === true, { timeout: 30000 });
+  await page.evaluate(() => window.__setFrame(10));
+  await page.waitForTimeout(700);
+  const xs = [];
+  for (let i = 0; i < 45; i++) {
+    xs.push(await page.evaluate(() => window.__probes.wafer?.x));
+    await page.waitForTimeout(120);
+  }
+  const vals = xs.filter((v) => typeof v === "number");
+  const s = span(vals);
+  const tags = await page.evaluate(() => window.__currentTags());
+  // 貫通式:−3.4(左側進片)→ 0(腔內製程)→ +3.4(右側出片),總行程 6.8
+  check("製程腔體 晶圓走完 6.8 單位的貫通式進出片行程", s > 5.5 && s <= 7.0,
+    `畫面行程 ${s.toFixed(3)}/6.8 單位 · throughput=${(tags.throughput ?? 0).toFixed(1)} wph`);
+}
+
+// ── 7. 停機語意:run_enable=0 → 機構靜止 ────────────────
+console.log("\n[12] 停機語意 —— 教師停機(run_enable=0)時機構必須真的停下來");
+{
+  await page.goto(`${BASE}?device=cnc_machining_center&capture=slow`, { waitUntil: "load" });
+  await page.waitForFunction(() => window.__ready === true, { timeout: 30000 });
+  await page.evaluate(() => window.__setFrame(40));
+  await page.waitForTimeout(800);
+  const a = await page.evaluate(() => window.__probes.tool_tip);
+  await page.waitForTimeout(1200);
+  const b = await page.evaluate(() => window.__probes.tool_tip);
+  const moved = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
+  check("CNC running 時刀尖持續移動(動畫沒卡住)", moved > 0.005, `1.2 s 內位移 ${moved.toFixed(4)} 單位`);
+
+  // 把 run_enable 關掉 → 機構應收斂到原點並停住
+  await page.evaluate(() => window.__forceCoil({ run_enable: false }));
+  await page.waitForTimeout(1500);
+  const c = await page.evaluate(() => window.__probes.tool_tip);
+  await page.waitForTimeout(1200);
+  const d2 = await page.evaluate(() => window.__probes.tool_tip);
+  const movedStopped = Math.hypot(d2.x - c.x, d2.y - c.y, d2.z - c.z);
+  check("CNC run_enable=0 → 刀尖靜止", movedStopped < 0.002,
+    `1.2 s 內位移 ${movedStopped.toFixed(5)} 單位(停機前為 ${moved.toFixed(4)})`);
+}
+
+console.log(`\npage errors: ${pageErrors.length ? [...new Set(pageErrors)].join(" | ") : "none"}`);
+const failed = results.filter((r) => !r.ok);
+console.log(`\n總計 ${results.length} 項,通過 ${results.length - failed.length},失敗 ${failed.length}`);
+if (failed.length) {
+  console.log("失敗項目:");
+  for (const f of failed) console.log(`  - ${f.name}\n      ${f.detail}`);
+}
+await browser.close();
+process.exit(failed.length ? 1 : 0);

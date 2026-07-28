@@ -1,236 +1,242 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Box, Cylinder, Environment, ContactShadows, Text } from '@react-three/drei';
-import * as THREE from 'three';
+/**
+ * 射出成型機 3D(綁定表見 docs/animation_binding.md §4.6)。
+ *
+ * 循環相位不再是前端自訂的 6 秒表,而是對應引擎的模內相位 ph
+ * (engine/templates/injection_molding.py:`st["ph"] = (t % CYCLE_S)/CYCLE_S·2π`):
+ *   u = ph/2π ∈ [0,0.5)  射出 / 保壓(injection_pressure = 90 + 70·sin ph,峰值在 u=0.25)
+ *          [0.5,0.75) 冷卻
+ *          [0.75,0.9)  開模
+ *          [0.9,1.0)   頂出 + 閉模
+ * 循環週期取自 cycle_time(隨 screw_wear 變長),經 L3 換算到可讀區間並標示倍率。
+ * 熔膠亮度綁 injection_pressure、料管熱度綁 barrel_temp_*、螺桿轉速綁 screw_speed。
+ */
+import React, { useRef } from "react";
+import { useFrame } from "@react-three/fiber";
+import { Box, Cylinder } from "@react-three/drei";
+import * as THREE from "three";
+import MachineScene, { Readout, Row } from "./MachineScene";
+import { FaultSmoke, HeatGlow, Shake, StatusBeacon, StatusText, bodyColor } from "./MachineFx";
+import { DeviceMotion, MachineProps, clamp01, scaleNote, visualPeriod, visualSpin } from "./deviceMotion";
 
-export const InjectionMoldingModel = ({ state, tags }: { state: string, tags: Record<string, number> }) => {
-  const movingPlatenRef = useRef<THREE.Group>(null);
+const INJ_LO = 90, INJ_HI = 160;      // injection_pressure 的谷 / 峰(bar)
+
+export const InjectionMoldingModel = ({ motion }: MachineProps) => {
+  const platenRef = useRef<THREE.Group>(null);
   const screwRef = useRef<THREE.Mesh>(null);
   const meltRef = useRef<THREE.Mesh>(null);
-  const hopperMaterialRef = useRef<THREE.Mesh>(null);
-  const productInsideRef = useRef<THREE.Mesh>(null);
-
-  const [fallingParts, setFallingParts] = useState<{ id: number, x: number, y: number, z: number, rot: number }[]>([]);
-  
-  const visualPhase = useRef(0);
+  const hopperRef = useRef<THREE.Mesh>(null);
+  const productRef = useRef<THREE.Mesh>(null);
+  const phase = useRef(0);
   const lastPhase = useRef(0);
+  const lastInj = useRef(INJ_LO);
+  // 頂出的成品用固定池 + ref 驅動,避免每幀 setState 觸發 React 重繪
+  const EJECT_POOL = 6;
+  const ejectRefs = useRef<(THREE.Group | null)[]>(Array(EJECT_POOL).fill(null));
+  const ejectLife = useRef<number[]>(Array(EJECT_POOL).fill(-1));
+  const ejectSlot = useRef(0);
 
   useFrame((_, delta) => {
-    if (state === 'running') {
-      lastPhase.current = visualPhase.current;
-      visualPhase.current = (visualPhase.current + delta / 6.0) % 1.0; // 6s cycle
+    const t = motion.tags;
+    const per = visualPeriod(t.cycle_time || 30, motion.timeScale);
+    lastPhase.current = phase.current;
+
+    if (!motion.running) {
+      phase.current = 0;
+    } else if (Math.abs(per.factor - 1) < 0.05 && typeof t.injection_pressure === "number") {
+      // 倍率≈1 才由 injection_pressure 反推相位(sin 半週,配合 clamping_force 定象限)
+      const s = clamp01((t.injection_pressure - INJ_LO) / (INJ_HI - INJ_LO));
+      const ph = Math.asin(Math.min(1, s));                       // 0..π/2
+      const rising = t.injection_pressure >= lastInj.current;
+      lastInj.current = t.injection_pressure;
+      phase.current = (rising ? ph : Math.PI - ph) / (Math.PI * 2);
     } else {
-      visualPhase.current = 0; 
+      phase.current = (phase.current + delta / per.value) % 1;
     }
+    const u = phase.current;
 
-    const phase = visualPhase.current;
-
-    // 1. Material Injecting Effect (0.0 ~ 0.3)
-    const isInjecting = phase >= 0.0 && phase < 0.3;
-    if (meltRef.current && hopperMaterialRef.current && screwRef.current) {
-      if (isInjecting) {
-        // Screw moves forward
-        screwRef.current.position.x = -7.5 + (phase / 0.3) * 0.5;
-        // Screw rotates fast
-        screwRef.current.rotation.x += delta * 10;
-        
-        // Melted plastic fills the nozzle
-        meltRef.current.scale.y = 0.1 + (phase / 0.3) * 0.9;
-        meltRef.current.position.x = -4.5 - (meltRef.current.scale.y * 1.5) / 2; // grow towards left? No, mold is at -4. Barrel is at -6.
-        // Wait, Barrel is at -6, Mold at -4. Flow is from -6 to -4 (towards +X).
-        // Cylinder is rotated Math.PI/2 around Z. So local Y is global X.
-        meltRef.current.scale.y = Math.max(0.01, (phase / 0.3)); 
-        meltRef.current.position.x = -5.0 + (meltRef.current.scale.y * 2) / 2;
-        
-        (meltRef.current.material as THREE.MeshStandardMaterial).emissiveIntensity = 2.0;
-        (meltRef.current.material as THREE.MeshStandardMaterial).color.setHex(0xff5500);
-
-        // Hopper material sinks
-        hopperMaterialRef.current.scale.y = 1.0 - (phase / 0.3) * 0.2;
-        hopperMaterialRef.current.position.y = 5.0 - (phase / 0.3) * 0.1;
-      } else {
-        // Retract screw
-        screwRef.current.position.x = -7.5;
-        meltRef.current.scale.y = 0.01;
-        hopperMaterialRef.current.scale.y = 1.0;
-        hopperMaterialRef.current.position.y = 5.0;
+    // 螺桿:射出段前進 + 轉動(轉速吃 screw_speed,L3 降頻)
+    const injecting = u < 0.3;
+    if (screwRef.current) {
+      screwRef.current.position.x = -7.5 + (injecting ? (u / 0.3) * 0.5 : 0);
+      if (motion.running) {
+        const spin = visualSpin(t.screw_speed ?? 0, motion.timeScale).value;
+        screwRef.current.rotation.x += spin * Math.PI * 2 * delta;
       }
     }
-
-    // 2. Cooling Effect (0.3 ~ 0.5)
-    if (phase >= 0.3 && phase < 0.5) {
-       const coolProgress = (phase - 0.3) / 0.2;
-       if (productInsideRef.current) {
-         const mat = productInsideRef.current.material as THREE.MeshStandardMaterial;
-         // Fade from bright orange to solid color
-         mat.emissiveIntensity = 2.0 * (1.0 - coolProgress);
-       }
+    // 熔膠:長度隨射出進度,亮度綁 injection_pressure(L2)
+    if (meltRef.current) {
+      const mat = meltRef.current.material as THREE.MeshStandardMaterial;
+      const p = clamp01(((t.injection_pressure ?? INJ_LO) - INJ_LO) / (INJ_HI - INJ_LO));
+      meltRef.current.scale.y = injecting ? Math.max(0.01, u / 0.3) : 0.01;
+      meltRef.current.position.x = -5.0 + meltRef.current.scale.y;
+      mat.emissiveIntensity = injecting ? 0.6 + 2.0 * p : 0;
+    }
+    if (hopperRef.current) {
+      hopperRef.current.scale.y = injecting ? 1 - (u / 0.3) * 0.2 : 1;
+      hopperRef.current.position.y = injecting ? 5.0 - (u / 0.3) * 0.1 : 5.0;
     }
 
-    // 3. Mold Opening & Closing (0.5 ~ 1.0)
-    let moldOpenAmount = 0;
-    if (phase >= 0.5 && phase < 0.65) {
-      moldOpenAmount = ((phase - 0.5) / 0.15) * 2.0; // Open to 2.0
-    } else if (phase >= 0.65 && phase < 0.8) {
-      moldOpenAmount = 2.0; // Stay open
-    } else if (phase >= 0.8 && phase <= 1.0) {
-      moldOpenAmount = (1.0 - ((phase - 0.8) / 0.2)) * 2.0; // Close
+    // 開模:u 0.75→0.9 開,0.9→1.0 閉
+    let open = 0;
+    if (u >= 0.75 && u < 0.9) open = ((u - 0.75) / 0.15) * 2.0;
+    else if (u >= 0.9) open = (1 - (u - 0.9) / 0.1) * 2.0;
+    if (platenRef.current) platenRef.current.position.x = open;
+
+    // 模內成品:射出後出現,冷卻中降溫(emissive 退掉),開模後頂出
+    if (productRef.current) {
+      const mat = productRef.current.material as THREE.MeshStandardMaterial;
+      productRef.current.visible = motion.running && u > 0.08 && u < 0.82;
+      if (u < 0.5) mat.emissiveIntensity = 2.0;
+      else if (u < 0.75) mat.emissiveIntensity = 2.0 * (1 - (u - 0.5) / 0.25);
+      else mat.emissiveIntensity = 0;
     }
 
-    if (movingPlatenRef.current) {
-      // Move along X axis!
-      movingPlatenRef.current.position.x = moldOpenAmount;
+    // 頂出:相位跨過 0.82 時掉一件
+    if (motion.running && lastPhase.current < 0.82 && u >= 0.82) {
+      ejectLife.current[ejectSlot.current] = 0;
+      ejectSlot.current = (ejectSlot.current + 1) % EJECT_POOL;
     }
-
-    // Product Visibility inside mold
-    if (productInsideRef.current) {
-      if (phase >= 0.0 && phase < 0.65) {
-        productInsideRef.current.visible = phase > 0.1; // becomes visible during injection
-        if (phase < 0.3) {
-            (productInsideRef.current.material as THREE.MeshStandardMaterial).emissiveIntensity = 2.0;
-        }
-      } else {
-        productInsideRef.current.visible = false;
-      }
+    for (let i = 0; i < EJECT_POOL; i++) {
+      const g = ejectRefs.current[i];
+      if (!g) continue;
+      if (ejectLife.current[i] < 0) { g.visible = false; continue; }
+      ejectLife.current[i] += delta;
+      const life = ejectLife.current[i];
+      g.visible = true;
+      g.position.set(-2.0, 2.5 - 4 * life, 0);
+      g.rotation.set(life * 2, life * 2, 0);
+      if (g.position.y < -2) ejectLife.current[i] = -1;
     }
-
-    // 4. Product Ejection (falling down)
-    // Trigger exactly when crossing 0.65
-    if (lastPhase.current < 0.65 && phase >= 0.65) {
-      setFallingParts(prev => [...prev, { id: Date.now(), x: -2.0, y: 2.5, z: 0, rot: Math.random() }]);
-    }
-
-    // Update falling parts physics
-    setFallingParts(prev => prev
-      .map(p => ({ ...p, y: p.y - delta * 4, rot: p.rot + delta * 2 }))
-      .filter(p => p.y > -2)
-    );
   });
 
-  const baseColor = "#506060";
-  const machineryColor = state === 'fault' ? "#c85a4a" : "#7b8a8b";
+  const machinery = bodyColor(motion);
   const moldColor = "#444444";
-  const screwColor = "#aaaaaa";
 
   return (
-    <group position={[0, -1, 0]}>
-      {/* Base Frame */}
-      <Box args={[12, 1, 4]} position={[0, 0.5, 0]} castShadow receiveShadow>
-        <meshStandardMaterial color={baseColor} metalness={0.7} />
-      </Box>
+    <Shake motion={motion}>
+      <group position={[0, -1, 0]}>
+        <Box args={[12, 1, 4]} position={[0, 0.5, 0]} castShadow receiveShadow>
+          <meshStandardMaterial color="#506060" metalness={0.7} />
+        </Box>
 
-      {/* Stationary Platen (Left side of mold, global X = -3.5) */}
-      <Box args={[1, 4, 3.5]} position={[-3.5, 3, 0]} castShadow receiveShadow>
-        <meshStandardMaterial color={machineryColor} />
-      </Box>
-      {/* Fixed Mold Half */}
-      <Box args={[0.8, 2.5, 2.5]} position={[-2.6, 3, 0]} castShadow receiveShadow>
-        <meshStandardMaterial color={moldColor} metalness={0.8} />
-      </Box>
-
-      {/* Tie Bars (Guide rods) along X axis */}
-      {[[-1.2, 1.2], [-1.2, -1.2], [1.2, 1.2], [1.2, -1.2]].map((pos, i) => (
-        <Cylinder key={i} args={[0.1, 0.1, 6, 16]} rotation={[0, 0, Math.PI / 2]} position={[0, 3 + pos[0], pos[1]]} castShadow receiveShadow>
-          <meshStandardMaterial color="#cccccc" metalness={0.9} />
-        </Cylinder>
-      ))}
-
-      {/* Moving Platen Group */}
-      <group position={[-1, 0, 0]} ref={movingPlatenRef}>
-        {/* Moving Mold Half */}
-        <Box args={[0.8, 2.5, 2.5]} position={[-0.8, 3, 0]} castShadow receiveShadow>
+        <Box args={[1, 4, 3.5]} position={[-3.5, 3, 0]} castShadow receiveShadow>
+          <meshStandardMaterial color={machinery} />
+        </Box>
+        <Box args={[0.8, 2.5, 2.5]} position={[-2.6, 3, 0]} castShadow receiveShadow>
           <meshStandardMaterial color={moldColor} metalness={0.8} />
         </Box>
-        {/* Main Platen Body */}
-        <Box args={[1, 4, 3.5]} position={[0.1, 3, 0]} castShadow receiveShadow>
-          <meshStandardMaterial color={machineryColor} />
-        </Box>
-        
-        {/* Finished product stuck to moving half before ejection */}
-        <Box ref={productInsideRef} args={[0.4, 1.5, 1.5]} position={[-1.4, 3, 0]} castShadow>
-          <meshStandardMaterial color="#f09000" emissive="#ff5500" emissiveIntensity={0} />
-        </Box>
-      </group>
 
-      {/* Clamping Unit Mechanism (Toggle shield) */}
-      <Box args={[2, 3, 2]} position={[2, 2.5, 0]} castShadow receiveShadow>
-        <meshStandardMaterial color={machineryColor} />
-      </Box>
+        {[[-1.2, 1.2], [-1.2, -1.2], [1.2, 1.2], [1.2, -1.2]].map((p, i) => (
+          <Cylinder key={i} args={[0.1, 0.1, 6, 16]} rotation={[0, 0, Math.PI / 2]} position={[0, 3 + p[0], p[1]]} castShadow receiveShadow>
+            <meshStandardMaterial color="#cccccc" metalness={0.9} />
+          </Cylinder>
+        ))}
 
-      {/* Injection Unit (Left Side of Stationary Platen) */}
-      {/* Hopper */}
-      <Cylinder args={[0.6, 0.1, 1.5, 16]} position={[-5.5, 5.5, 0]} castShadow receiveShadow>
-        <meshStandardMaterial color="#ffffff" opacity={0.3} transparent />
-      </Cylinder>
-      {/* Hopper Material Level */}
-      <Cylinder ref={hopperMaterialRef} args={[0.55, 0.15, 1.4, 16]} position={[-5.5, 5.5, 0]}>
-        <meshStandardMaterial color="#f09000" />
-      </Cylinder>
-      
-      {/* Barrel */}
-      <Cylinder args={[0.5, 0.5, 4, 32]} rotation={[0, 0, Math.PI / 2]} position={[-6, 3, 0]} castShadow receiveShadow>
-        <meshStandardMaterial color={machineryColor} />
-      </Cylinder>
-      
-      {/* Melted Plastic Flowing (Inside/Through Barrel to Mold) */}
-      <Cylinder ref={meltRef} args={[0.15, 0.15, 2, 16]} rotation={[0, 0, Math.PI / 2]} position={[-4.5, 3, 0]}>
-        <meshStandardMaterial color="#ff5500" emissive="#ff5500" emissiveIntensity={2.0} />
-      </Cylinder>
-
-      {/* Screw Extrusion (visible window for animation) */}
-      <Box args={[3, 1.1, 1.1]} position={[-8.5, 3, 0]} castShadow receiveShadow>
-        <meshStandardMaterial color="#333333" />
-      </Box>
-      <Cylinder ref={screwRef} args={[0.3, 0.3, 2.5, 16]} rotation={[0, 0, Math.PI / 2]} position={[-7.5, 3, 0]}>
-        <meshStandardMaterial color={screwColor} wireframe />
-      </Cylinder>
-
-      {/* Falling Parts Animation */}
-      {fallingParts.map(part => (
-        <group key={part.id} position={[part.x, part.y, part.z]} rotation={[part.rot, part.rot, 0]}>
-          <Box args={[0.4, 1.5, 1.5]} castShadow>
-            <meshStandardMaterial color="#f09000" />
+        <group position={[-1, 0, 0]} ref={platenRef}>
+          {/* 驗證探針:可動模板 —— 開模行程 */}
+          <object3D name="probe:platen" />
+          <Box args={[0.8, 2.5, 2.5]} position={[-0.8, 3, 0]} castShadow receiveShadow>
+            <meshStandardMaterial color={moldColor} metalness={0.8} />
+          </Box>
+          <Box args={[1, 4, 3.5]} position={[0.1, 3, 0]} castShadow receiveShadow>
+            <meshStandardMaterial color={machinery} />
+          </Box>
+          <Box ref={productRef} args={[0.4, 1.5, 1.5]} position={[-1.4, 3, 0]} castShadow>
+            <meshStandardMaterial color="#f09000" emissive="#ff5500" emissiveIntensity={0} />
           </Box>
         </group>
-      ))}
-      
-      {/* Data display on machine */}
-      <group position={[-3.5, 5.5, 1.8]}>
-        <Text fontSize={0.3} color="#ffffff" anchorX="center" anchorY="middle" position={[0, 0.5, 0]}>
-          {`SHOTS: ${tags.shot_count || 0}`}
-        </Text>
-        <Text fontSize={0.25} color="#aaddaa" anchorX="center" anchorY="middle" position={[0, 0, 0]}>
-          {`FORCE: ${(tags.clamping_force || 0).toFixed(0)} T`}
-        </Text>
+
+        <Box args={[2, 3, 2]} position={[2, 2.5, 0]} castShadow receiveShadow>
+          <meshStandardMaterial color={machinery} />
+        </Box>
+        {/* 液壓油溫 */}
+        <HeatGlow motion={motion} position={[2, 2.5, 0]} radius={2.2} />
+
+        {/* 料斗 */}
+        <Cylinder args={[0.6, 0.1, 1.5, 16]} position={[-5.5, 5.5, 0]} castShadow receiveShadow>
+          <meshStandardMaterial color="#ffffff" opacity={0.3} transparent />
+        </Cylinder>
+        <Cylinder ref={hopperRef} args={[0.55, 0.15, 1.4, 16]} position={[-5.5, 5.5, 0]}>
+          <meshStandardMaterial color="#f09000" />
+        </Cylinder>
+
+        {/* 料管 + 四段加熱區(顏色綁 barrel_temp_1..4) */}
+        <Cylinder args={[0.5, 0.5, 4, 32]} rotation={[0, 0, Math.PI / 2]} position={[-6, 3, 0]} castShadow receiveShadow>
+          <meshStandardMaterial color={machinery} />
+        </Cylinder>
+        <BarrelHeaters motion={motion} />
+
+        <Cylinder ref={meltRef} args={[0.15, 0.15, 2, 16]} rotation={[0, 0, Math.PI / 2]} position={[-4.5, 3, 0]}>
+          <meshStandardMaterial color="#ff5500" emissive="#ff5500" emissiveIntensity={0} toneMapped={false} />
+        </Cylinder>
+
+        <Box args={[3, 1.1, 1.1]} position={[-8.5, 3, 0]} castShadow receiveShadow>
+          <meshStandardMaterial color="#333333" />
+        </Box>
+        <Cylinder ref={screwRef} args={[0.3, 0.3, 2.5, 16]} rotation={[0, 0, Math.PI / 2]} position={[-7.5, 3, 0]}>
+          <meshStandardMaterial color="#aaaaaa" wireframe />
+        </Cylinder>
+
+        {Array.from({ length: EJECT_POOL }, (_, i) => (
+          <group key={i} ref={(el) => { ejectRefs.current[i] = el; }} visible={false}>
+            <Box args={[0.4, 1.5, 1.5]} castShadow><meshStandardMaterial color="#f09000" /></Box>
+          </group>
+        ))}
+
+        <StatusBeacon motion={motion} position={[3.4, 4.0, 0]} scale={1.4} />
+        <FaultSmoke motion={motion} position={[-6, 4.2, 0]} />
+        <StatusText motion={motion} position={[-3.5, 6.4, 1.8]} size={0.32} />
       </group>
-    </group>
+    </Shake>
   );
 };
 
-export default function InjectionMolding3D({ state, tags }: { state: string, tags?: Record<string, number> }) {
+/** 料管四段加熱圈:顏色由該段 barrel_temp 決定(225~240 °C 正常,偏離即變色)。 */
+function BarrelHeaters({ motion }: { motion: DeviceMotion }) {
+  const nominal = [225, 235, 240, 230];
   return (
-    <Canvas shadows camera={{ position: [0, 8, 16], fov: 40 }} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block" }}>
-      <OrbitControls 
-        enablePan={true}
-        enableZoom={true}
-        enableRotate={true}
-        target={[-1, 3, 0]}
-        maxPolarAngle={Math.PI / 2 - 0.05} 
-      />
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[10, 20, 10]} intensity={1.2} castShadow shadow-bias={-0.0001} />
-      <pointLight position={[-10, 5, 5]} intensity={0.8} />
-      
-      <InjectionMoldingModel state={state} tags={tags || {}} />
-      
-      <ContactShadows position={[0, -0.99, 0]} opacity={0.6} scale={30} blur={2} far={10} />
-      <Environment preset="warehouse" />
-
-      {/* Floor */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1, 0]} receiveShadow>
-        <planeGeometry args={[50, 50]} />
-        <meshStandardMaterial color="#e0e0e0" roughness={0.8} />
-      </mesh>
-    </Canvas>
+    <>
+      {nominal.map((nom, i) => {
+        const v = motion.tags[`barrel_temp_${i + 1}`] ?? nom;
+        const dev = clamp01(Math.abs(v - nom) / 12);          // 偏離 12 °C 視為滿刻度
+        const col = new THREE.Color("#ff7a2f").lerp(new THREE.Color("#c85a4a"), dev);
+        return (
+          <Cylinder key={i} args={[0.58, 0.58, 0.5, 20]} rotation={[0, 0, Math.PI / 2]}
+                    position={[-7.4 + i * 0.95, 3, 0]} castShadow>
+            <meshStandardMaterial color={col} emissive={col} emissiveIntensity={0.35 + 0.5 * dev} toneMapped={false} />
+          </Cylinder>
+        );
+      })}
+    </>
   );
+}
+
+export default function InjectionMolding3D({ motion, debug }: MachineProps) {
+  const per = visualPeriod(motion.tags.cycle_time || 30, motion.timeScale);
+  const spin = visualSpin(motion.tags.screw_speed ?? 0, motion.timeScale);
+  return (
+    <MachineScene camera={[0, 8, 16]} fov={40} target={[-1, 3, 0]} shadowScale={30} note={scaleNote(per, spin)}
+                  overlay={<MoldReadout motion={motion} />}>
+      <InjectionMoldingModel motion={motion} />
+      {debug as React.ReactNode}
+    </MachineScene>
+  );
+}
+
+function MoldReadout({ motion }: { motion: DeviceMotion }) {
+  const t = motion.tags;
+  const barrels = [1, 2, 3, 4].map((i) => t[`barrel_temp_${i}`] ?? 0);
+  const rows: Row[] = [
+    ["CLAMP", `${(t.clamping_force ?? 0).toFixed(0)} ton`],
+    ["INJ PRESS", `${(t.injection_pressure ?? 0).toFixed(0)} bar`],
+    ["SCREW", `${(t.screw_speed ?? 0).toFixed(0)} rpm`],
+    ["BARREL T", barrels.map((v) => v.toFixed(0)).join("/")],
+    ["CYCLE", `${(t.cycle_time ?? 0).toFixed(2)} s`, (t.cycle_time ?? 30) > 34],
+    ["OIL TEMP", `${(t.oil_temp ?? 0).toFixed(1)} °C`, (t.oil_temp ?? 0) > 75],
+    ["VIB", `${(t.vibration_rms ?? 0).toFixed(2)} mm/s`, (t.vibration_rms ?? 0) > 4.5],
+    ["SHOTS", `${Math.round(t.shot_count ?? 0)}`],
+  ];
+  const hint = (t.cycle_time ?? 30) > 34 ? "⚠ 節拍變長 → screw_wear(良率題)"
+    : clamp01(motion.severity) > 0.5 ? "⚠ 振動 + 油溫升高 → hydraulic_pump 退化" : undefined;
+  return <Readout rows={rows} hint={hint} />;
 }

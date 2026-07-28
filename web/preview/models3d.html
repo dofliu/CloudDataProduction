@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <title>3D 機種預覽 · 動畫綁定驗收</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <style>
+      body { margin: 0; background: #efe6d6; }
+      .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 10px; }
+      .cell { position: relative; height: 420px; border: 1px solid #d8c6a8; border-radius: 12px; overflow: hidden; background: #faf4e8; }
+      .cap { position: absolute; right: 10px; top: 8px; z-index: 5; font: 600 12px/1.4 system-ui; color: #4a3f2f;
+             background: rgba(255,250,240,.85); padding: 3px 10px; border-radius: 8px; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/preview/models3d.tsx"></script>
+  </body>
+</html>

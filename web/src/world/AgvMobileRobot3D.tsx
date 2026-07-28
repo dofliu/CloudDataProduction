@@ -1,160 +1,172 @@
-import React, { useRef } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Box, Cylinder, Environment, ContactShadows, Text, Line } from '@react-three/drei';
-import * as THREE from 'three';
+/**
+ * AGV 搬運車 3D(綁定表見 docs/animation_binding.md §4.3)。
+ *
+ * 位置 / 朝向 / 速度 / 載重 / 電量全部直接吃引擎(L1):pos_x、pos_y、heading、speed、
+ * payload、battery_soc。引擎的巡迴路線是 (2,2)-(18,2)-(18,12)-(2,12),兩個停靠站在
+ * s=16(18,2)與 s=42(2,12),各停 6 秒 —— 站邊的上下料手臂就以「AGV 停在站上」為觸發。
+ *
+ * 修正:原本用一個 module-level 的 `globalAgvHasPayload` 記載貨狀態,多台 AGV 會互相
+ * 干擾;現在直接讀 payload tag。位置補間也改成 delta-based。
+ *
+ * `compact` 供 FactoryLine3D 使用:把 20×14 m 的巡迴路線縮進單一機台格內。
+ */
+import React, { useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
+import { Box, Cylinder, Line } from "@react-three/drei";
+import * as THREE from "three";
+import MachineScene, { Readout, Row } from "./MachineScene";
+import { CanvasLabel, FX, FaultSmoke, HeatGlow, StatusBeacon, bodyColor } from "./MachineFx";
+import { DeviceMotion, MachineProps, approach, approachAngleRad, clamp01 } from "./deviceMotion";
 
-// -----------------------------------------------------
-// Global payload state for visual simulation
-// -----------------------------------------------------
-let globalAgvHasPayload = false;
+// 引擎 _LOOP 的四個角(公尺)與中心
+const LOOP: [number, number][] = [[2, 2], [18, 2], [18, 12], [2, 12]];
+const LOOP_CENTER: [number, number] = [10, 7];
+const STATION_LOAD: [number, number] = [18, 2];     // s = 16
+const STATION_UNLOAD: [number, number] = [2, 12];   // s = 42
+const WHEEL_R = 0.2;
 
-// -----------------------------------------------------
-// Dummy CNC Machine (Visual Prop)
-// -----------------------------------------------------
-const DummyCNC = ({ position, rotation }: { position: [number, number, number], rotation: [number, number, number] }) => (
-  <group position={position} rotation={rotation}>
+export const AgvModel = ({ motion, compact = false }: MachineProps & { compact?: boolean }) => {
+  const ref = useRef<THREE.Group>(null);
+  const payloadRef = useRef<THREE.Group>(null);
+  const wheelRefs = [useRef<THREE.Mesh>(null), useRef<THREE.Mesh>(null), useRef<THREE.Mesh>(null), useRef<THREE.Mesh>(null)];
+  const wheelAngle = useRef(0);
+  const inited = useRef(false);
+
+  useFrame((_, delta) => {
+    const t = motion.tags;
+    const g = ref.current;
+    if (!g) return;
+    const tx = (t.pos_x ?? LOOP_CENTER[0]) - (compact ? LOOP_CENTER[0] : 0);
+    const tz = (t.pos_y ?? LOOP_CENTER[1]) - (compact ? LOOP_CENTER[1] : 0);
+
+    if (!inited.current) { g.position.set(tx, 0, tz); inited.current = true; }
+    g.position.x = approach(g.position.x, tx, 0.25, delta);
+    g.position.z = approach(g.position.z, tz, 0.25, delta);
+    g.rotation.y = approachAngleRad(g.rotation.y, THREE.MathUtils.degToRad(t.heading ?? 0), 0.3, delta);
+
+    // 輪子轉速由 speed 換算(v = ωr),sim 倍率也算進去
+    const v = (t.speed ?? 0) * motion.timeScale;
+    wheelAngle.current += (v / WHEEL_R) * delta;
+    for (const w of wheelRefs) if (w.current) w.current.rotation.x = wheelAngle.current;
+
+    if (payloadRef.current) payloadRef.current.visible = (t.payload ?? 0) > 0;
+  });
+
+  const soc = motion.tags.battery_soc ?? 0;
+  const body = motion.fault ? FX.fault : motion.charging ? "#44aa44" : bodyColor(motion, "#ffaa00");
+
+  return (
+    <group ref={ref} position={[compact ? 0 : LOOP_CENTER[0], 0, compact ? 0 : LOOP_CENTER[1]]}>
+      {/* 驗證探針:車體中心 —— 世界 (x,z) 應等於 (pos_x, pos_y),朝向應等於 heading */}
+      <object3D name="probe:agv_body" />
+      <object3D name="probe:agv_nose" position={[0, 0, 1]} />
+      <Cylinder args={[1.2, 1.2, 0.5, 32]} position={[0, 0.4, 0]} castShadow receiveShadow>
+        <meshStandardMaterial color={body} />
+      </Cylinder>
+      <Cylinder args={[0.3, 0.3, 1.2, 16]} position={[0, 1.2, 0]} castShadow receiveShadow>
+        <meshStandardMaterial color="#888888" />
+      </Cylinder>
+      {[[-0.7, 0.7], [0.7, 0.7], [-0.7, -0.7], [0.7, -0.7]].map((p, i) => (
+        <Cylinder key={i} ref={wheelRefs[i]} args={[WHEEL_R, WHEEL_R, 0.2, 16]} rotation={[0, 0, Math.PI / 2]}
+                  position={[p[0], WHEEL_R, p[1]]} castShadow receiveShadow>
+          <meshStandardMaterial color="#222222" />
+        </Cylinder>
+      ))}
+      <Cylinder args={[0.9, 0.9, 0.1, 32]} position={[0, 1.8, 0]} castShadow receiveShadow>
+        <meshStandardMaterial color="#444444" />
+      </Cylinder>
+      <group ref={payloadRef} position={[0, 2.1, 0]} visible={false}>
+        <Box args={[0.5, 0.5, 0.5]} castShadow receiveShadow><meshStandardMaterial color="#3a8a3a" /></Box>
+      </group>
+      {/* 行進方向燈 */}
+      <Box args={[0.6, 0.1, 0.4]} position={[0, 0.55, 1.0]} castShadow receiveShadow>
+        <meshStandardMaterial color="#ffffff" emissive={motion.running ? "#ffffff" : "#000000"} emissiveIntensity={0.6} />
+      </Box>
+      {/* 馬達發熱 */}
+      <HeatGlow motion={motion} position={[0, 0.4, 0]} radius={1.4} />
+      <StatusBeacon motion={motion} position={[0, 1.8, -0.6]} scale={0.8} />
+      <FaultSmoke motion={motion} position={[0, 1.4, 0]} scale={0.7} />
+      <CanvasLabel text={`SOC ${soc.toFixed(1)}%`} position={[0, 3.1, 0]} rotation={[0, Math.PI, 0]}
+                   height={0.46} color={soc < 30 ? FX.fault : "#3a3226"} />
+    </group>
+  );
+};
+
+// ── 站邊設備(視覺道具):以「AGV 停在本站」為觸發,節拍配合引擎的 6 秒停靠 ──
+
+const StationCNC = ({ position }: { position: [number, number, number] }) => (
+  <group position={position}>
     <Box args={[4, 5, 3]} position={[0, 2.5, 0]} castShadow receiveShadow>
       <meshStandardMaterial color="#7b8a8b" />
     </Box>
-    {/* Window */}
-    <Box args={[2.5, 2, 0.2]} position={[0, 2.5, 1.5]} castShadow>
-      <meshStandardMaterial color="#222222" />
-    </Box>
-    {/* Station base extending forwards */}
+    <Box args={[2.5, 2, 0.2]} position={[0, 2.5, 1.5]} castShadow><meshStandardMaterial color="#222222" /></Box>
     <Box args={[1.5, 1, 1.5]} position={[0, 0.5, 2.25]} castShadow receiveShadow>
       <meshStandardMaterial color="#555555" />
     </Box>
   </group>
 );
 
-// -----------------------------------------------------
-// Dummy Robot Arm (Visual Prop, syncs with AGV stops)
-// -----------------------------------------------------
-const DummyRobotArm = ({ position, rotation, globalX, globalZ, agvX, agvZ, agvSpeed, isLoad }: { position: [number, number, number], rotation: [number, number, number], globalX: number, globalZ: number, agvX: number, agvZ: number, agvSpeed: number, isLoad: boolean }) => {
-  const j1Ref = useRef<THREE.Group>(null);
-  const j2Ref = useRef<THREE.Group>(null);
-  const j3Ref = useRef<THREE.Group>(null);
-  const gripperRef = useRef<THREE.Group>(null);
-  const boxRef = useRef<THREE.Mesh>(null);
-  const cncBoxRef = useRef<THREE.Mesh>(null);
-  
+/** 上下料手臂:AGV 停穩在本站就開始 6 秒搬運循環(與引擎 stop_timer=6.0 同步)。 */
+const StationArm = ({ at, motion, isLoad }: { at: [number, number]; motion: DeviceMotion; isLoad: boolean }) => {
+  const j1 = useRef<THREE.Group>(null), j2 = useRef<THREE.Group>(null), j3 = useRef<THREE.Group>(null);
+  const grip = useRef<THREE.Group>(null);
+  const boxRef = useRef<THREE.Mesh>(null), srcBoxRef = useRef<THREE.Mesh>(null);
   const timer = useRef(0);
 
   useFrame((_, delta) => {
-    // Check distance to AGV based on global coordinates
-    const dist = Math.sqrt(Math.pow(agvX - globalX, 2) + Math.pow(agvZ - globalZ, 2));
-    
-    // If AGV is stopped within radius (increased to 5.0 for robustness)
-    if (dist < 5.0 && agvSpeed < 0.05) {
-      timer.current += delta;
-    } else {
-      timer.current = 0;
-    }
+    const t = motion.tags;
+    const dx = (t.pos_x ?? 0) - at[0], dz = (t.pos_y ?? 0) - at[1];
+    const docked = motion.running && Math.hypot(dx, dz) < 3.0 && (t.speed ?? 0) < 0.02;
+    timer.current = docked ? Math.min(6, timer.current + delta) : 0;
 
-    let t = timer.current;
-    if (t > 6.0) t = 6.0;
-    
-    // Animation phases (6 seconds total stop time)
-    let j1 = 0, j2 = 20, j3 = 30;
-    let hasBox = false;
-    let cncHasBox = false;
-    
-    // Helper to map time to angles smoothly
-    const smoothStep = (x: number) => x * x * (3 - 2 * x);
-    const interp = (start: number, end: number, progress: number) => start + (end - start) * smoothStep(Math.max(0, Math.min(1, progress)));
+    const smooth = (x: number) => x * x * (3 - 2 * x);
+    const interp = (a: number, b: number, p: number) => a + (b - a) * smooth(Math.max(0, Math.min(1, p)));
+    const tt = timer.current;
+    let a1 = 0, a2 = 20, a3 = 30, hasBox = false, srcBox = isLoad;
 
-    // CNC is at -Z (local +90 in j1), AGV is at +Z (local -90 in j1).
-    if (t === 0) {
-      // Idle
-      cncHasBox = isLoad;
-    } else if (t < 1.0) {
-      // Swing to CNC (j1 -> 90)
-      j1 = interp(0, 90, t);
-      j2 = interp(20, 60, t);
-      j3 = interp(30, 45, t);
-      cncHasBox = isLoad;
-    } else if (t < 2.0) {
-      // At CNC (Pick/Place happens at 1.5s)
-      j1 = 90; j2 = 60; j3 = 45;
-      hasBox = t > 1.5 ? isLoad : !isLoad;
-      cncHasBox = t > 1.5 ? !isLoad : isLoad;
-    } else if (t < 4.0) {
-      // Swing CNC -> AGV (j1 90 -> -90)
-      const p = (t - 2.0) / 2.0;
-      j1 = interp(90, -90, p);
-      // Lift arm up during swing
-      j2 = p < 0.5 ? interp(60, 20, p*2) : interp(20, 60, (p-0.5)*2);
-      j3 = p < 0.5 ? interp(45, 30, p*2) : interp(30, 45, (p-0.5)*2);
-      hasBox = isLoad;
-    } else if (t < 5.0) {
-      // At AGV (Pick/Place happens at 4.5s)
-      j1 = -90; j2 = 60; j3 = 45;
-      hasBox = t > 4.5 ? !isLoad : isLoad;
-      if (t > 4.5) {
-        globalAgvHasPayload = isLoad;
-      }
-    } else if (t <= 6.0) {
-      // Swing AGV -> Home
-      const p = (t - 5.0) / 1.0;
-      j1 = interp(-90, 0, p);
-      j2 = interp(60, 20, p);
-      j3 = interp(45, 30, p);
-      hasBox = !isLoad;
-    }
+    if (tt === 0) { srcBox = isLoad; }
+    else if (tt < 1) { a1 = interp(0, 90, tt); a2 = interp(20, 60, tt); a3 = interp(30, 45, tt); }
+    else if (tt < 2) { a1 = 90; a2 = 60; a3 = 45; hasBox = tt > 1.5 ? isLoad : !isLoad; srcBox = tt > 1.5 ? !isLoad : isLoad; }
+    else if (tt < 4) {
+      const p = (tt - 2) / 2;
+      a1 = interp(90, -90, p);
+      a2 = p < 0.5 ? interp(60, 20, p * 2) : interp(20, 60, (p - 0.5) * 2);
+      a3 = p < 0.5 ? interp(45, 30, p * 2) : interp(30, 45, (p - 0.5) * 2);
+      hasBox = isLoad; srcBox = !isLoad;
+    } else if (tt < 5) { a1 = -90; a2 = 60; a3 = 45; hasBox = tt > 4.5 ? !isLoad : isLoad; srcBox = !isLoad; }
+    else { const p = tt - 5; a1 = interp(-90, 0, p); a2 = interp(60, 20, p); a3 = interp(45, 30, p); hasBox = !isLoad; srcBox = !isLoad; }
 
-    if (j1Ref.current) j1Ref.current.rotation.y = THREE.MathUtils.degToRad(j1);
-    if (j2Ref.current) j2Ref.current.rotation.z = THREE.MathUtils.degToRad(j2);
-    if (j3Ref.current) j3Ref.current.rotation.z = THREE.MathUtils.degToRad(j3);
-    
-    // Gripper must always point down (global angle offset)
-    if (gripperRef.current) {
-        gripperRef.current.rotation.z = THREE.MathUtils.degToRad(-(j2 + j3));
-    }
-    
+    const D = THREE.MathUtils.degToRad;
+    if (j1.current) j1.current.rotation.y = D(a1);
+    if (j2.current) j2.current.rotation.z = D(a2);
+    if (j3.current) j3.current.rotation.z = D(a3);
+    if (grip.current) grip.current.rotation.z = D(-(a2 + a3));
     if (boxRef.current) boxRef.current.visible = hasBox;
-    if (cncBoxRef.current) cncBoxRef.current.visible = cncHasBox;
+    if (srcBoxRef.current) srcBoxRef.current.visible = srcBox;
   });
 
   return (
-    <group position={position} rotation={rotation}>
-      {/* CNC's resting box (simulated product on the station) */}
-      {/* Matches the arm's reach when it swings to the CNC (j1 = -90). Reach is Z = -3.2, Height = 2.05 */}
-      <Box ref={cncBoxRef} args={[0.5, 0.5, 0.5]} position={[0, 2.05, -3.2]} castShadow>
+    <group>
+      <Box ref={srcBoxRef} args={[0.5, 0.5, 0.5]} position={[0, 2.05, -3.2]} castShadow>
         <meshStandardMaterial color="#3a8a3a" />
       </Box>
-
-      {/* Base */}
-      <Cylinder args={[0.6, 0.8, 1.0, 32]} position={[0, 0.5, 0]} castShadow>
-        <meshStandardMaterial color="#444" />
-      </Cylinder>
-      <group ref={j1Ref} position={[0, 1.0, 0]}>
-        <Cylinder args={[0.5, 0.6, 1.0, 32]} position={[0, 0.5, 0]} castShadow>
-           <meshStandardMaterial color="#f0b030" />
-        </Cylinder>
+      <Cylinder args={[0.6, 0.8, 1.0, 32]} position={[0, 0.5, 0]} castShadow><meshStandardMaterial color="#444444" /></Cylinder>
+      <group ref={j1} position={[0, 1.0, 0]}>
+        <Cylinder args={[0.5, 0.6, 1.0, 32]} position={[0, 0.5, 0]} castShadow><meshStandardMaterial color="#f0b030" /></Cylinder>
         <group position={[0, 1.0, 0]}>
-          <Cylinder args={[0.4, 0.4, 1.0, 32]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-             <meshStandardMaterial color="#222" />
-          </Cylinder>
-          <group ref={j2Ref}>
-            <Box args={[0.6, 2.0, 0.6]} position={[0, 1.0, 0]} castShadow>
-               <meshStandardMaterial color="#f0b030" />
-            </Box>
+          <Cylinder args={[0.4, 0.4, 1.0, 32]} rotation={[Math.PI / 2, 0, 0]} castShadow><meshStandardMaterial color="#222222" /></Cylinder>
+          <group ref={j2}>
+            <Box args={[0.6, 2.0, 0.6]} position={[0, 1.0, 0]} castShadow><meshStandardMaterial color="#f0b030" /></Box>
             <group position={[0, 2.0, 0]}>
-              <Cylinder args={[0.3, 0.3, 0.8, 32]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-                 <meshStandardMaterial color="#222" />
-              </Cylinder>
-              <group ref={j3Ref}>
-                <Box args={[0.4, 1.5, 0.4]} position={[0, 0.75, 0]} castShadow>
-                   <meshStandardMaterial color="#f0b030" />
-                </Box>
+              <Cylinder args={[0.3, 0.3, 0.8, 32]} rotation={[Math.PI / 2, 0, 0]} castShadow><meshStandardMaterial color="#222222" /></Cylinder>
+              <group ref={j3}>
+                <Box args={[0.4, 1.5, 0.4]} position={[0, 0.75, 0]} castShadow><meshStandardMaterial color="#f0b030" /></Box>
                 <group position={[0, 1.5, 0]}>
-                  <Box args={[0.2, 0.2, 0.2]} castShadow>
-                     <meshStandardMaterial color="#222" />
-                  </Box>
-                  <group ref={gripperRef}>
-                    <Box args={[0.05, 0.4, 0.1]} position={[-0.15, 0.2, 0]}><meshStandardMaterial color="#222" /></Box>
-                    <Box args={[0.05, 0.4, 0.1]} position={[0.15, 0.2, 0]}><meshStandardMaterial color="#222" /></Box>
-                    <Box ref={boxRef} args={[0.5, 0.5, 0.5]} position={[0, 0.5, 0]} castShadow>
+                  <Box args={[0.2, 0.2, 0.2]} castShadow><meshStandardMaterial color="#222222" /></Box>
+                  <group ref={grip}>
+                    <Box args={[0.05, 0.4, 0.1]} position={[-0.15, 0.2, 0]}><meshStandardMaterial color="#222222" /></Box>
+                    <Box args={[0.05, 0.4, 0.1]} position={[0.15, 0.2, 0]}><meshStandardMaterial color="#222222" /></Box>
+                    <Box ref={boxRef} args={[0.5, 0.5, 0.5]} position={[0, 0.5, 0]} castShadow visible={false}>
                       <meshStandardMaterial color="#3a8a3a" />
                     </Box>
                   </group>
@@ -168,192 +180,68 @@ const DummyRobotArm = ({ position, rotation, globalX, globalZ, agvX, agvZ, agvSp
   );
 };
 
-
-// -----------------------------------------------------
-// Main AGV Component
-// -----------------------------------------------------
-export const AgvModel = ({ state, tags }: { state: string, tags: Record<string, number> }) => {
-  const agvRef = useRef<THREE.Group>(null);
-  const payloadRef = useRef<THREE.Group>(null);
-  
-  useFrame(() => {
-    if (agvRef.current) {
-      const targetX = tags.pos_x || 0;
-      const targetZ = tags.pos_y || 0; 
-      
-      agvRef.current.position.x += (targetX - agvRef.current.position.x) * 0.1;
-      agvRef.current.position.z += (targetZ - agvRef.current.position.z) * 0.1;
-      
-      const targetHeading = THREE.MathUtils.degToRad(tags.heading || 0);
-      let diff = targetHeading - agvRef.current.rotation.y;
-      while (diff < -Math.PI) diff += Math.PI * 2;
-      while (diff > Math.PI) diff -= Math.PI * 2;
-      
-      agvRef.current.rotation.y += diff * 0.1;
-    }
-    if (payloadRef.current) {
-      // Sync with backend state when moving (handles hot-reloads)
-      if (Math.abs(tags.speed || 0) > 0.01) {
-        globalAgvHasPayload = (tags.payload || 0) > 0;
-      }
-      payloadRef.current.visible = globalAgvHasPayload;
-    }
-  });
-
-  const bodyColor = state === 'fault' ? "#c85a4a" : (state === 'charging' ? "#44aa44" : "#ffaa00");
-  const payloadVisible = (tags.payload || 0) > 0;
-  const soc = tags.battery_soc || 0;
-
-  return (
-    <group ref={agvRef} position={[2, 0, 2]}>
-      {/* AGV Base */}
-      <Cylinder args={[1.2, 1.2, 0.5, 32]} position={[0, 0.4, 0]} castShadow receiveShadow>
-        <meshStandardMaterial color={bodyColor} />
-      </Cylinder>
-      
-      {/* AGV Central Pillar */}
-      <Cylinder args={[0.3, 0.3, 1.2, 16]} position={[0, 1.2, 0]} castShadow receiveShadow>
-        <meshStandardMaterial color="#888" />
-      </Cylinder>
-
-      {/* Wheels */}
-      {[[-0.7, 0.7], [0.7, 0.7], [-0.7, -0.7], [0.7, -0.7]].map((pos, i) => (
-        <Cylinder key={i} args={[0.2, 0.2, 0.2, 16]} rotation={[0, 0, Math.PI / 2]} position={[pos[0], 0.2, pos[1]]} castShadow receiveShadow>
-          <meshStandardMaterial color="#222" />
-        </Cylinder>
-      ))}
-
-      {/* Wafer FOUP Platform */}
-      <Cylinder args={[0.9, 0.9, 0.1, 32]} position={[0, 1.8, 0]} castShadow receiveShadow>
-        <meshStandardMaterial color="#444" />
-      </Cylinder>
-
-      {/* Payload (Green Cube) */}
-      <group ref={payloadRef} position={[0, 2.1, 0]}>
-        <Box args={[0.5, 0.5, 0.5]} castShadow receiveShadow>
-          <meshStandardMaterial color="#3a8a3a" />
-        </Box>
-      </group>
-      
-      {/* Direction Indicator */}
-      <Box args={[0.6, 0.1, 0.4]} position={[0, 0.55, 1.0]} castShadow receiveShadow>
-        <meshStandardMaterial color="#fff" emissive={state === 'moving' ? "#ffffff" : "#000000"} emissiveIntensity={0.5} />
-      </Box>
-
-      {/* Floating Info Label */}
-      <group position={[0, payloadVisible ? 2.2 : 1.2, 0]} rotation={[0, Math.PI, 0]}>
-        <Text fontSize={0.3} color={soc < 30 ? "#ff4444" : "#ffffff"} anchorX="center" anchorY="bottom" position={[0, 0, 0]}>
-          {`SOC: ${soc.toFixed(1)}%`}
-        </Text>
-      </group>
-    </group>
+export default function AgvMobileRobot3D({ motion, debug }: MachineProps) {
+  const pathPoints = useMemo(
+    () => [...LOOP, LOOP[0]].map(([x, z]) => new THREE.Vector3(x, 0.05, z)),
+    [],
   );
-};
-
-export default function AgvMobileRobot3D({ state, tags }: { state: string, tags?: Record<string, number> }) {
-  // We need to pass the AGV's current position to the dummy arms to sync their animations
-  const agvX = tags?.pos_x || 0;
-  const agvZ = tags?.pos_y || 0;
-  const agvSpeed = tags?.speed || 0;
-
-  const pathPoints = React.useMemo(() => {
-    const pts = [];
-    pts.push(new THREE.Vector3(2, 0.05, 2));
-    pts.push(new THREE.Vector3(18, 0.05, 2));
-    pts.push(new THREE.Vector3(18, 0.05, 12));
-    pts.push(new THREE.Vector3(2, 0.05, 12));
-    pts.push(new THREE.Vector3(2, 0.05, 2));
-    return pts;
-  }, []);
+  const t = motion.tags;
 
   return (
-    <Canvas shadows camera={{ position: [10, 20, 30], fov: 45 }} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block" }}>
-      <OrbitControls 
-        enablePan={true}
-        enableZoom={true}
-        enableRotate={true}
-        target={[10, 0, 7]} // Center of the [2..18], [2..12] loop
-        maxPolarAngle={Math.PI / 2 - 0.05} 
-      />
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[20, 30, 20]} intensity={1} castShadow shadow-bias={-0.0001} />
-      
-      {/* ------------------------------------------------------------- */}
-      {/* PATH INDICATOR ON FLOOR */}
-      {/* ------------------------------------------------------------- */}
-      <Line points={pathPoints} color="#d4a373" lineWidth={4} dashed={true} dashSize={1} gapSize={0.5} dashScale={1} />
-      
-      {/* The Actual AGV */}
-      <AgvModel state={state} tags={tags || {}} />
-      
-      {/* ------------------------------------------------------------- */}
-      {/* OBSTACLE: Smart Shelf in the middle of the area */}
-      {/* ------------------------------------------------------------- */}
+    <MachineScene camera={[9, 15, 26]} fov={45} target={[10, 0, 7]} env="warehouse"
+                  groundSize={70} shadowScale={50} shadowY={0}
+                  overlay={<AgvReadout motion={motion} />}>
+      <Line points={pathPoints} color="#d4a373" lineWidth={4} dashed dashSize={1} gapSize={0.5} dashScale={1} />
+
+      <AgvModel motion={motion} />
+
+      {/* 中央貨架(場景參考物) */}
       <group position={[10, 0, 7]}>
         <Box args={[1.5, 2.0, 1.0]} position={[0, 1.0, 0]} castShadow receiveShadow>
           <meshStandardMaterial color="#c0c0c0" />
         </Box>
-        {/* Shelf layers */}
-        <Box args={[1.6, 0.1, 1.1]} position={[0, 0.5, 0]}><meshStandardMaterial color="#555" /></Box>
-        <Box args={[1.6, 0.1, 1.1]} position={[0, 1.2, 0]}><meshStandardMaterial color="#555" /></Box>
-        <Box args={[1.6, 0.1, 1.1]} position={[0, 1.9, 0]}><meshStandardMaterial color="#555" /></Box>
-        <Text position={[0, 2.3, 0]} fontSize={0.4} color="#ffaa00">Middle Shelf</Text>
+        {[0.5, 1.2, 1.9].map((y, i) => (
+          <Box key={i} args={[1.6, 0.1, 1.1]} position={[0, y, 0]}><meshStandardMaterial color="#555555" /></Box>
+        ))}
+        <CanvasLabel text="中央貨架" position={[0, 2.5, 0]} height={0.5} />
       </group>
 
-      {/* ------------------------------------------------------------- */}
-      {/* WORKCELL INTEGRATION: Station 1 (Load) at X=18, Z=2 */}
-      {/* ------------------------------------------------------------- */}
-      <group position={[18, 0, -1.2]} rotation={[0, 0, 0]}>
-        {/* CNC placed behind the arm */}
-        <DummyCNC position={[0, 0, -3.2]} rotation={[0, 0, 0]} />
-        {/* Arm at (18, 0, -1.2), facing +Z (AGV). AGV is at Z=2 (distance 3.2). CNC is at -Z. */}
-        <DummyRobotArm 
-          position={[0, 0, 0]} 
-          globalX={18}
-          globalZ={-1.2}
-          rotation={[0, 0, 0]} 
-          agvX={agvX} 
-          agvZ={agvZ} 
-          agvSpeed={agvSpeed} 
-          isLoad={true} 
-        />
+      {/* 上料站 (18, 2) —— 引擎 s=16 的停靠點 */}
+      <group position={[STATION_LOAD[0], 0, STATION_LOAD[1] - 3.2]}>
+        <StationCNC position={[0, 0, -3.2]} />
+        <StationArm at={STATION_LOAD} motion={motion} isLoad />
+      </group>
+      {/* 下料站 (2, 12) —— 引擎 s=42 的停靠點 */}
+      <group position={[STATION_UNLOAD[0], 0, STATION_UNLOAD[1] + 3.2]} rotation={[0, Math.PI, 0]}>
+        <StationCNC position={[0, 0, -3.2]} />
+        <StationArm at={STATION_UNLOAD} motion={motion} isLoad={false} />
       </group>
 
-      {/* ------------------------------------------------------------- */}
-      {/* WORKCELL INTEGRATION: Station 2 (Unload) at X=2, Z=12 */}
-      {/* ------------------------------------------------------------- */}
-      <group position={[2, 0, 15.2]} rotation={[0, Math.PI, 0]}>
-        <DummyCNC position={[0, 0, -3.2]} rotation={[0, 0, 0]} />
-        <DummyRobotArm 
-          position={[0, 0, 0]} 
-          globalX={2}
-          globalZ={15.2}
-          rotation={[0, 0, 0]} 
-          agvX={agvX} 
-          agvZ={agvZ} 
-          agvSpeed={agvSpeed} 
-          isLoad={false} 
-        />
-      </group>
-
-      {/* Path outline to show where it goes */}
+      {/* 走道 */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[10, 0.01, 7]} receiveShadow>
         <planeGeometry args={[16.2, 10.2]} />
-        <meshBasicMaterial color="#ffffaa" transparent opacity={0.1} />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[10, 0.02, 7]} receiveShadow>
-        <planeGeometry args={[15.8, 9.8]} />
-        <meshBasicMaterial color="#e0e0e0" />
+        <meshBasicMaterial color="#d9a441" transparent opacity={0.12} />
       </mesh>
 
-      <ContactShadows position={[10, 0.03, 7]} opacity={0.4} scale={50} blur={2} far={10} />
-      <Environment preset="warehouse" />
-
-      {/* Main Floor */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[10, -0.1, 7]} receiveShadow>
-        <planeGeometry args={[60, 60]} />
-        <meshStandardMaterial color="#e0e0e0" roughness={0.8} />
-      </mesh>
-    </Canvas>
+      {debug as React.ReactNode}
+    </MachineScene>
   );
+}
+
+function AgvReadout({ motion }: { motion: DeviceMotion }) {
+  const t = motion.tags;
+  const rows: Row[] = [
+    ["POS X / Y", `${(t.pos_x ?? 0).toFixed(2)}, ${(t.pos_y ?? 0).toFixed(2)} m`],
+    ["HEADING", `${(t.heading ?? 0).toFixed(0)} °`],
+    ["SPEED", `${(t.speed ?? 0).toFixed(3)} m/s`],
+    ["PAYLOAD", `${(t.payload ?? 0).toFixed(0)} kg`],
+    ["SOC", `${(t.battery_soc ?? 0).toFixed(1)} %`, (t.battery_soc ?? 100) < 25],
+    ["BATT V", `${(t.battery_voltage ?? 0).toFixed(2)} V`],
+    ["MOTOR L/R", `${(t.motor_current_l ?? 0).toFixed(2)}/${(t.motor_current_r ?? 0).toFixed(2)} A`],
+    ["MOTOR TEMP", `${(t.motor_temp ?? 0).toFixed(1)} °C`, clamp01(motion.heat) > 0.7],
+    ["BATT TEMP", `${(t.battery_temp ?? 0).toFixed(1)} °C`],
+  ];
+  const hint = motion.charging ? "充電中:速度 0、SOC 上升"
+    : clamp01(motion.heat) > 0.7 ? "⚠ 馬達溫升 + 電流升 → motor_bearing 退化" : undefined;
+  return <Readout rows={rows} hint={hint} />;
 }

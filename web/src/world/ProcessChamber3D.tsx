@@ -215,7 +215,7 @@ export const ProcessChamberModel = ({ motion }: MachineProps) => {
   );
 };
 
-export default function ProcessChamber3D({ motion }: MachineProps) {
+export default function ProcessChamber3D({ motion, debug }: MachineProps) {
   const wph = motion.tags.throughput ?? 0;
   const per = wph > 0.1 ? visualPeriod(3600 / wph, motion.timeScale) : undefined;
   const spin = visualSpin(PUMP_RPM, motion.timeScale);
@@ -224,6 +224,7 @@ export default function ProcessChamber3D({ motion }: MachineProps) {
                   ground="#d8d4cc" shadowScale={22} note={scaleNote(per, spin)}
                   overlay={<ChamberReadout motion={motion} />}>
       <ProcessChamberModel motion={motion} />
+      {debug as React.ReactNode}
     </MachineScene>
   );
 }

@@ -201,12 +201,13 @@ export const HeatTreatFurnaceModel = ({ motion }: MachineProps) => {
   );
 };
 
-export default function HeatTreatFurnace3D({ motion }: MachineProps) {
+export default function HeatTreatFurnace3D({ motion, debug }: MachineProps) {
   return (
     <MachineScene camera={[9, 7, 13]} fov={45} target={[0, 2.6, 0]} env="warehouse"
                   ground="#cfc6b6" shadowScale={24} note={scaleNote()}
                   overlay={<FurnaceReadout motion={motion} />}>
       <HeatTreatFurnaceModel motion={motion} />
+      {debug as React.ReactNode}
     </MachineScene>
   );
 }

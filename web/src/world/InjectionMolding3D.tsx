@@ -209,13 +209,14 @@ function BarrelHeaters({ motion }: { motion: DeviceMotion }) {
   );
 }
 
-export default function InjectionMolding3D({ motion }: MachineProps) {
+export default function InjectionMolding3D({ motion, debug }: MachineProps) {
   const per = visualPeriod(motion.tags.cycle_time || 30, motion.timeScale);
   const spin = visualSpin(motion.tags.screw_speed ?? 0, motion.timeScale);
   return (
     <MachineScene camera={[0, 8, 16]} fov={40} target={[-1, 3, 0]} shadowScale={30} note={scaleNote(per, spin)}
                   overlay={<MoldReadout motion={motion} />}>
       <InjectionMoldingModel motion={motion} />
+      {debug as React.ReactNode}
     </MachineScene>
   );
 }

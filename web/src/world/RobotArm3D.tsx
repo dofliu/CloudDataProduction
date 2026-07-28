@@ -111,6 +111,8 @@ export const RobotArmModel = ({ motion }: MachineProps) => {
             </Cylinder>
             <HeatGlow motion={motion} radius={1.2} />
 
+            {/* 驗證探針:各軸樞紐(用來核對關節角是否直接來自 joint_angle_n) */}
+            <object3D name="probe:j2_pivot" />
             <group ref={refs.j2}>
               {/* 上臂 L_UPPER */}
               <Box args={[1.1, L_UPPER, 1.1]} position={[0, L_UPPER / 2, 0]} castShadow receiveShadow>
@@ -160,6 +162,8 @@ export const RobotArmModel = ({ motion }: MachineProps) => {
                                 <Box args={[0.1, 0.5, 0.2]} position={[holding ? 0.2 : 0.32, 0.33, 0]} castShadow receiveShadow>
                                   <meshStandardMaterial color={jointColor} />
                                 </Box>
+                                {/* 驗證探針:夾爪中心(= fk() 的端點)*/}
+                                <object3D name="probe:tcp" position={[0, 0.38, 0]} />
                                 {holding && (
                                   <Box args={[0.5, 0.5, 0.5]} position={[0, 0.38, 0]} castShadow receiveShadow>
                                     <meshStandardMaterial color="#3a8a3a" />
@@ -226,12 +230,13 @@ function Station({ pos, showBox }: { pos: [number, number, number]; showBox: boo
   );
 }
 
-export default function RobotArm3D({ motion }: MachineProps) {
+export default function RobotArm3D({ motion, debug }: MachineProps) {
   return (
     <MachineScene camera={[13, 8.5, 1.5]} fov={45} target={[-2, 2.2, 0]} env="warehouse"
                   groundSize={50} shadowScale={30} note={scaleNote()}
                   overlay={<JointReadout motion={motion} />}>
       <RobotArmModel motion={motion} />
+      {debug as React.ReactNode}
     </MachineScene>
   );
 }

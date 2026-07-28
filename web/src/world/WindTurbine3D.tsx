@@ -58,6 +58,9 @@ export const WindTurbineModel = ({ motion }: MachineProps) => {
           <HeatGlow motion={motion} position={[0, 0, -1]} radius={2.4} />
 
           <group position={[0, 0, 1.5]} ref={rotorRef}>
+            {/* 驗證探針:轉子中心 + 轉子上一點 —— 兩點連線的夾角變化即轉速 */}
+            <object3D name="probe:rotor_hub" />
+            <object3D name="probe:rotor_mark" position={[0, 6, 0]} />
             <Cylinder args={[0.6, 0.8, 1.5, 16]} rotation={[Math.PI / 2, 0, 0]} castShadow receiveShadow>
               <meshStandardMaterial color="#cccccc" />
             </Cylinder>
@@ -68,6 +71,8 @@ export const WindTurbineModel = ({ motion }: MachineProps) => {
                   <Box args={[0.5, 10, 0.12]} castShadow receiveShadow>
                     <meshStandardMaterial color="#ffffff" />
                   </Box>
+                  {/* 驗證探針:葉片前緣 —— 繞葉片長軸的位移量即槳距角 */}
+                  {i === 0 && <object3D name="probe:blade_edge" position={[0.5, 0, 0]} />}
                 </group>
               </group>
             ))}
@@ -90,13 +95,14 @@ export const WindTurbineModel = ({ motion }: MachineProps) => {
   );
 };
 
-export default function WindTurbine3D({ motion }: MachineProps) {
+export default function WindTurbine3D({ motion, debug }: MachineProps) {
   const spin = visualSpin(motion.tags.rotor_rpm ?? 0, motion.timeScale);
   return (
     <MachineScene camera={[15, 15, 25]} fov={40} target={[0, 10, 0]} env="outdoor"
                   ground="#6a8a5a" groundSize={100} shadowScale={40} note={scaleNote(spin)}
                   overlay={<TurbineReadout motion={motion} />}>
       <WindTurbineModel motion={motion} />
+      {debug as React.ReactNode}
     </MachineScene>
   );
 }

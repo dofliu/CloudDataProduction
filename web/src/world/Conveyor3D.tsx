@@ -21,6 +21,7 @@ export const ConveyorModel = ({ motion }: MachineProps) => {
   const partsRef = useRef<THREE.InstancedMesh>(null);
   const beltRef = useRef<THREE.Mesh>(null);
   const rollerRefs = [useRef<THREE.Mesh>(null), useRef<THREE.Mesh>(null)];
+  const probeRef = useRef<THREE.Object3D>(null);
   const travel = useRef(0);
   const dummy = useMemo(() => new THREE.Object3D(), []);
 
@@ -60,7 +61,12 @@ export const ConveyorModel = ({ motion }: MachineProps) => {
         partsRef.current.setMatrixAt(i, dummy.matrix);
       }
       partsRef.current.instanceMatrix.needsUpdate = true;
-      partsRef.current.count = motion.running ? PART_COUNT : PART_COUNT;
+    }
+    // 驗證探針:第 0 個工件的位置(instancedMesh 讀不到,另掛一個空節點)
+    if (probeRef.current) {
+      const p0 = ((travel.current / LENGTH) % 1 + 1) % 1;
+      probeRef.current.position.set(-LENGTH / 2 + p0 * LENGTH, HEIGHT + 0.3, 0);
+      probeRef.current.userData.travel = travel.current;
     }
   });
 
@@ -96,6 +102,7 @@ export const ConveyorModel = ({ motion }: MachineProps) => {
           <boxGeometry args={[0.8, 0.6, 0.8]} />
           <meshStandardMaterial color="#f09000" roughness={0.3} metalness={0.8} />
         </instancedMesh>
+        <object3D ref={probeRef} name="probe:belt_part0" />
 
         <Box args={[0.5, 1.5, 0.5]} position={[0, HEIGHT, WIDTH / 2 + 0.3]} castShadow receiveShadow>
           <meshStandardMaterial color="#506060" />
@@ -109,13 +116,14 @@ export const ConveyorModel = ({ motion }: MachineProps) => {
   );
 };
 
-export default function Conveyor3D({ motion }: MachineProps) {
+export default function Conveyor3D({ motion, debug }: MachineProps) {
   const raw = (motion.tags.belt_speed ?? 0) * motion.timeScale;
   const note = raw > MAX_BELT_UPS ? `皮帶視覺 ×1/${(raw / MAX_BELT_UPS).toFixed(1)}` : "";
   return (
     <MachineScene camera={[0, 8, 12]} fov={40} target={[0, 2, 0]} shadowScale={30} note={scaleNote(note)}
                   overlay={<BeltReadout motion={motion} />}>
       <ConveyorModel motion={motion} />
+      {debug as React.ReactNode}
     </MachineScene>
   );
 }

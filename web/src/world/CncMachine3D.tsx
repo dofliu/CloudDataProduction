@@ -128,9 +128,9 @@ export const CNCModel = ({ motion }: MachineProps) => {
       // 相位鎖定:把本地相位拉回引擎回報的位置。
       // 只在動畫**沒有被時間換算**時鎖(factor≈1);一旦慢放,1 Hz 的 pos_* 早已低於
       // 該循環的 Nyquist,硬鎖只會抖 —— 這時畫的是「代表性刀路」,倍率已標在畫面上。
-      if (Math.abs(per.factor - 1) < 0.05 &&
-          typeof tags.pos_x === "number" && typeof tags.pos_y === "number") {
-        phase.current = lockCncPhase(phase.current, tags.pos_x, tags.pos_y, pattern);
+      if (Math.abs(per.factor - 1) < 0.05 && typeof tags.pos_x === "number"
+          && typeof tags.pos_y === "number" && typeof tags.pos_z === "number") {
+        phase.current = lockCncPhase(phase.current, tags.pos_x, tags.pos_y, tags.pos_z, pattern, delta);
       }
     }
 
@@ -230,6 +230,8 @@ export const CNCModel = ({ motion }: MachineProps) => {
               {/* 條紋讓轉動看得出來 */}
               <Box args={[0.12, 1.9, 0.05]} position={[0, -2.5, 0]}><meshStandardMaterial color="#3a3022" /></Box>
               <Box args={[0.05, 1.9, 0.12]} position={[0, -2.5, 0]}><meshStandardMaterial color="#3a3022" /></Box>
+              {/* 驗證探針:刀尖。tests/animation 以它的世界座標回推 pos_x/y/z 是否對得上遙測 */}
+              <object3D name="probe:tool_tip" position={[0, -3.5, 0]} />
               <Coolant active={isCutting.current} />
             </group>
           </group>
@@ -243,7 +245,7 @@ export const CNCModel = ({ motion }: MachineProps) => {
 };
 
 /** 詳情彈窗用的單機場景:多一組即時讀值面板,值全部取自 telemetry。 */
-export default function CncMachine3D({ motion }: MachineProps) {
+export default function CncMachine3D({ motion, debug }: MachineProps) {
   const t = motion.tags;
   const spin = visualSpin(t.spindle_speed || 0, motion.timeScale);
   const per = visualPeriod(t.cycle_time || 45, motion.timeScale);
@@ -252,6 +254,7 @@ export default function CncMachine3D({ motion }: MachineProps) {
                   ground="#ded5c6" shadowY={0} note={scaleNote(spin, per)}
                   overlay={<CncReadout motion={motion} />}>
       <CNCModel motion={motion} />
+      {debug as React.ReactNode}
     </MachineScene>
   );
 }

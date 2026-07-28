@@ -187,12 +187,13 @@ export const AirCompressorModel = ({ motion }: MachineProps) => {
   );
 };
 
-export default function AirCompressor3D({ motion }: MachineProps) {
+export default function AirCompressor3D({ motion, debug }: MachineProps) {
   const spin = visualSpin(MOTOR_RPM, motion.timeScale);
   return (
     <MachineScene camera={[0, 6, 12]} fov={45} target={[0, 2.5, 0]} note={scaleNote(spin)}
                   overlay={<CompressorReadout motion={motion} />}>
       <AirCompressorModel motion={motion} />
+      {debug as React.ReactNode}
     </MachineScene>
   );
 }

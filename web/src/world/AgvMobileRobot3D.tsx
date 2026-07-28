@@ -57,6 +57,9 @@ export const AgvModel = ({ motion, compact = false }: MachineProps & { compact?:
 
   return (
     <group ref={ref} position={[compact ? 0 : LOOP_CENTER[0], 0, compact ? 0 : LOOP_CENTER[1]]}>
+      {/* 驗證探針:車體中心 —— 世界 (x,z) 應等於 (pos_x, pos_y),朝向應等於 heading */}
+      <object3D name="probe:agv_body" />
+      <object3D name="probe:agv_nose" position={[0, 0, 1]} />
       <Cylinder args={[1.2, 1.2, 0.5, 32]} position={[0, 0.4, 0]} castShadow receiveShadow>
         <meshStandardMaterial color={body} />
       </Cylinder>
@@ -177,7 +180,7 @@ const StationArm = ({ at, motion, isLoad }: { at: [number, number]; motion: Devi
   );
 };
 
-export default function AgvMobileRobot3D({ motion }: MachineProps) {
+export default function AgvMobileRobot3D({ motion, debug }: MachineProps) {
   const pathPoints = useMemo(
     () => [...LOOP, LOOP[0]].map(([x, z]) => new THREE.Vector3(x, 0.05, z)),
     [],
@@ -220,6 +223,7 @@ export default function AgvMobileRobot3D({ motion }: MachineProps) {
         <meshBasicMaterial color="#d9a441" transparent opacity={0.12} />
       </mesh>
 
+      {debug as React.ReactNode}
     </MachineScene>
   );
 }

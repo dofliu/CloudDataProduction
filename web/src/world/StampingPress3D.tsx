@@ -131,6 +131,8 @@ export const StampingPressModel = ({ motion }: MachineProps) => {
           <Box args={[2.5, 0.5, 2]} position={[0, 2.25, 0]} castShadow receiveShadow>
             <meshStandardMaterial color="#444444" metalness={0.8} />
           </Box>
+          {/* 驗證探針:上模面 —— 世界高度應與 ram_position 呈固定線性關係 */}
+          <object3D name="probe:ram" position={[0, 2.0, 0]} />
         </group>
 
         <Box args={[2.5, 0.5, 2]} position={[0, 1.5, 0]} castShadow receiveShadow>
@@ -159,12 +161,13 @@ export const StampingPressModel = ({ motion }: MachineProps) => {
   );
 };
 
-export default function StampingPress3D({ motion }: MachineProps) {
+export default function StampingPress3D({ motion, debug }: MachineProps) {
   const per = visualPeriod(60 / Math.max(1, motion.tags.stroke_rate || 60), motion.timeScale);
   return (
     <MachineScene camera={[0, 8, 16]} fov={40} target={[0, 4, 0]} shadowScale={30} note={scaleNote(per)}
                   overlay={<PressReadout motion={motion} />}>
       <StampingPressModel motion={motion} />
+      {debug as React.ReactNode}
     </MachineScene>
   );
 }

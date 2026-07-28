@@ -12,7 +12,6 @@ import type { DeviceSnapshot } from "../api";
 
 // ── 可讀區間(docs/animation_binding.md §3)────────────────
 export const MIN_PERIOD_S = 3.0;    // 週期性動作的牆鐘下限:再快人眼就變閃爍
-export const MAX_PERIOD_S = 20.0;   // 上限:再慢學生會以為機台停了
 export const MAX_SPIN_RPS = 1.5;    // 旋轉件的畫面上限(rev/s)
 
 // severity 通用門檻(mm/s)。引擎各 template 皆為 base + 10~12×(1-health)^1.8。
@@ -82,7 +81,14 @@ export interface DeviceMotion {
  * 只吃 motion —— state / tags / setpoints / 時間倍率都已經在裡面,
  * 不再由各元件自己解讀 state 字串或猜 tag 名稱。
  */
-export interface MachineProps { motion: DeviceMotion }
+export interface MachineProps {
+  motion: DeviceMotion;
+  /**
+   * 測試接縫:掛在 Canvas 內的額外節點。正式畫面永遠不傳,
+   * 只有 tests/animation 的驗證載具會塞一個探針回報器進去讀場景世界座標。
+   */
+  debug?: unknown;
+}
 
 export const IDLE_MOTION: DeviceMotion = {
   raw: "idle", running: false, idle: true, fault: false, stopped: false, charging: false,
@@ -171,16 +177,20 @@ export interface VisualScale {
 }
 
 /**
- * 週期性動作:sim 週期(秒)→ 牆鐘週期(秒),夾在可讀區間內並標示倍率。
- * 例:cycle_time=45 s、multiplier=120 → 真實牆鐘 0.375 s,夾成 3 s → 標「動畫慢放 ×8」。
+ * 週期性動作:sim 週期(秒)→ 牆鐘週期(秒)。太快會變閃爍,因此只夾**快的那一端**。
+ *
+ * 刻意不夾慢的那一端 —— 「加速播放」會破壞畫面與 pos_* / ram_position 的座標對應,
+ * 而那正是本平台最有說服力的一課(學生用 Modbus 讀到的位置要對得上畫面)。
+ * 機台本來就慢,畫面就該跟著慢;慢不是問題,對不上才是。
+ *
+ * 例:cycle_time=45 s、multiplier=120 → 牆鐘 0.375 s,夾成 3 s → 標「動畫慢放 ×8」。
+ *     cycle_time=45 s、multiplier=1   → 牆鐘 45 s,factor=1 → 不換算,相位鎖回遙測。
  */
 export function visualPeriod(simPeriodS: number, timeScale: number): VisualScale {
   const real = Math.max(1e-3, simPeriodS) / Math.max(1e-6, timeScale);
-  const shown = Math.min(MAX_PERIOD_S, Math.max(MIN_PERIOD_S, real));
+  const shown = Math.max(MIN_PERIOD_S, real);
   const factor = shown / real;
-  let label = "";
-  if (factor > 1.05) label = `動畫慢放 ×${fmt(factor)}`;
-  else if (factor < 0.95) label = `動畫快轉 ×${fmt(1 / factor)}`;
+  const label = factor > 1.05 ? `動畫慢放 ×${fmt(factor)}` : "";
   return { value: shown, factor, label };
 }
 
@@ -254,32 +264,45 @@ export function cncToolPath(progress: number, pattern: number): [number, number,
 }
 
 /**
- * 相位鎖定:由引擎回報的 (x, y) 找出最接近的相位,再把本地相位往它拉。
+ * 相位鎖定:由引擎回報的 (x, y, z) 找出最接近的相位,再把本地相位往它拉。
  *
- * 只在「本地相位附近的窗」內搜尋,避免刀路自交(pattern 0 的 CNC 字樣)時亂跳;
+ * **三個座標都要比對**。只用 (x, y) 會在刀路自交處對不準:pattern 0 的「CNC」字樣裡,
+ * 每一筆畫的起點與終點在 XY 上重合(抬刀 z=+50 與下刀 z=-50 是同一個 XY),
+ * 只比 XY 就可能鎖到相反的抬刀 / 下刀相位 —— 畫面上會看到刀該抬時沒抬。
+ * z 的量級(±50)比 XY(±220)小,所以加權放大,讓它真的能當判別依據。
+ *
+ * 只在「本地相位附近的窗」內搜尋,避免每次遙測到達就跳一大段;
  * 若誤差大到超出窗(剛開機 / 換件 / 學生改了 pattern)就直接硬同步。
  *
  * @returns 修正後的相位 ∈ [0,1)
  */
-export function lockCncPhase(local: number, reportedX: number, reportedY: number, pattern: number): number {
-  const SAMPLES = 128;
+const Z_WEIGHT = 4;                 // z 的權重(補償它比 XY 小一個量級)
+const LOCK_TAU = 0.05;              // 收斂時間常數(秒)
+
+export function lockCncPhase(
+  local: number, reportedX: number, reportedY: number, reportedZ: number, pattern: number,
+  dt = 1 / 60,
+): number {
+  const SAMPLES = 256;
   const WINDOW = 0.12;              // 只信任前後 12% 的相位窗
   let bestNear = -1, bestNearErr = Infinity;
   let bestAny = -1, bestAnyErr = Infinity;
   for (let i = 0; i < SAMPLES; i++) {
     const ph = i / SAMPLES;
-    const [x, y] = cncToolPath(ph, pattern);
-    const err = (x - reportedX) ** 2 + (y - reportedY) ** 2;
+    const [x, y, z] = cncToolPath(ph, pattern);
+    const err = (x - reportedX) ** 2 + (y - reportedY) ** 2 + (Z_WEIGHT * (z - reportedZ)) ** 2;
     if (err < bestAnyErr) { bestAnyErr = err; bestAny = ph; }
     let d = Math.abs(ph - local);
     d = Math.min(d, 1 - d);
     if (d <= WINDOW && err < bestNearErr) { bestNearErr = err; bestNear = ph; }
   }
-  // 窗內找得到(< 25 mm 誤差)→ 溫和拉近,保住畫面連續;否則硬同步。
-  if (bestNear >= 0 && bestNearErr < 25 * 25) {
+  // 窗內找得到(誤差 < 30 mm 等效)→ 拉近;否則硬同步到全域最佳。
+  if (bestNear >= 0 && bestNearErr < 30 * 30) {
     let diff = bestNear - local;
     if (diff > 0.5) diff -= 1; else if (diff < -0.5) diff += 1;
-    const next = local + diff * 0.25;
+    // 增益必須是 delta-based。用固定的每幀比例會讓「相位自己往前走」與「被拉回來」
+    // 的平衡點隨 frame rate 改變 —— 低 fps 機器上刀尖會固定落後遙測位置一小段。
+    const next = local + diff * (1 - Math.exp(-dt / LOCK_TAU));
     return (next % 1 + 1) % 1;
   }
   return bestAny >= 0 ? bestAny : local;

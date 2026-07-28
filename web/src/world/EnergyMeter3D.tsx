@@ -178,11 +178,12 @@ export const EnergyMeterModel = ({ motion }: MachineProps) => {
   );
 };
 
-export default function EnergyMeter3D({ motion }: MachineProps) {
+export default function EnergyMeter3D({ motion, debug }: MachineProps) {
   return (
     <MachineScene camera={[4, 5, 9]} fov={45} target={[0, 3, 0]} groundSize={30} shadowScale={15}
                   overlay={<MeterReadout motion={motion} />}>
       <EnergyMeterModel motion={motion} />
+      {debug as React.ReactNode}
     </MachineScene>
   );
 }

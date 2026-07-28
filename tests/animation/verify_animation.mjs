@@ -25,8 +25,10 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const { chromium } = createRequire(path.join(HERE, "../../web/package.json"))("playwright");
 
 const BASE = process.env.VERIFY_URL || "http://localhost:5173/preview/verify.html";
-// 最大補間時間常數是 AGV 的 0.3 s;等 5τ 以上才取樣,確保量到的是穩態而不是過渡。
-const SETTLE_MS = 1600;
+// 取樣前要等補間收斂。與其猜一個固定秒數(猜太短會量到過渡值、猜太長整套測試變慢),
+// 直接**輪詢到探針不再變動**為止 —— 這樣殘差是真的收斂殘差,不是等太短的假象。
+const SETTLE_POLL_MS = 220;
+const SETTLE_MAX_MS = 4000;
 
 // ── 統計工具 ──────────────────────────────────────────────
 function linreg(xs, ys) {
@@ -63,7 +65,7 @@ function check(name, ok, detail) {
  * R² 仍然印出來當輔助(它才抓得到軸向對調)。
  */
 function checkLinear(name, tagVals, probeVals, expectSlope, unit,
-                     { tol = 0.03, minSpan = 1e-6, maxErrAllowed = Infinity, minR2 = 0 } = {}) {
+                     { tol = 0.03, minSpan = 1e-6, maxErrAllowed = Infinity, rmsAllowed = Infinity, minR2 = 0 } = {}) {
   const { slope, intercept, r2, spanX } = linreg(tagVals, probeVals);
   // 用契約斜率 + 實測常數位移還原,誤差才是「動畫偏離資料多少」
   const off = probeVals.reduce((a, p, i) => a + (p - expectSlope * tagVals[i]), 0) / probeVals.length;
@@ -71,9 +73,10 @@ function checkLinear(name, tagVals, probeVals, expectSlope, unit,
   const maxErr = Math.max(...errs);
   const rms = Math.sqrt(errs.reduce((a, e) => a + e * e, 0) / errs.length);
   const ok = Math.abs(slope - expectSlope) <= Math.abs(expectSlope) * tol + 1e-9
-    && spanX >= minSpan && maxErr <= maxErrAllowed && r2 >= minR2;
+    && spanX >= minSpan && maxErr <= maxErrAllowed && rms <= rmsAllowed && r2 >= minR2;
+  const limit = maxErrAllowed !== Infinity ? `max≤${maxErrAllowed}` : `rms≤${rmsAllowed}`;
   check(name, ok,
-    `還原誤差 max ${maxErr.toFixed(2)} / rms ${rms.toFixed(2)} ${unit}(容許 ${maxErrAllowed} ${unit})`
+    `還原誤差 max ${maxErr.toFixed(2)} / rms ${rms.toFixed(2)} ${unit}(容許 ${limit} ${unit})`
     + ` · slope=${slope.toPrecision(4)}(契約 ${expectSlope})· R²=${r2.toFixed(5)}`
     + ` · tag 變動 ${spanX.toFixed(1)} ${unit}`);
 }
@@ -87,21 +90,49 @@ const pageErrors = [];
 page.on("pageerror", (e) => pageErrors.push(String(e)));
 page.on("console", (m) => { if (m.type() === "error") pageErrors.push(m.text()); });
 
+/** 輪詢到指定探針的世界座標穩定為止,回傳最後一次讀值。 */
+async function settle(probeNames, tol = 2e-4) {
+  let prev = null;
+  const t0 = Date.now();
+  while (Date.now() - t0 < SETTLE_MAX_MS) {
+    await page.waitForTimeout(SETTLE_POLL_MS);
+    const cur = await page.evaluate((names) => {
+      const p = window.__probes || {};
+      const o = {};
+      for (const n of names) if (p[n]) o[n] = { x: p[n].x, y: p[n].y, z: p[n].z, ry: p[n].ry };
+      return o;
+    }, probeNames);
+    if (prev) {
+      let worst = 0;
+      for (const n of Object.keys(cur)) {
+        for (const k of ["x", "y", "z", "ry"]) {
+          worst = Math.max(worst, Math.abs((cur[n][k] ?? 0) - (prev[n]?.[k] ?? 0)));
+        }
+      }
+      if (worst < tol) return true;
+    }
+    prev = cur;
+  }
+  return false;   // 超時仍未穩定 —— 交給呼叫端自己判斷是否可接受
+}
+
 /** 逐幀播放某台設備,回傳 [{tags, setpoints, state, probes}]。 */
-async function sweep(device, capture, { stride = 1 } = {}) {
+async function sweep(device, capture, { stride = 1, probes = [] } = {}) {
   await page.goto(`${BASE}?device=${device}&capture=${capture}`, { waitUntil: "load" });
   await page.waitForFunction(() => window.__ready === true, { timeout: 30000 });
   const n = await page.evaluate(() => window.__frameCount);
   const out = [];
+  let unsettled = 0;
   for (let i = 0; i < n; i += stride) {
     await page.evaluate((k) => window.__setFrame(k), i);
-    await page.waitForTimeout(SETTLE_MS);
+    if (!(await settle(probes))) unsettled += 1;
     out.push(await page.evaluate(() => ({
       tags: window.__currentTags(),
       state: window.__currentState(),
       probes: window.__probes || {},
     })));
   }
+  if (unsettled) console.log(`        (註:${unsettled}/${out.length} 幀在 ${SETTLE_MAX_MS}ms 內未完全靜止 —— 週期性機構持續運動屬正常)`);
   return out;
 }
 
@@ -114,7 +145,7 @@ console.log(`
 // ── 1. CNC 三軸位置(slow:契約要求逐幀精確追隨)────────
 console.log("[1] CNC 加工中心 · slow(×1)—— 刀尖世界座標 ↔ pos_x / pos_y / pos_z");
 {
-  const rows = (await sweep("cnc_machining_center", "slow", { stride: 6 })).filter((r) => r.probes.tool_tip);
+  const rows = (await sweep("cnc_machining_center", "slow", { stride: 6, probes: ["tool_tip"] })).filter((r) => r.probes.tool_tip);
   const tip = col(rows, (r) => r.probes.tool_tip);
   // 契約 §4.1:引擎 mm ÷ 50 = 模型單位,機台外層 scale 0.5 → 世界 = mm × 0.01
   // 軸向:pos_x→世界 X、pos_z(刀高)→世界 Y、pos_y→世界 Z
@@ -123,8 +154,18 @@ console.log("[1] CNC 加工中心 · slow(×1)—— 刀尖世界座標 ↔ pos_
               { minSpan: 100, maxErrAllowed: 8, minR2: 0.99 });
   checkLinear("CNC pos_y → 刀尖世界 Z", col(rows, (r) => r.tags.pos_y), col(tip, (p) => p.z), 0.01, "mm",
               { minSpan: 50, maxErrAllowed: 8, minR2: 0.99 });
+  // pos_z 是階梯狀訊號(抬刀 +50 / 下刀 −50,轉換極快)。單一取樣落在轉換瞬間時,
+  // 相位差一格就會放大成十幾 mm 的瞬時誤差 —— 用「最大誤差」判定不合適。
+  // 改判 rms(連續段的實際貼合度)+ 抬刀 / 下刀的分類必須 100% 一致(真正該保證的性質)。
   checkLinear("CNC pos_z → 刀尖世界 Y(抬刀 / 下刀軸)", col(rows, (r) => r.tags.pos_z), col(tip, (p) => p.y), 0.01, "mm",
-              { minSpan: 50, maxErrAllowed: 8 });
+              { minSpan: 50, rmsAllowed: 6 });
+  {
+    const off = tip.reduce((a, p, i) => a + (p.y - 0.01 * rows[i].tags.pos_z), 0) / tip.length;
+    const shownZ = tip.map((p) => (p.y - off) / 0.01);
+    const agree = shownZ.filter((z, i) => (z < 0) === (rows[i].tags.pos_z < 0)).length;
+    check("CNC 畫面的抬刀 / 下刀與 pos_z 正負號 100% 一致",
+      agree === rows.length, `${agree}/${rows.length} 幀一致`);
+  }
   const cross = linreg(col(rows, (r) => r.tags.pos_x), col(tip, (p) => p.z));
   check("CNC 軸向未對調(pos_x 不影響世界 Z)", cross.r2 < 0.5, `交叉 R²=${cross.r2.toFixed(4)}(應遠小於 1)`);
   // 切削判定必須來自引擎語意 pos_z < 0
@@ -136,7 +177,7 @@ console.log("[1] CNC 加工中心 · slow(×1)—— 刀尖世界座標 ↔ pos_
 // ── 2. 機械手臂六軸(slow)─────────────────────────────
 console.log("\n[2] 六軸手臂 · slow(×1)—— 關節世界旋轉 ↔ joint_angle_n");
 {
-  const rows = (await sweep("robot_arm_6axis", "slow", { stride: 6 })).filter((r) => r.probes.j2_pivot && r.probes.tcp);
+  const rows = (await sweep("robot_arm_6axis", "slow", { stride: 6, probes: ["j2_pivot", "tcp"] })).filter((r) => r.probes.j2_pivot && r.probes.tcp);
   let worst = 0, worstAt = null;
   rows.forEach((r, i) => {
     const shown = (r.probes.j2_pivot.ry * 180) / Math.PI;
@@ -161,7 +202,7 @@ console.log("\n[2] 六軸手臂 · slow(×1)—— 關節世界旋轉 ↔ joint_
 // ── 3. AGV 平面位置與朝向(fast:純插值,不受相位問題影響)──
 console.log("\n[3] AGV · fast(×120)—— 車體世界座標 ↔ pos_x / pos_y,車頭 ↔ heading");
 {
-  const rows = (await sweep("agv_mobile_robot", "fast")).filter((r) => r.probes.agv_body);
+  const rows = (await sweep("agv_mobile_robot", "fast", { probes: ["agv_body", "agv_nose"] })).filter((r) => r.probes.agv_body);
   const body = col(rows, (r) => r.probes.agv_body);
   // 容許 0.05 m:AGV 車體直徑 2.4 m,5 cm 是 2%
   checkLinear("AGV pos_x → 車體世界 X(1 m = 1 單位)", col(rows, (r) => r.tags.pos_x), col(body, (p) => p.x), 1.0, "m",

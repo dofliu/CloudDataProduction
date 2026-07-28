@@ -301,8 +301,96 @@ console.log("\n[6] 風機 —— 轉子轉速 ↔ rotor_rpm(降頻後)、葉片 
     `pitch=${tags.pitch_angle.toFixed(2)}°(風速未超額定,屬正確行為)`);
 }
 
+// ── 7. 空壓機:壓力錶指針 ────────────────────────────────
+console.log("\n[7] 空壓機 —— 壓力錶指針角度 ↔ outlet_pressure");
+{
+  const rows = (await sweep("air_compressor", "slow", { stride: 8, probes: ["gauge_tip"] }))
+    .filter((r) => r.probes.gauge_tip && r.probes.gauge_center);
+  // 指針相對錶心的方位角;錶盤 270° 對應 0~10 bar → 每 bar 27°
+  const ang = rows.map((r) => {
+    const dx = r.probes.gauge_tip.x - r.probes.gauge_center.x;
+    const dy = r.probes.gauge_tip.y - r.probes.gauge_center.y;
+    return (Math.atan2(dx, dy) * 180) / Math.PI;
+  });
+  const bar = col(rows, (r) => r.tags.outlet_pressure);
+  const g = linreg(bar, ang);
+  const EXPECT = 270 / 10;      // GAUGE_SWEEP / GAUGE_MAX_BAR
+  check("空壓機 outlet_pressure → 指針角度(27°/bar)",
+    Math.abs(g.slope - EXPECT) / EXPECT < 0.08 && g.r2 > 0.9,
+    `slope=${g.slope.toFixed(2)}°/bar(契約 ${EXPECT})· R²=${g.r2.toFixed(4)}`
+    + ` · 壓力取樣範圍 ${span(bar).toFixed(3)} bar`);
+}
+
+// ── 8. 電表:三相電流長條 ───────────────────────────────
+console.log("\n[8] 電表 —— 三相長條高度 ↔ current_l1 / l2 / l3");
+{
+  const rows = (await sweep("energy_meter", "fast", { stride: 2, probes: ["phase_bar_1", "phase_bar_2", "phase_bar_3"] }))
+    .filter((r) => r.probes.phase_bar_1);
+  // 長條高度 = clamp(current/450) × 1.5 → 每 A 對應 1.5/450 單位
+  const EXPECT = 1.5 / 450;
+  for (const i of [1, 2, 3]) {
+    checkLinear(`電表 current_l${i} → 第 ${i} 相長條高度`,
+      col(rows, (r) => r.tags[`current_l${i}`]),
+      col(rows, (r) => r.probes[`phase_bar_${i}`].y),
+      EXPECT, "A", { minSpan: 20, maxErrAllowed: 12, minR2: 0.99 });
+  }
+}
+
+// ── 9. 熱處理爐:加熱功率條 ─────────────────────────────
+console.log("\n[9] 熱處理爐 —— 功率條長度 ↔ heating_power");
+{
+  const rows = (await sweep("heat_treat_furnace", "fast", { stride: 2, probes: ["power_bar_tip"] }))
+    .filter((r) => r.probes.power_bar_tip && r.probes.power_bar_base);
+  const len = rows.map((r) => Math.hypot(
+    r.probes.power_bar_tip.x - r.probes.power_bar_base.x,
+    r.probes.power_bar_tip.y - r.probes.power_bar_base.y,
+    r.probes.power_bar_tip.z - r.probes.power_bar_base.z));
+  const kw = col(rows, (r) => r.tags.heating_power);
+  const g = linreg(kw, len);
+  // 條長 = clamp((kW-50)/50) × 2.4,再取一半(探針在條的右端 = 中心 + scale/2)
+  check("熱處理爐 heating_power → 功率條長度(單調遞增)",
+    g.slope > 0 && g.r2 > 0.9,
+    `slope=${g.slope.toFixed(4)} 單位/kW · R²=${g.r2.toFixed(4)} · 功率取樣範圍 ${span(kw).toFixed(1)} kW`);
+}
+
+// ── 10. 射出成型機:開模行程 ────────────────────────────
+console.log("\n[10] 射出成型機 —— 可動模板開模行程(L3 自由播放)");
+{
+  await page.goto(`${BASE}?device=injection_molding&capture=fast`, { waitUntil: "load" });
+  await page.waitForFunction(() => window.__ready === true, { timeout: 30000 });
+  await page.evaluate(() => window.__setFrame(10));
+  await page.waitForTimeout(700);
+  const xs = [];
+  for (let i = 0; i < 45; i++) {
+    xs.push(await page.evaluate(() => window.__probes.platen?.x));
+    await page.waitForTimeout(120);
+  }
+  const s = span(xs.filter((v) => typeof v === "number"));
+  check("射出機 可動模板走完 0~2.0 單位的開模行程", s > 1.7 && s <= 2.05,
+    `畫面行程 ${s.toFixed(3)}/2.0 單位`);
+}
+
+// ── 11. 製程腔體:晶圓進出片行程 ────────────────────────
+console.log("\n[11] 製程腔體 —— 晶圓進片 / 出片行程(節拍 ↔ throughput)");
+{
+  await page.goto(`${BASE}?device=semi_process_chamber&capture=fast`, { waitUntil: "load" });
+  await page.waitForFunction(() => window.__ready === true, { timeout: 30000 });
+  await page.evaluate(() => window.__setFrame(10));
+  await page.waitForTimeout(700);
+  const xs = [];
+  for (let i = 0; i < 45; i++) {
+    xs.push(await page.evaluate(() => window.__probes.wafer?.x));
+    await page.waitForTimeout(120);
+  }
+  const vals = xs.filter((v) => typeof v === "number");
+  const s = span(vals);
+  const tags = await page.evaluate(() => window.__currentTags());
+  check("製程腔體 晶圓走完 3.4 單位的進出片行程", s > 2.8 && s <= 3.5,
+    `畫面行程 ${s.toFixed(3)}/3.4 單位 · throughput=${(tags.throughput ?? 0).toFixed(1)} wph`);
+}
+
 // ── 7. 停機語意:run_enable=0 → 機構靜止 ────────────────
-console.log("\n[7] 停機語意 —— 教師停機(run_enable=0)時機構必須真的停下來");
+console.log("\n[12] 停機語意 —— 教師停機(run_enable=0)時機構必須真的停下來");
 {
   await page.goto(`${BASE}?device=cnc_machining_center&capture=slow`, { waitUntil: "load" });
   await page.waitForFunction(() => window.__ready === true, { timeout: 30000 });

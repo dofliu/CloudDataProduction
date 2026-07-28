@@ -183,7 +183,10 @@ export const HeatTreatFurnaceModel = ({ motion }: MachineProps) => {
           <mesh ref={powerBarRef} position={[-1.2, 0.32, 0.14]}>
             <boxGeometry args={[1, 0.16, 0.03]} />
             <meshStandardMaterial color={FX.hot} emissive={FX.hot} emissiveIntensity={1.3} toneMapped={false} />
+            {/* 驗證探針:功率條右端 —— 位移量應與 heating_power 線性 */}
+            <object3D name="probe:power_bar_tip" position={[0.5, 0, 0]} />
           </mesh>
+          <object3D name="probe:power_bar_base" position={[-1.2, 0.32, 0.14]} />
           <CanvasLabel text="O₂ RESIDUAL" position={[-0.66, -0.06, 0.12]} height={0.2} color="#cfd8dc" bg="none" />
           <mesh position={[0.95, -0.06, 0.14]}>
             <circleGeometry args={[0.14, 18]} />

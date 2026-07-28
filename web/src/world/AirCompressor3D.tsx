@@ -173,7 +173,10 @@ export const AirCompressorModel = ({ motion }: MachineProps) => {
             <Box args={[0.05, 0.52, 0.02]} position={[0, 0.26, 0]}>
               <meshStandardMaterial color="#31281c" />
             </Box>
+            {/* 驗證探針:指針尖端 —— 相對錶心的方位角應與 outlet_pressure 線性 */}
+            <object3D name="probe:gauge_tip" position={[0, 0.52, 0]} />
           </group>
+          <object3D name="probe:gauge_center" position={[0, 0, 0.08]} />
           <CanvasLabel text={`${pressure.toFixed(2)} bar`} position={[0, -0.9, 0.08]} height={0.28} />
         </group>
 

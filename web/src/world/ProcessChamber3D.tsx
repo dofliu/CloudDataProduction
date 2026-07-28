@@ -173,6 +173,8 @@ export const ProcessChamberModel = ({ motion }: MachineProps) => {
           <meshStandardMaterial color="#3b4348" metalness={0.7} />
         </Cylinder>
         <group ref={waferRef} position={[0, 2.02, 0]} visible={false}>
+          {/* 驗證探針:晶圓 —— 進片 / 出片行程 */}
+          <object3D name="probe:wafer" />
           <Cylinder args={[0.95, 0.95, 0.05, 28]}>
             <meshStandardMaterial color="#cfd8dc" metalness={0.9} roughness={0.15} />
           </Cylinder>

@@ -88,6 +88,7 @@ function Lcd({ kw, volts, amps, pf, kwh }:
 /** 三相電流長條:高度 = 該相電流,偏離平均越多越黃 → 一眼看得出不平衡。 */
 function PhaseBars({ currents }: { currents: number[] }) {
   const refs = [useRef<THREE.Mesh>(null), useRef<THREE.Mesh>(null), useRef<THREE.Mesh>(null)];
+  const tips = [useRef<THREE.Object3D>(null), useRef<THREE.Object3D>(null), useRef<THREE.Object3D>(null)];
   const avg = (currents[0] + currents[1] + currents[2]) / 3 || 1;
   const maxA = 450;
   useFrame((_, delta) => {
@@ -96,6 +97,8 @@ function PhaseBars({ currents }: { currents: number[] }) {
       const target = Math.max(0.02, clamp01(currents[i] / maxA)) * 1.5;
       r.current.scale.y += (target - r.current.scale.y) * (1 - Math.exp(-delta / 0.3));
       r.current.position.y = r.current.scale.y / 2;
+      // 探針放長條頂端,世界高度才會跟著 current 走
+      if (tips[i].current) tips[i].current!.position.y = r.current.scale.y;
     });
   });
   return (
@@ -109,6 +112,8 @@ function PhaseBars({ currents }: { currents: number[] }) {
               <boxGeometry args={[0.3, 1, 0.06]} />
               <meshStandardMaterial color={col} emissive={col} emissiveIntensity={1.2} toneMapped={false} />
             </mesh>
+            {/* 驗證探針:長條頂端 —— 世界高度應與 current_l{i+1} 線性 */}
+            <object3D name={`probe:phase_bar_${i + 1}`} ref={tips[i]} />
             <CanvasLabel text={`L${i + 1}`} position={[0, -0.16, 0.05]} height={0.16} color="#3f7a3f" bg="none" />
           </group>
         );

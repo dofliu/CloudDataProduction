@@ -133,6 +133,8 @@ export const InjectionMoldingModel = ({ motion }: MachineProps) => {
         ))}
 
         <group position={[-1, 0, 0]} ref={platenRef}>
+          {/* 驗證探針:可動模板 —— 開模行程 */}
+          <object3D name="probe:platen" />
           <Box args={[0.8, 2.5, 2.5]} position={[-0.8, 3, 0]} castShadow receiveShadow>
             <meshStandardMaterial color={moldColor} metalness={0.8} />
           </Box>

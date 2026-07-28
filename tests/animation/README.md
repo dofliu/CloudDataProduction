@@ -38,6 +38,12 @@ node tests/animation/verify_animation.mjs
 
 失敗會以 exit code 1 結束,並列出每一項的 slope / R² / tag 變動範圍。
 
+**CI**:`.github/workflows/verify.yml` 會自動跑這三套 ——
+`verify_scenario.py`(純 Python,幾十秒)與前端 `tsc + build` 每次 push / PR 都跑;
+瀏覽器那套(`shot3d.mjs` 的無 CDN 檢查 + `verify_animation.mjs` 的 27 項)較慢,
+跑在 PR、手動觸發、以及 main 的 push。Chromium 路徑用 `PLAYWRIGHT_CHROMIUM`
+環境變數指定,不設就交給 playwright 自己找。
+
 ## 為什麼要錄兩份
 
 | 擷取 | multiplier | dt_sim / 幀 | 用途 |

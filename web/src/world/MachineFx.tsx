@@ -42,11 +42,20 @@ export function StatusBeacon({ motion, position = [0, 0, 0], scale = 1 }:
 
   useFrame((st) => {
     const t = st.clock.elapsedTime;
-    const blinkFast = Math.sin(t * 9) > 0 ? 1 : 0.05;
-    const blinkSlow = Math.sin(t * 2.2) > 0 ? 1 : 0.08;
+    // 閃爍的暗相不歸零:紅燈快閃時仍要維持在「看得出是紅的」的亮度,否則截到暗相
+    // 那一瞬間整支柱燈是黑的,故障就沒有隨時可辨識。
+    const blinkFast = Math.sin(t * 9) > 0 ? 1 : 0.42;
+    const blinkSlow = Math.sin(t * 2.2) > 0 ? 1 : 0.3;
     if (redRef.current) redRef.current.emissiveIntensity = motion.fault ? blinkFast * 2.4 : 0.04;
     if (amberRef.current) {
-      const on = motion.stopped ? blinkSlow : (motion.idle ? 0.9 : (motion.severity > 0.55 ? 0.6 + motion.severity : 0.04));
+      // fault 時黃燈必須熄掉,讓紅燈獨佔柱燈(andon 慣例:最高優先級的燈號獨佔)。
+      // 先前沒有這條:故障必然伴隨 severity 拉滿 → 黃燈恆亮,而紅燈是閃的,
+      // 於是有一半的瞬間「故障」看起來跟「警告」一模一樣。
+      const on = motion.fault ? 0.04
+        : motion.stopped ? blinkSlow
+        : motion.idle ? 0.9
+        : motion.severity > 0.55 ? 0.6 + motion.severity
+        : 0.04;
       amberRef.current.emissiveIntensity = on * 2.0;
     }
     if (greenRef.current) greenRef.current.emissiveIntensity = motion.running && !motion.fault ? 1.8 : 0.04;
@@ -58,13 +67,13 @@ export function StatusBeacon({ motion, position = [0, 0, 0], scale = 1 }:
         <meshStandardMaterial color="#444" metalness={0.6} />
       </Cylinder>
       <Cylinder args={[0.17, 0.17, 0.26, 14]} position={[0, 1.45, 0]}>
-        <meshStandardMaterial ref={redRef} color={FX.fault} emissive={FX.fault} emissiveIntensity={0} toneMapped={false} />
+        <meshStandardMaterial name="probe:beacon_red" ref={redRef} color={FX.fault} emissive={FX.fault} emissiveIntensity={0} toneMapped={false} />
       </Cylinder>
       <Cylinder args={[0.17, 0.17, 0.26, 14]} position={[0, 1.18, 0]}>
-        <meshStandardMaterial ref={amberRef} color={FX.warn} emissive={FX.warn} emissiveIntensity={0} toneMapped={false} />
+        <meshStandardMaterial name="probe:beacon_amber" ref={amberRef} color={FX.warn} emissive={FX.warn} emissiveIntensity={0} toneMapped={false} />
       </Cylinder>
       <Cylinder args={[0.17, 0.17, 0.26, 14]} position={[0, 0.91, 0]}>
-        <meshStandardMaterial ref={greenRef} color={FX.ok} emissive={FX.ok} emissiveIntensity={0} toneMapped={false} />
+        <meshStandardMaterial name="probe:beacon_green" ref={greenRef} color={FX.ok} emissive={FX.ok} emissiveIntensity={0} toneMapped={false} />
       </Cylinder>
     </group>
   );

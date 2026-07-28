@@ -8,7 +8,9 @@
       body { margin: 0; background: #efe6d6; }
       .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 10px; }
       .cell { position: relative; height: 420px; border: 1px solid #d8c6a8; border-radius: 12px; overflow: hidden; background: #faf4e8; }
-      .cap { position: absolute; right: 10px; top: 8px; z-index: 5; font: 600 12px/1.4 system-ui; color: #4a3f2f;
+      /* 情境標題擺左下 —— 右上是 MachineScene 的讀值面板、左上是操作提示與 L3 倍率標示,
+         擺在那兩處都會蓋住要驗收的字。 */
+      .cap { position: absolute; left: 10px; bottom: 8px; z-index: 5; font: 600 12px/1.4 system-ui; color: #4a3f2f;
              background: rgba(255,250,240,.85); padding: 3px 10px; border-radius: 8px; }
     </style>
   </head>

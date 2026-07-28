@@ -40,7 +40,7 @@ node tests/animation/verify_animation.mjs
 
 **CI**:`.github/workflows/verify.yml` 會自動跑這三套 ——
 `verify_scenario.py`(純 Python,幾十秒)與前端 `tsc + build` 每次 push / PR 都跑;
-瀏覽器那套(`shot3d.mjs` 的無 CDN 檢查 + `verify_animation.mjs` 的 27 項)較慢,
+瀏覽器那套(`shot3d.mjs` 的無 CDN 檢查 + `verify_animation.mjs` 的 35 項)較慢,
 跑在 PR、手動觸發、以及 main 的 push。Chromium 路徑用 `PLAYWRIGHT_CHROMIUM`
 環境變數指定,不設就交給 playwright 自己找。
 
@@ -63,9 +63,14 @@ node tests/animation/verify_animation.mjs
 | `probe:tool_tip` | CNC 刀尖 | `pos_x` / `pos_y` / `pos_z` |
 | `probe:ram` | 沖壓機上模面 | `ram_position` |
 | `probe:agv_body` / `probe:agv_nose` | AGV 車體中心 / 車頭 | `pos_x` / `pos_y` / `heading` |
-| `probe:j2_pivot` / `probe:tcp` | 手臂 J1 後的樞紐 / 夾爪中心 | `joint_angle_1..6` |
+| `probe:j2_pivot` / `probe:tcp` | 手臂 J1 後的樞紐 / 夾爪中心 | `joint_angle_1..6`、`tcp_x/y/z` |
 | `probe:blade_edge` / `probe:rotor_mark` | 風機葉片前緣 / 轉子 | `pitch_angle` / `rotor_rpm` |
 | `probe:belt_part0` | 輸送帶第 0 個工件 | `belt_speed` |
+| `probe:beacon_red` / `_amber` / `_green` | 三色柱燈(**材質**探針,回報 `emissiveIntensity`) | `state`、`coils.run_enable` |
+
+材質探針是另一類:柱燈這種「會動的不是位置而是亮度」的元素,材質不在場景圖的走訪範圍內,
+所以 `ProbeReporter` 額外從 Mesh 的 material 反查名稱。載具另有 `__forceState(v)` 接縫 ——
+錄製窗內不一定有設備進入 fault,但柱燈語意必須驗得到那一格。
 
 驗證載具是 `web/preview/verify.html`(+ `verify.tsx`),可以直接用瀏覽器開來手動翻幀:
 
@@ -75,6 +80,29 @@ http://localhost:5173/preview/verify.html?device=cnc_machining_center&capture=sl
 
 載具透過各機種元件的 `debug` prop(`MachineProps.debug`)把探針回報器掛進 Canvas。
 這個 prop 是**測試接縫**,正式畫面永遠不傳。
+
+## 端到端 vs 逐軸
+
+手臂那兩節分工不同,兩節都要有:
+
+- **[2] 逐軸**:各關節的世界旋轉角 ↔ `joint_angle_n`。抓「某一軸接錯 / 轉反」。
+- **[13] 端到端**:夾爪世界座標 ↔ 引擎 `tcp_x/y/z`。抓「每一軸角度都對,但連桿長度或
+  零位校正錯了,夾爪落在錯的位置」—— 逐軸檢查對這種錯誤完全無感。
+
+`tcp_x/y/z` 在引擎裡由 `forward_kinematics(joint_angle_1..6)` 算出,與關節角是同一組
+狀態的兩種表述,所以它才有資格當標準答案。引擎端另有一道更便宜的檢查
+(`verify_scenario.py::check_kinematics`),用一個與連桿長度無關的不變量:
+J1 是基座偏擺軸,所以末端的水平方位角 `atan2(tcp_y, tcp_x)` 恆等於 `joint_angle_1`。
+學生從 Modbus 讀六軸角度自己算正運動學,對得起來的就是這件事。
+
+## 行程類檢查為什麼在頁面內取樣
+
+射出機模板與腔體晶圓這種「大部分時間停著、只在一小段快速移動」的機構,若從 Node 每
+120 ms 打一次 `evaluate`(實際往返更久)會直接錯過行程頂點,量到的行程偏小 ——
+那是取樣不足,不是動畫沒走到。改用 `recordProbe()` 在頁面內以 `requestAnimationFrame`
+取樣。即使如此,軟體渲染只跑到約 9 fps,量到的行程仍是真實值的**下界**,所以腔體那項
+判「進片側與出片側都到達」而不是比對行程有多接近 6.8 —— 要保證的性質是貫通,
+那個對幀率免疫。
 
 ## 已知的物理限制(不是 bug)
 

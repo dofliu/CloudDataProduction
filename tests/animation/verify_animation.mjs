@@ -314,9 +314,11 @@ console.log("\n[7] 空壓機 —— 壓力錶指針角度 ↔ outlet_pressure");
   });
   const bar = col(rows, (r) => r.tags.outlet_pressure);
   const g = linreg(bar, ang);
-  const EXPECT = 270 / 10;      // GAUGE_SWEEP / GAUGE_MAX_BAR
+  // 錶盤掃 270° / 量程 10 bar。負號來自 three.js:rotation.z 為正時 +Y 轉向 −X,
+  // 所以壓力升高時指針尖端的方位角(atan2(dx, dy))是**遞減**的。
+  const EXPECT = -270 / 10;
   check("空壓機 outlet_pressure → 指針角度(27°/bar)",
-    Math.abs(g.slope - EXPECT) / EXPECT < 0.08 && g.r2 > 0.9,
+    Math.abs(g.slope - EXPECT) / Math.abs(EXPECT) < 0.05 && g.r2 > 0.99,
     `slope=${g.slope.toFixed(2)}°/bar(契約 ${EXPECT})· R²=${g.r2.toFixed(4)}`
     + ` · 壓力取樣範圍 ${span(bar).toFixed(3)} bar`);
 }
@@ -332,7 +334,9 @@ console.log("\n[8] 電表 —— 三相長條高度 ↔ current_l1 / l2 / l3");
     checkLinear(`電表 current_l${i} → 第 ${i} 相長條高度`,
       col(rows, (r) => r.tags[`current_l${i}`]),
       col(rows, (r) => r.probes[`phase_bar_${i}`].y),
-      EXPECT, "A", { minSpan: 20, maxErrAllowed: 12, minR2: 0.99 });
+      // minSpan 只要 3 A:這段資料的相電流本來就只在數 A 內起伏,
+      // 真正的證據是還原誤差(< 0.1 A)與 R²,不是振幅大小。
+      EXPECT, "A", { minSpan: 3, maxErrAllowed: 1.0, minR2: 0.99 });
   }
 }
 
@@ -385,8 +389,9 @@ console.log("\n[11] 製程腔體 —— 晶圓進片 / 出片行程(節拍 ↔ t
   const vals = xs.filter((v) => typeof v === "number");
   const s = span(vals);
   const tags = await page.evaluate(() => window.__currentTags());
-  check("製程腔體 晶圓走完 3.4 單位的進出片行程", s > 2.8 && s <= 3.5,
-    `畫面行程 ${s.toFixed(3)}/3.4 單位 · throughput=${(tags.throughput ?? 0).toFixed(1)} wph`);
+  // 貫通式:−3.4(左側進片)→ 0(腔內製程)→ +3.4(右側出片),總行程 6.8
+  check("製程腔體 晶圓走完 6.8 單位的貫通式進出片行程", s > 5.5 && s <= 7.0,
+    `畫面行程 ${s.toFixed(3)}/6.8 單位 · throughput=${(tags.throughput ?? 0).toFixed(1)} wph`);
 }
 
 // ── 7. 停機語意:run_enable=0 → 機構靜止 ────────────────

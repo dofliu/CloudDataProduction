@@ -1,11 +1,14 @@
 # 自動驗證:場景健全性 + 前端建置 + 動畫 ↔ 模擬資料一致性
 #
 # 分成三個 job,快的先擋、慢的後跑:
-#   scenario  純 Python,幾十秒。每次 push / PR 都跑。
-#   web       tsc + vite build,一兩分鐘。每次 push / PR 都跑。
-#   animation 要開瀏覽器逐幀讀 three.js 場景座標,十幾分鐘(runner 是軟體渲染)。
+#   scenario  純 Python,幾十秒。
+#   web       tsc + vite build,一兩分鐘。
+#   animation 要開瀏覽器逐幀讀 three.js 場景座標,約十分鐘(runner 是軟體渲染)。
 #             跑在 PR、手動觸發、以及 main 的 push;功能分支的每次 push 不跑,
 #             免得推一次就燒十幾分鐘 —— 開 PR 時一定會擋一次。
+#
+# 觸發只掛 main 的 push 與 pull_request:功能分支推上去時 PR 的 synchronize
+# 已經會跑一輪,若 push 也收 `claude/**` 會讓同一顆 commit 跑兩次。
 #
 # 三套測試的內容見 tests/animation/README.md 與 docs/animation_binding.md。
 
@@ -13,7 +16,7 @@ name: verify
 
 on:
   push:
-    branches: ["main", "claude/**"]
+    branches: ["main"]
   pull_request:
   workflow_dispatch:
 

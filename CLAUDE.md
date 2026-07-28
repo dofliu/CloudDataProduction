@@ -73,12 +73,25 @@ cloud-production-data/
 │   └── server.py
 ├── scenarios/                 # 場景 YAML(見 docs/04)
 │   └── default_park.yaml
-├── web/                       # React + PixiJS 前端
-│   ├── world/                 # 2D 等距園區(俯瞰→公司→設備→tag)
+├── web/                       # React + PixiJS + three.js 前端
+│   ├── src/world/             # 俯瞰(PixiJS)+ 廠內產線(three.js)+ 11 種機型 3D
+│   │   ├── deviceMotion.ts    # 資料橋:狀態正規化 / 退化度 / 補間 / L3 時間換算
+│   │   ├── processFlow.ts     # 製程角色 → 產線佈局(誰在上游、手臂伸去哪)
+│   │   └── MachineFx.tsx      # 共用視覺語彙:柱燈 / 冒煙 / 抖動 / 過熱輝光
+│   ├── preview/               # dev 專用:逐台渲染、產線配方、量測、驗證載具
 │   ├── teacher/               # 上帝視角控制台 + 參考客戶端儀表板
 │   └── catalog/               # 公開設備目錄頁
+├── tests/animation/           # 動畫 ↔ 模擬資料一致性驗證(見該目錄 README)
+├── .github/workflows/verify.yml   # CI:場景健全性 / 前端建置 / 動畫一致性
 └── student_kit/               # 給學生的範例:連線骨架、目錄查詢、預測上傳範例
 ```
+
+**場景不要手改 YAML** —— `scenarios/*.yaml` 由 `scenarios/scripts/gen_*.py` 產生,
+要調組合改產生器再重跑。手改會在下次重產時被蓋掉。
+
+**要改動畫先讀 `docs/animation_binding.md`**(綁定契約)。那份文件是動畫的唯一依據:
+每個會動的部位都必須對應一支具體 tag,前端不重算引擎已算過的物理,做了時間換算要標倍率。
+改完跑 `tests/animation/` 那套(CI 也會跑)。
 
 ## 開發慣例
 

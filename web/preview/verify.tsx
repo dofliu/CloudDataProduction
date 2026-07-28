@@ -52,6 +52,16 @@ function ProbeReporter() {
     const quat = new THREE.Quaternion();
     const eul = new THREE.Euler();
     scene.traverse((o) => {
+      // 材質探針:柱燈那類「會動的不是位置而是亮度」的元素。材質不在場景圖的走訪
+      // 範圍內,所以從 Mesh 的 material 反查 —— 名稱同樣以 probe: 開頭。
+      const mat = (o as THREE.Mesh).material as THREE.Material | undefined;
+      if (mat && !Array.isArray(mat) && mat.name?.startsWith("probe:")) {
+        o.getWorldPosition(pos);
+        out[mat.name.slice(6)] = {
+          x: pos.x, y: pos.y, z: pos.z,
+          emissive: (mat as THREE.MeshStandardMaterial).emissiveIntensity ?? 0,
+        };
+      }
       if (!o.name.startsWith("probe:")) return;
       o.getWorldPosition(pos);
       o.getWorldQuaternion(quat);
@@ -74,12 +84,18 @@ function Harness({ capture }: { capture: Capture }) {
   const [idx, setIdx] = useState(0);
   // 測試用:覆寫命令線圈(驗「教師停機時機構是否真的停下來」)
   const [coilOverride, setCoilOverride] = useState<Record<string, boolean> | null>(null);
+  // 測試用:覆寫 state。錄製窗內不一定有設備進入 fault,但柱燈語意(§2)必須驗得到
+  // fault 這一格 —— 這是唯一的取得方式。
+  const [stateOverride, setStateOverride] = useState<string | null>(null);
 
   const raw = capture.frames[idx]?.devices[deviceId];
-  const snap = useMemo(
-    () => (raw && coilOverride ? { ...raw, coils: { ...(raw.coils || {}), ...coilOverride } } : raw),
-    [raw, coilOverride],
-  );
+  const snap = useMemo(() => {
+    if (!raw) return raw;
+    let s = raw;
+    if (coilOverride) s = { ...s, coils: { ...(s.coils || {}), ...coilOverride } };
+    if (stateOverride) s = { ...s, state: stateOverride };
+    return s;
+  }, [raw, coilOverride, stateOverride]);
   const multiplier = capture.frames[idx]?.multiplier ?? capture.time_multiplier;
   const motion = useMemo(() => buildMotion(snap, multiplier), [snap, multiplier]);
   const Scene = SCENES[snap?.template];
@@ -89,6 +105,7 @@ function Harness({ capture }: { capture: Capture }) {
     w.__setFrame = (i: number) => setIdx(Math.max(0, Math.min(capture.frames.length - 1, i)));
     w.__setDevice = (d: string) => { setDeviceId(d); setIdx(0); };
     w.__forceCoil = (c: Record<string, boolean> | null) => setCoilOverride(c);
+    w.__forceState = (v: string | null) => setStateOverride(v);
     w.__frameCount = capture.frames.length;
     w.__deviceIds = Object.keys(capture.frames[0].devices);
     w.__currentTags = () => snap?.tags ?? {};

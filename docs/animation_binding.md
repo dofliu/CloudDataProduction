@@ -38,7 +38,7 @@
 |------|------|----------|
 | `running` | `state ∈ {running, moving, charging, tool_change}` 且未故障 | 機構運轉、柱燈綠 |
 | `idle` | `state ∈ {idle, maintenance, blocked}` | 機構停止、柱燈黃(恆亮) |
-| `fault` | `state == fault`(或 `alarm`) | 機構立即停止、柱燈紅**閃爍**、機台冒煙、主色轉警示紅 |
+| `fault` | `state == fault`(或 `alarm`) | 機構立即停止、柱燈紅**閃爍**(黃燈同時熄掉,讓紅燈獨佔柱燈;閃爍的暗相不歸零,任何瞬間都看得出是紅的)、機台冒煙、主色轉警示紅 |
 | `stopped` | `coils.run_enable == false` | 機構停止、柱燈黃**慢閃**(與自然待機區分) |
 | `charging` | `state == charging`(AGV) | 停於充電站、電池圖示脈動 |
 
@@ -94,7 +94,7 @@
 |----------|----------|------|------|
 | J1~J6 關節角 | `joint_angle_1..6` (deg) | L1 | **六軸全用**,不再由 J1 合成 |
 | 夾爪開合 / 工件在手 | 由 `joint_angle_2`(俯衝角)過取放點推得 | L1 | 引擎 `_KEYFRAMES` 的 idx 1 / 4 是下探點 |
-| 末端位置校驗 | `tcp_x/y/z` (mm) | L1 | 用於除錯顯示 |
+| 末端位置校驗 | `tcp_x/y/z` (mm) | L1 | 引擎由 `forward_kinematics(joint_angle_1..6)` 算出;÷200 = 世界單位。畫面夾爪必須對得上(§6) |
 | 循環計數 | `cycle_count` | L1 | |
 | 關節發熱 | `joint_temp_1..6` (°C) | L2 | 取最大值 |
 | 機身抖動 | `vibration_rms` (0.1→12) | L2 | |
@@ -238,7 +238,13 @@ cd web && npx vite &
 node tests/animation/verify_animation.mjs        # 失敗回傳 exit 1
 ```
 
-最近一次結果:**27 項全數通過,11 種機型全覆蓋**。關鍵數字:
+行程類的檢查(射出機模板、腔體晶圓)在頁面內用 `requestAnimationFrame` 取樣,不從
+Node 輪詢 —— 這種「大部分時間停著、只在一小段快速移動」的機構,從 Node 每 120 ms
+打一次 evaluate 會直接錯過行程頂點。即使如此,軟體渲染只跑到約 9 fps,量到的行程
+仍是真實值的**下界**,所以腔體那項判「進片側與出片側都到達」而不是比對 span 有多接近
+6.8 —— 要保證的性質是貫通,那個對幀率免疫。
+
+最近一次結果:**35 項全數通過,11 種機型全覆蓋**。關鍵數字:
 
 | 綁定 | 還原誤差 | 相關性 |
 |------|----------|--------|
@@ -247,6 +253,10 @@ node tests/animation/verify_animation.mjs        # 失敗回傳 exit 1
 | CNC `pos_z` → 刀尖世界 Y | rms 3.56 mm;**抬刀 / 下刀 27/27 幀與正負號一致** | R² 0.98429 |
 | 手臂 `joint_angle_1` → J1 世界 yaw | **最大偏差 0.00°**(90.5° 掃程) | — |
 | 手臂 `joint_angle_2` → TCP 高度 | 單調下降 | R² 0.9995 |
+| 手臂 `tcp_x` → 夾爪世界 X | max 3.02 / rms 1.67 mm(全長 1600 mm) | R² 0.99957 |
+| 手臂 `tcp_y` → 夾爪世界 Z | max 6.26 / rms 2.36 mm | **R² 0.99999** |
+| 手臂 `tcp_z` → 夾爪世界 Y | max 8.24 / rms 3.60 mm | R² 0.99988 |
+| 手臂 畫面夾爪方位角 = `joint_angle_1` | **最大偏差 0.13°** | — |
 | AGV `pos_x` / `pos_y` → 車體世界座標 | **max 0.00 m** | **R² 1.00000** |
 | AGV `heading` → 車頭方位角 | **最大偏差 0.01°** | — |
 | 沖壓機 `ram_position` → 滑塊行程 | 3.000 / 3.0 單位 + 畫面標「動畫慢放 ×3.2」 | — |
@@ -255,6 +265,10 @@ node tests/animation/verify_animation.mjs        # 失敗回傳 exit 1
 | 空壓機 `outlet_pressure` → 錶針角度 | −26.95 °/bar(契約 −27) | **R² 1.0000** |
 | 電表 `current_l1/l2/l3` → 三相長條 | max 0.04 A | R² 0.99995 |
 | 熱處理爐 `heating_power` → 功率條 | 單調遞增 | **R² 1.0000** |
+| 製程腔體 晶圓貫通式進出片 | 進片側到 −3.40、出片側到 3.29(設計 ±3.4) | — |
+| 柱燈 `running` | 紅 0.04 / 黃 0.08 / **綠 1.80** | — |
+| 柱燈 `fault` | **紅 2.40** / 黃 0.08 / 綠 0.04;閃爍暗相仍有 1.01 | — |
+| 柱燈 `run_enable=0` | 紅 0.04 / **黃 2.00** / 綠 0.04 | — |
 | 射出機 開模行程 | 1.966 / 2.0 單位 | — |
 | 製程腔體 晶圓貫通行程 | 6.715 / 6.8 單位 | — |
 | `run_enable=0` → 刀尖靜止 | **位移 0.00000**(停機前 1.199) | — |
@@ -271,11 +285,28 @@ producer 都運轉過、累積量只增不減。兩份場景皆全數通過。
 
 改完動畫後逐項對:
 
-- [ ] 每個會動的部位都能在本檔 §4 找到對應欄位。
+標 🤖 的已由自動測試涵蓋(CI 每次 PR 都跑),其餘要人眼看畫面。
+
+- [ ] 🤖 每個會動的部位都能在本檔 §4 找到對應欄位。
+      (`verify_scenario.py::check_binding_tags` 反過來驗:表裡宣告的 tag 引擎必須真的有發)
 - [ ] 前端沒有任何一段程式在重算引擎已經算過的物理量。
-- [ ] 所有補間都是 delta-based(搜 `* 0.4)` 這類 frame-rate 相依寫法應為 0)。
+      手臂的正運動學是例外 —— 關節模型本來就得靠 FK 擺姿勢,那是繪圖不是模擬。
+      判準是**算出來的結果必須對得上引擎的 `tcp_x/y/z`**,由 §6 第 [13] 節把關。
+- [ ] 🤖 所有補間都是 delta-based(`approach()` 一律要帶 `delta`;
+      搜 `* 0.4)` 這類 frame-rate 相依寫法應為 0)。
 - [ ] 所有 L3 換算都在畫面上標示了倍率。
-- [ ] `state = fault` 時機構真的停下來,而不只是換顏色。
+- [ ] 🤖 `state = fault` / `coils.run_enable = false` 時機構真的停下來,而不只是換顏色。
+      (§6 第 [12] 節:關掉 run_enable 後刀尖 1.2 s 內位移必須為 0)
+- [ ] 🤖 柱燈語彙符合 §2:running 只亮綠、fault 亮紅且黃燈熄、run_enable=0 亮黃。
+      (§6 第 [14] 節:直接讀三顆燈的 `emissiveIntensity` 峰值)
 - [ ] `coils.run_enable = false` 時畫面看得出是「被停機」而非「剛好待機」。
-- [ ] Model 元件內沒有燈光 / 環境 / 陰影。
-- [ ] `npx tsc -b` 通過。
+      沖壓機打 STOPPED、風機葉片順槳並標 pitch 角 —— 這類語意標示要人眼確認。
+- [ ] 🤖 Model 元件內沒有燈光 / 環境 / 陰影(`grep -E '<(Environment|ContactShadows|ambientLight|directionalLight|pointLight)' web/src/world/*3D.tsx` 應為空)。
+- [ ] 🤖 `npx tsc -b` 通過。
+
+視覺驗收可以用預覽頁批次出圖,不必手動點:
+
+```bash
+cd web && npx vite &
+node preview/shot3d.mjs /tmp/shots     # 24 組情境逐台渲染成 png
+```

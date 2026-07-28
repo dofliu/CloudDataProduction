@@ -27,6 +27,8 @@ sys.path.insert(0, str(ROOT))
 import yaml  # noqa: E402
 
 from engine.world import World  # noqa: E402
+from engine.templates.robot_arm_6axis import _MAX_REACH as MAX_REACH  # noqa: E402
+from engine.templates.robot_arm_6axis import _SHOULDER_H as SHOULDER_H  # noqa: E402
 
 WEB_WORLD = ROOT / "web" / "src" / "world"
 BINDING_DOC = ROOT / "docs" / "animation_binding.md"
@@ -190,6 +192,57 @@ def check_runtime(world: World, park: dict, steps: int = 60) -> None:
         "沒有整台數值凍住的設備" if not frozen else f"數值完全沒變的設備:{frozen[:10]}")
 
 
+def check_kinematics(world: World, park: dict, steps: int = 80) -> None:
+    """末端座標必須是關節角的函數,不能是另一條自走的曲線。
+
+    用的是與連桿長度無關的不變量:J1 是基座偏擺軸,J2/J3/J5 都在同一個垂直平面內,
+    所以末端的水平方位角 atan2(tcp_y, tcp_x) 恆等於 joint_angle_1。學生從 Modbus
+    讀六軸角度自己算正運動學,對得起來的就是這件事;對不起來就是在教錯的東西。
+
+    (先前 tcp 是一條與角度無關的參數式擺動,方位角與 J1 的相關係數是 -0.82 ——
+     手臂往左轉、回報的末端往右跑。)
+    """
+    arms = [d for d in world.devices.values() if d.template == "robot_arm_6axis"]
+    if not arms:
+        return
+    dt_sim = park["sim"]["time_multiplier"] / park["sim"]["tick_hz"]
+    hz = park["sim"]["tick_hz"]
+    worst = 0.0
+    worst_at = ""
+    over_reach: list[str] = []
+    samples = 0
+    for _ in range(steps):
+        world.clock.advance(1.0 / hz)
+        snap = world.step(dt_sim)
+        for d in arms:
+            s = snap["devices"][d.id]
+            if s["state"] != "running":
+                continue
+            t = s["tags"]
+            samples += 1
+            bearing = math.degrees(math.atan2(t["tcp_y"], t["tcp_x"]))
+            dev = abs((bearing - t["joint_angle_1"] + 180) % 360 - 180)
+            if dev > worst:
+                worst, worst_at = dev, f"{d.id} J1={t['joint_angle_1']:.1f}° 方位={bearing:.1f}°"
+            # 肩軸到端點的距離不可能超過三段連桿之和(抓單位寫錯 / 正負號翻掉)
+            arm_len = math.hypot(math.hypot(t["tcp_x"], t["tcp_y"]), t["tcp_z"] - SHOULDER_H)
+            if arm_len > MAX_REACH + 1.0:
+                over_reach.append(f"{d.id} {arm_len:.0f}mm")
+
+    if not samples:
+        INFO.append("六軸手臂在觀測窗內都沒運轉,運動學一致性未檢查")
+        return
+    # 容差 2°:tcp 由乾淨角度算,joint_angle_1 讀值另外帶 ±0.15° 感測雜訊,
+    # 殘差就是那個雜訊。真的接錯 / 用錯公式會差到幾十度,擋得住。
+    (ok if worst < 2.0 else fail)(
+        f"手臂 tcp 與 joint_angle_1 一致({len(arms)} 台 / {samples} 取樣,最大偏差 {worst:.2f}°)"
+        if worst < 2.0 else
+        f"tcp 與關節角不一致:最大偏差 {worst:.1f}°(容許 2°)@ {worst_at}")
+    (ok if not over_reach else fail)(
+        "手臂 tcp 都在機構可達範圍內" if not over_reach
+        else f"tcp 超出最大伸距 {MAX_REACH:.0f}mm:{over_reach[:5]}")
+
+
 def verify(path: Path) -> None:
     print(f"\n=== {path} ===")
     park = yaml.safe_load(path.read_text(encoding="utf-8"))["park"]
@@ -198,6 +251,7 @@ def verify(path: Path) -> None:
     world = World(park)
     check_binding_tags(world)
     check_runtime(world, park)
+    check_kinematics(world, park)
 
 
 def main() -> None:

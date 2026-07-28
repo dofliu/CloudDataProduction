@@ -138,6 +138,27 @@ async function settle(probeNames, tol = 2e-4) {
   return false;   // 超時仍未穩定 —— 交給呼叫端自己判斷是否可接受
 }
 
+/**
+ * 在頁面內用 rAF 全速記錄某探針某軸的值,回傳 {min, max, span, n}。
+ *
+ * 為什麼不從 Node 輪詢:像射出機模板這種「大部分時間停在合模位、只在開模那一小段
+ * 快速移動」的機構,從 Node 每 120 ms 打一次 evaluate(實際往返更久)會直接錯過
+ * 行程頂點,量到的 span 偏小 —— 那是取樣不足,不是動畫跑不到位。改在頁面內取樣,
+ * 拿得到每一個算繪幀,行程極值才是真的。
+ */
+async function recordProbe(name, axis, ms) {
+  return page.evaluate(([n, ax, dur]) => new Promise((resolve) => {
+    let lo = Infinity, hi = -Infinity, count = 0;
+    const t0 = performance.now();
+    (function tick() {
+      const p = window.__probes?.[n];
+      if (p && typeof p[ax] === "number") { lo = Math.min(lo, p[ax]); hi = Math.max(hi, p[ax]); count += 1; }
+      if (performance.now() - t0 < dur) requestAnimationFrame(tick);
+      else resolve({ min: lo, max: hi, span: hi - lo, n: count });
+    })();
+  }), [name, axis, ms]);
+}
+
 /** 逐幀播放某台設備,回傳 [{tags, setpoints, state, probes}]。 */
 async function sweep(device, capture, { stride = 1, probes = [] } = {}) {
   await page.goto(`${BASE}?device=${device}&capture=${capture}`, { waitUntil: "load" });
@@ -386,14 +407,12 @@ console.log("\n[10] 射出成型機 —— 可動模板開模行程(L3 自由播
   await page.waitForFunction(() => window.__ready === true, { timeout: 30000 });
   await page.evaluate(() => window.__setFrame(10));
   await page.waitForTimeout(700);
-  const xs = [];
-  for (let i = 0; i < 45; i++) {
-    xs.push(await page.evaluate(() => window.__probes.platen?.x));
-    await page.waitForTimeout(120);
-  }
-  const s = span(xs.filter((v) => typeof v === "number"));
-  check("射出機 可動模板走完 0~2.0 單位的開模行程", s > 1.7 && s <= 2.05,
-    `畫面行程 ${s.toFixed(3)}/2.0 單位`);
+  // 視覺週期被夾在 MIN_PERIOD_S = 3 s,錄 12 s 涵蓋三個以上完整開合模循環 ——
+  // 循環數越多,取樣落在行程頂點附近的機會越高(理由同 [11] 節)
+  const rec = await recordProbe("platen", "x", 12000);
+  check("射出機 可動模板走完 0~2.0 單位的開模行程", rec.span > 1.9 && rec.span <= 2.05,
+    `畫面行程 ${rec.span.toFixed(3)}/2.0 單位`
+    + `(頁內取樣 ${rec.n} 幀 ≈ ${(rec.n / 12).toFixed(1)} fps)`);
 }
 
 // ── 11. 製程腔體:晶圓進出片行程 ────────────────────────
@@ -403,17 +422,20 @@ console.log("\n[11] 製程腔體 —— 晶圓進片 / 出片行程(節拍 ↔ t
   await page.waitForFunction(() => window.__ready === true, { timeout: 30000 });
   await page.evaluate(() => window.__setFrame(10));
   await page.waitForTimeout(700);
-  const xs = [];
-  for (let i = 0; i < 45; i++) {
-    xs.push(await page.evaluate(() => window.__probes.wafer?.x));
-    await page.waitForTimeout(120);
-  }
-  const vals = xs.filter((v) => typeof v === "number");
-  const s = span(vals);
+  const rec = await recordProbe("wafer", "x", 12000);
   const tags = await page.evaluate(() => window.__currentTags());
-  // 貫通式:−3.4(左側進片)→ 0(腔內製程)→ +3.4(右側出片),總行程 6.8
-  check("製程腔體 晶圓走完 6.8 單位的貫通式進出片行程", s > 5.5 && s <= 7.0,
-    `畫面行程 ${s.toFixed(3)}/6.8 單位 · throughput=${(tags.throughput ?? 0).toFixed(1)} wph`);
+  // 貫通式:−3.4(左側進片)→ 0(腔內製程)→ +3.4(右側出片),總行程 6.8。
+  //
+  // 判「兩側都到得了」而不是判 span 有多接近 6.8:這個環境是軟體渲染,腔體場景只跑到
+  // 約 9 fps,取樣落在轉折點附近的機率本來就低,量到的 span 永遠是真實行程的下界
+  // (少 5% 屬取樣誤差,不是動畫沒走到)。要保證的性質是「進片側與出片側都真的到達」,
+  // 那個用 min / max 各自過門檻來驗,對幀率免疫。上界仍然檢查,才擋得住衝過頭。
+  const reachIn = rec.min < -2.8, reachOut = rec.max > 2.8;
+  check("製程腔體 晶圓進片側與出片側都到達(貫通式行程)",
+    reachIn && reachOut && rec.span <= 7.0,
+    `進片側到 ${rec.min.toFixed(2)}、出片側到 ${rec.max.toFixed(2)}(設計 ±3.4)`
+    + ` · 量到行程 ${rec.span.toFixed(3)}/6.8 · 頁內取樣 ${rec.n} 幀 ≈ ${(rec.n / 12).toFixed(1)} fps`
+    + ` · throughput=${(tags.throughput ?? 0).toFixed(1)} wph`);
 }
 
 // ── 7. 停機語意:run_enable=0 → 機構靜止 ────────────────
@@ -438,6 +460,87 @@ console.log("\n[12] 停機語意 —— 教師停機(run_enable=0)時機構必�
   const movedStopped = Math.hypot(d2.x - c.x, d2.y - c.y, d2.z - c.z);
   check("CNC run_enable=0 → 刀尖靜止", movedStopped < 0.002,
     `1.2 s 內位移 ${movedStopped.toFixed(5)} 單位(停機前為 ${moved.toFixed(4)})`);
+}
+
+// ── 13. 手臂末端:畫面夾爪位置 ↔ 引擎 tcp_x/y/z ───────────
+// 第 [2] 節只驗各軸旋轉角。各軸角度全對、但連桿長度或零位校正錯了,夾爪還是會落在
+// 錯的位置 —— 而引擎的 tcp_x/y/z 正好是標準答案。這一節把畫面的夾爪世界座標直接
+// 拿去對引擎的末端座標,是整支手臂唯一的端到端驗證。
+//
+// 契約:引擎 mm ÷ 200 = 世界單位(骨架 SHOULDER_Y=2.0 對應 400mm),模型無外層縮放。
+// 軸向:引擎 X(伸出)→ 世界 -X、引擎 Y(左)→ 世界 +Z、引擎 Z(高)→ 世界 +Y。
+console.log("\n[13] 六軸手臂 · slow(×1)—— 夾爪世界座標 ↔ 引擎 tcp_x / tcp_y / tcp_z");
+{
+  const rows = (await sweep("robot_arm_6axis", "slow", { stride: 6, probes: ["tcp"] })).filter((r) => r.probes.tcp);
+  const tcp = col(rows, (r) => r.probes.tcp);
+  const S = 1 / 200;
+  // 容許 20 mm:手臂最大伸距 1600 mm,20 mm 是 1.25%。實測最大 8 mm —— 腕段骨架
+  // 1.41 對 fk 的 1.4 本身就有 2 mm,其餘是補間殘差。真的接錯軸會差到幾百 mm。
+  checkLinear("手臂 tcp_x → 夾爪世界 X", col(rows, (r) => r.tags.tcp_x), col(tcp, (p) => p.x), -S, "mm",
+              { minSpan: 100, maxErrAllowed: 20, minR2: 0.98 });
+  checkLinear("手臂 tcp_y → 夾爪世界 Z", col(rows, (r) => r.tags.tcp_y), col(tcp, (p) => p.z), S, "mm",
+              { minSpan: 100, maxErrAllowed: 20, minR2: 0.98 });
+  checkLinear("手臂 tcp_z → 夾爪世界 Y(高度)", col(rows, (r) => r.tags.tcp_z), col(tcp, (p) => p.y), S, "mm",
+              { minSpan: 100, maxErrAllowed: 20, minR2: 0.98 });
+
+  // 方位角不變量:與連桿長度無關,單獨驗 J1 有沒有被畫反(引擎端同樣的檢查在
+  // verify_scenario.py::check_kinematics)。世界 X 是引擎 X 的反向,故取負號。
+  let worst = 0;
+  rows.forEach((r, i) => {
+    const shown = (Math.atan2(tcp[i].z, -tcp[i].x) * 180) / Math.PI;
+    const d = Math.abs(((shown - r.tags.joint_angle_1) % 360 + 540) % 360 - 180);
+    if (d > worst) worst = d;
+  });
+  check("手臂 畫面夾爪方位角 = joint_angle_1(基座軸沒畫反)", worst < 3.0,
+    `最大偏差 ${worst.toFixed(2)}°`);
+}
+
+// ── 14. 柱燈語彙:state → 哪一顆燈亮(契約 §2)────────────
+// 這條先前完全靠人眼。柱燈是學生在產線俯瞰時判讀狀態的第一線索,判錯就全錯。
+// 燈是會閃的,所以每種狀態都錄一段視窗取「峰值亮度」—— 單點取樣會剛好落在暗相。
+console.log("\n[14] 柱燈語彙 —— state / run_enable → 三色燈(契約 §2)");
+{
+  await page.goto(`${BASE}?device=cnc_machining_center&capture=slow`, { waitUntil: "load" });
+  await page.waitForFunction(() => window.__ready === true, { timeout: 30000 });
+  await page.evaluate(() => window.__setFrame(40));
+
+  /** 錄 1.6 s(涵蓋快閃 9 rad/s 與慢閃 2.2 rad/s 各一個完整週期)取三顆燈的峰值。 */
+  const peaks = async () => {
+    await page.waitForTimeout(400);
+    const [r, a, g] = await Promise.all([
+      recordProbe("beacon_red", "emissive", 1600),
+      recordProbe("beacon_amber", "emissive", 1600),
+      recordProbe("beacon_green", "emissive", 1600),
+    ]);
+    return { red: r.max, amber: a.max, green: g.max };
+  };
+  const fmt = (p) => `紅 ${p.red.toFixed(2)} / 黃 ${p.amber.toFixed(2)} / 綠 ${p.green.toFixed(2)}`;
+  const ON = 0.5;   // 上面每顆燈熄滅時是 0.04 × 2.0,亮起時 ≥1.6 —— 0.5 分得很開
+
+  const run = await peaks();
+  check("running → 只有綠燈亮", run.green > ON && run.red < ON && run.amber < ON, fmt(run));
+
+  await page.evaluate(() => window.__forceState("fault"));
+  const flt = await peaks();
+  // 黃燈必須熄:故障必然伴隨 severity 拉滿,若不特別關掉,紅燈閃到暗相時
+  // 整支柱燈讀起來就跟「警告」一樣。
+  check("fault → 紅燈亮且黃燈熄(故障不可讀成警告)",
+    flt.red > ON && flt.amber < ON && flt.green < ON, fmt(flt));
+
+  await page.evaluate(() => window.__forceState(null));
+  await page.evaluate(() => window.__forceCoil({ run_enable: false }));
+  const stp = await peaks();
+  check("run_enable=0(教師停機)→ 黃燈亮、綠燈熄",
+    stp.amber > ON && stp.green < ON, fmt(stp));
+
+  // 閃爍的暗相仍要看得出顏色 —— 否則截到暗相那一瞬間柱燈是全黑的
+  await page.evaluate(() => window.__forceCoil(null));
+  await page.evaluate(() => window.__forceState("fault"));
+  await page.waitForTimeout(400);
+  const dim = await recordProbe("beacon_red", "emissive", 1600);
+  check("fault 紅燈閃爍的暗相仍可辨識(不會整支變黑)", dim.min > 0.5 && dim.max > dim.min * 1.5,
+    `暗相 ${dim.min.toFixed(2)} / 亮相 ${dim.max.toFixed(2)}(暗相須 >0.5 且兩者要有明顯差,才看得出在閃)`);
+  await page.evaluate(() => window.__forceState(null));
 }
 
 console.log(`\npage errors: ${pageErrors.length ? [...new Set(pageErrors)].join(" | ") : "none"}`);

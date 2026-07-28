@@ -226,7 +226,37 @@ web/src/world/
 
 ---
 
-## 6. 驗收清單
+## 6. 自動驗收
+
+契約不是寫給人看爽的 —— [tests/animation](../tests/animation/README.md) 有一套端到端測試,
+把 `engine.World.step()` 錄下來的**真實 telemetry** 一格一格餵進瀏覽器裡真正的 3D 元件,
+再讀出 three.js 場景中機構的**實際世界座標**回來,與引擎的 tag 做線性回歸與還原誤差比對。
+
+```bash
+python3 tests/animation/capture_frames.py web/preview
+cd web && npx vite &
+node tests/animation/verify_animation.mjs        # 失敗回傳 exit 1
+```
+
+最近一次結果:**20 項全數通過**。關鍵數字:
+
+| 綁定 | 還原誤差 | 相關性 |
+|------|----------|--------|
+| CNC `pos_x` → 刀尖世界 X | max 1.50 / rms 0.62 mm(行程 ±220 mm) | R² 0.99999 |
+| CNC `pos_y` → 刀尖世界 Z | max 5.00 / rms 1.30 mm | R² 0.99922 |
+| CNC `pos_z` → 刀尖世界 Y | rms 3.57 mm;**抬刀 / 下刀判定 27/27 幀與 `pos_z` 正負號一致** | R² 0.98413 |
+| 手臂 `joint_angle_1` → J1 世界 yaw | **最大偏差 0.00°**(90.5° 掃程) | — |
+| 手臂 `joint_angle_2` → TCP 高度 | 單調下降 | R² 0.9995 |
+| AGV `pos_x` / `pos_y` → 車體世界座標 | **max 0.00 m** | R² 1.00000 |
+| AGV `heading` → 車頭方位角 | **最大偏差 0.01°** | — |
+| 輸送帶 `belt_speed` → 前進速率 | ×1 量到 0.9976(契約 0.9976)、×120 量到 3.0000(契約 3.0000) | — |
+| 沖壓機 `ram_position` → 滑塊行程 | 2.999 / 3.0 單位,且畫面標示「動畫慢放 ×3.2」 | — |
+| `run_enable=0` → 刀尖靜止 | **位移 0.00000**(停機前 1.199) | — |
+
+**改動畫之後請重跑這套測試**;它同時是「3D 層不得依賴 CDN」的回歸防線
+(`node preview/shot3d.mjs` 會攔到)。
+
+## 7. 人工驗收清單
 
 改完動畫後逐項對:
 

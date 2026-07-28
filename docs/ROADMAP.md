@@ -32,6 +32,8 @@
 
 | **3D 設備動畫精準化** | 建立**動畫綁定契約**([docs/animation_binding.md](animation_binding.md)):每個會動的部位都必須對應一支具體 tag / setpoint / coil,前端不得重算引擎已算過的物理,做了時間換算就必須在畫面標示倍率。依此重寫全部機種 3D:① 修好 4 支**抓不到的 tag**(空壓機 `tank_pressure`→`outlet_pressure`、風機 `yaw_angle`→`pitch_angle`、電表 `voltage`/`current`→三相 `*_l1/l2/l3`、CNC `machining_pattern` 改讀 setpoint);② CNC 改吃引擎的 `pos_x/y/z` + 真 `cycle_time`(含相位鎖定),手臂改吃完整六軸 `joint_angle_1..6`(取放站由正運動學定位),沖壓改吃 `ram_position`;③ 新增 **`deviceMotion.ts` 資料橋**(狀態正規化 / 退化度 / delta-based 補間 / L3 時間換算)與 **`MachineFx`** 共用視覺語彙(柱燈 / 故障冒煙 / 依 `vibration_rms` 抖動 / 過熱輝光);④ 補上**製程腔體**與**熱處理爐** 3D(11 種 template 全覆蓋);⑤ 燈光 / 環境 / 陰影上移到 Canvas 層級(WebGL context lost 根因);⑥ **全面移除 CDN 相依**(drei `<Environment preset>` 抓 .hdr、`<Text>` 抓字型資料,LAN 無外網會整個 Canvas 崩掉)—— 改本地程序化環境貼圖 + CanvasTexture 文字牌;⑦ dev 預覽頁 `web/preview/models3d.html` + `shot3d.mjs` 自動截圖與 console 錯誤檢查 |
 
+| **動畫正確性自動驗證** | [tests/animation](../tests/animation/README.md):把 `engine.World.step()` 錄下的**真實 telemetry** 逐幀餵進瀏覽器裡真正的 3D 元件,讀回 three.js 場景中機構的**實際世界座標**,與引擎 tag 做線性回歸 + 還原誤差比對(能一次抓出接錯 tag / 軸向對調 / 換算比例錯 / 符號反了)。**20 項全數通過**:CNC 刀尖 `pos_x` 誤差 rms 0.62 mm(行程 ±220 mm,R² 0.99999)、抬刀 / 下刀判定 27/27 幀與 `pos_z` 正負號一致;手臂 `joint_angle_1` → J1 世界 yaw 最大偏差 0.00°;AGV 位置 max 誤差 0.00 m(R² 1.00000)、朝向 0.01°;輸送帶速率與 `belt_speed × 倍率` 完全一致;`run_enable=0` 後刀尖位移 0.00000。**驗證過程抓到並修好兩個真缺陷**:相位鎖定漏比 z 軸(刀路自交處會鎖到相反的抬刀 / 下刀相位)、鎖定增益非 delta-based(低 fps 機器刀尖固定落後);另修正 `visualPeriod` 原本會**加速**播放過慢循環的設計錯誤(加速會直接破壞畫面與 `pos_*` 的座標對應) |
+
 兩個教學階段皆可開課。Both teaching stages are classroom-ready.
 
 ---

@@ -24,19 +24,15 @@
 # 已知待修的問題:名稱含這些關鍵字的判定失敗會標成「已知問題」(琥珀)而不是「失敗」(紅)。
 # 這樣報告從第一天起就不會整片紅 —— 紅色留給**新出現**的問題,才不會被訓練成忽略它。
 # 修好之後把對應那筆刪掉,它就會回到一般判定。
-known_issues:
-  - match: "故障的設備已停止運轉"
-    since: "2026-07-29"
-    note: >-
-      引擎有 5 個 template(cnc / air_compressor / conveyor / energy_meter / heat_treat_furnace)
-      的 tag driver 沒有把 _fault_latched 納入判斷,設備進 fault 之後 spindle_speed 仍回報 8000 rpm、
-      pos_x 繼續走刀路。另外 6 個 template 有做這個把關(pre_step 裡 `op["running"] and not
-      device._fault_latched`),所以是模板之間不一致,不是設計如此。
-      學生用 Modbus 讀會看到「故障中的機台正在全速加工」—— 違反鐵則二。
-      修法明確(比照已有把關的模板),但會動到 OEE 可用率與已產出資料集的語意,需要先確認。
-  - match: "故障的設備不再累積產出"
-    since: "2026-07-29"
-    note: 同上 —— 故障後 part_count 仍持續增加。
+# 已知待修的問題:名稱含這些關鍵字的判定失敗會標成「已知問題」(琥珀)而不是「失敗」(紅)。
+# 這樣報告從第一天起就不會整片紅 —— 紅色留給**新出現**的問題,才不會被訓練成忽略它。
+# 修好之後把對應那筆刪掉,它就會回到一般判定。
+#
+# 目前沒有已知待修項目。
+# (歷史:2026-07-29 登記過「故障的設備仍回報運轉」—— 11 個 template 只有 6 個在 pre_step
+#  把 _fault_latched 納入判斷,其餘 5 個故障後仍回報 spindle_speed=8000 並繼續計件。
+#  已改成在 engine/device.py::step 統一擋下,不再需要各模板自己記得,故移除登記。)
+known_issues: []
 
 scenarios:
   - key: baseline_day

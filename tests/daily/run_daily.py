@@ -116,6 +116,7 @@ def run(scn: dict, park: dict) -> dict:
 
     frames, first, last = [], None, None
     seen_states: dict[str, set[str]] = {}
+    state_series: dict[str, list[str]] = {}   # 逐幀 state:用來定位故障發生在第幾幀
     bad_num: list[str] = []
     series: dict[str, dict[str, list[float]]] = {}   # tag → device → 值序列
 
@@ -128,6 +129,7 @@ def run(scn: dict, park: dict) -> dict:
         last = {k: dict(v["tags"]) for k, v in devs.items()}
         for did, s in devs.items():
             seen_states.setdefault(did, set()).add(s["state"])
+            state_series.setdefault(did, []).append(s["state"])
             for k, v in s["tags"].items():
                 if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
                     bad_num.append(f"{did}.{k}")
@@ -142,7 +144,8 @@ def run(scn: dict, park: dict) -> dict:
     FRAMES_OUT.write_text(json.dumps({"time_multiplier": mult, "frames": frames}), encoding="utf-8")
 
     return {"world": world, "frames": frames, "first": first, "last": last,
-            "seen_states": seen_states, "bad_num": bad_num, "series": series,
+            "seen_states": seen_states, "state_series": state_series,
+            "bad_num": bad_num, "series": series,
             "applied": applied, "stopped": stopped, "rep": rep}
 
 
@@ -256,15 +259,46 @@ def evaluate(scn: dict, r: dict) -> list[dict]:
     COUNTERS = ["part_count", "shot_count", "stroke_count", "wafer_count", "cycle_count"]
     still_running, still_counting = [], []
     for did in faulted:
-        # 只看「進入 fault 之後」的後半段,避開故障發生當下的過渡
+        # 以「故障發生的那一幀」為基準,而不是拿固定的後半段 —— 漸進退化的設備可能是
+        # 觀測窗中途才壞的,拿中點來比會把故障**前**的正常產出誤判成「故障後還在計件」。
+        st = r["state_series"].get(did, [])
+        try:
+            onset = st.index("fault")
+        except ValueError:
+            continue
+        after = onset + 2                    # 跳過故障當下的過渡幀
+        if after >= len(st) - 3:
+            continue                         # 快結束才壞,樣本不夠判定
+
         for tag in RATE_TAGS:
             vals = r["series"].get(tag, {}).get(did)
-            if vals and abs(sum(vals[-20:]) / 20) > 1e-3:
-                still_running.append(f"{did}.{tag}={sum(vals[-20:]) / 20:.1f}")
+            if not vals:
+                continue
+            post = vals[after:]
+            now = sum(abs(v) for v in post) / len(post)
+            # 「運轉水準」的基準:先用這台自己故障前的值;sudden 故障是第 0 幀就閂鎖、
+            # 沒有故障前樣本,退而用**同機種still健康的同伴**當基準 —— 這比拍一個絕對
+            # 門檻可靠,不同機種的量級差好幾個數量級(spm 幾十 vs rpm 幾千)。
+            pre = vals[:onset]
+            if pre:
+                level = sum(abs(v) for v in pre) / len(pre)
+            else:
+                peers = [sum(abs(v) for v in pv) / len(pv)
+                         for pd, pv in r["series"].get(tag, {}).items()
+                         if pd != did and pd not in faulted
+                         and devs[pd].template == devs[did].template and pv]
+                level = max(peers) if peers else 0.0
+            # 門檻 = 運轉水準的 2%。停機時 driver 仍帶高斯雜訊(沖壓機 stroke_rate 的
+            # 雜訊底約 0.2 spm / 正常 60 spm),用絕對門檻會把雜訊誤判成「還在運轉」。
+            if level > 0 and now > 0.02 * level:
+                still_running.append(f"{did}.{tag}={now:.2f}(同機種運轉水準 {level:.1f})")
+            elif level == 0 and now > 0.5:
+                still_running.append(f"{did}.{tag}={now:.2f}(無基準可比,用絕對門檻 0.5)")
+
         for tag in COUNTERS:
             vals = r["series"].get(tag, {}).get(did)
-            if vals and vals[-1] > vals[len(vals) // 2] + 1e-6:
-                still_counting.append(f"{did}.{tag}")
+            if vals and vals[-1] > vals[after] + 1e-6:
+                still_counting.append(f"{did}.{tag}(+{vals[-1] - vals[after]:.0f})")
     if faulted:
         add("故障的設備已停止運轉(速率類 tag 歸零)", not still_running,
             f"{len(faulted)} 台故障,速率類 tag 全部歸零" if not still_running

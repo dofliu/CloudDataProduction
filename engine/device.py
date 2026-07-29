@@ -340,8 +340,21 @@ class Device:
         # 排程要它產出 = 班內 × 有工單 × 非稼動空檔(與 run_enable 無關)。OEE 可用率的分母基準:
         # 「排程內卻沒產出」(故障 / 教師鎖停中的故障)才算可用率損失。
         scheduled = bool(op["running"])
+        idle_op = {"running": False, "load": 0.0, "load_nom": op["load_nom"], "speed_factor": 0.0}
         if not self.coil("run_enable"):     # 教師線圈停機:覆寫運轉點為閒置(stress 歸 0)
-            op = {"running": False, "load": 0.0, "load_nom": op["load_nom"], "speed_factor": 0.0}
+            op = idle_op
+        # 故障閂鎖 → 機構停止。壞掉的機器不會繼續加工:tag driver 一律讀 op["running"],
+        # 所以這一行就讓「故障中卻回報 spindle_speed=8000 / 繼續計件」不可能發生。
+        #
+        # 先前這件事是**各模板自己記得要做**(pre_step 裡寫 `op["running"] and not
+        # device._fault_latched`),11 個模板只有 6 個有寫 —— 沒寫的那 5 個就會發出
+        # 「state=fault 但仍全速運轉」這種互相矛盾的資料(違反鐵則二:訊號必須誠實且自洽)。
+        # 改成在這裡統一擋掉,新增模板不必再記得這件事。
+        #
+        # 位置刻意放在 `scheduled` 之後:OEE 的可用率仍把故障算成「排程內故障停線」
+        # (_accumulate_oee 是先看 _fault_latched 才看 op["running"]),帳不受影響。
+        if self._fault_latched:
+            op = idle_op
         # 有狀態物理先跑一次(tag drivers 之後才讀其結果)
         if self.pre_step_fn is not None:
             self.pre_step_fn(dt_sim, op)
@@ -349,6 +362,13 @@ class Device:
 
         for comp in self.components.values():
             comp.step(dt_sim, stress)
+
+        # 元件是在上面這一圈才失效的,而 driver 還沒跑 —— 若不在這裡再擋一次,「故障當拍」
+        # 那一筆 snapshot 會是 state=fault 但 spindle_speed=8000(同一筆資料自相矛盾)。
+        # 學生剛好抓到那一拍就會看到假資料,所以要讓每一筆都自洽,不是只有下一拍才對。
+        # (_update_state / _accumulate_oee 都在 driver 之後,OEE 仍把這一拍算成故障停線。)
+        if any(c.failed and c.causes_device_fault for c in self.components.values()):
+            op = idle_op
 
         for tag in self.tags:
             if tag.driver is not None:

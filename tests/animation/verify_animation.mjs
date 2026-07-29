@@ -407,12 +407,22 @@ console.log("\n[10] 射出成型機 —— 可動模板開模行程(L3 自由播
   await page.waitForFunction(() => window.__ready === true, { timeout: 30000 });
   await page.evaluate(() => window.__setFrame(10));
   await page.waitForTimeout(700);
-  // 視覺週期被夾在 MIN_PERIOD_S = 3 s,錄 12 s 涵蓋三個以上完整開合模循環 ——
+  // 視覺週期被夾在 MIN_PERIOD_S = 3 s,錄 18 s 涵蓋五個以上完整開合模循環 ——
   // 循環數越多,取樣落在行程頂點附近的機會越高(理由同 [11] 節)
-  const rec = await recordProbe("platen", "x", 12000);
-  check("射出機 可動模板走完 0~2.0 單位的開模行程", rec.span > 1.9 && rec.span <= 2.05,
-    `畫面行程 ${rec.span.toFixed(3)}/2.0 單位`
-    + `(頁內取樣 ${rec.n} 幀 ≈ ${(rec.n / 12).toFixed(1)} fps)`);
+  const SEC = 18;
+  const rec = await recordProbe("platen", "x", SEC * 1000);
+  const fps = rec.n / SEC;
+  // 判「走完至少 90% 的行程」而不是「≥1.9/2.0(95%)」:量到的行程是真實值的**下界**,
+  // 模板大部分時間停在合模位、只在開模那一小段快速移動,取樣落在行程頂點的機會有限,
+  // 而幀率越低漏得越多(本機軟體渲染 ~8.6 fps 量到 1.965;CI runner 只有 6.8 fps,
+  // 量到 1.889 就卡在 1.9 的門檻上 —— 那是取樣不足,不是動畫沒走到)。
+  // 90% 仍分得出真正的壞掉:模板不動是 0%、只開一半是 50%。
+  const MIN_FRAC = 0.90;
+  check("射出機 可動模板走完 0~2.0 單位的開模行程",
+    rec.span >= 2.0 * MIN_FRAC && rec.span <= 2.05,
+    `畫面行程 ${rec.span.toFixed(3)}/2.0 單位 = ${(rec.span / 2 * 100).toFixed(1)}%`
+    + `(門檻 ${MIN_FRAC * 100}%)· 合模端 ${rec.min.toFixed(2)} / 開模端 ${rec.max.toFixed(2)}`
+    + ` · 頁內取樣 ${rec.n} 幀 ≈ ${fps.toFixed(1)} fps`);
 }
 
 // ── 11. 製程腔體:晶圓進出片行程 ────────────────────────

@@ -30,3 +30,7 @@ submissions/
 .DS_Store
 Thumbs.db
 docs/course
+
+# 每日模擬測試的產出(報告 / 截圖 / 當天的 telemetry)—— 每天都會重產,不進版控
+artifacts/
+web/preview/frames_daily.json

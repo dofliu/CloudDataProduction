@@ -1,0 +1,213 @@
+# 每日模擬測試的情境輪替表。
+#
+# 每天跑一個,依日期輪替(見 run_daily.py::pick_scenario)—— 同一天重跑會得到同一個情境,
+# 可重現;不同天會走到不同情境,一輪下來把「學生在課堂上會遇到的操作狀況」掃過一遍。
+#
+# 每個情境要回答的問題是:**在這個狀況下,平台的資料與畫面還正確嗎?**
+# 所以 expect 區塊寫的是「這個情境下必須成立的事」,跑完會逐條判定 PASS / FAIL。
+#
+# 欄位:
+#   key / title / why   識別、標題、這個情境在教學上對應什麼
+#   warmup_h            暖機到模擬日的第幾小時(two_shift 設備 06:00–22:00 才運轉)
+#   observe_min         觀測窗長度(模擬分鐘)
+#   inject              注入故障:每個 template 挑 n 台
+#     template / component / fault_type(gradual|sudden|cascading)/ severity / count
+#     sensor 型:component 換成 tag,fault_type 用 sensor_drift|sensor_stuck|sensor_bias
+#   stop                把 n 台的 run_enable 關掉(教師停機)
+#   expect              判定條件(見 run_daily.py::evaluate)
+#     any_fault         是否應該有設備進入 fault
+#     all_running       是否所有 producer 都該在運轉
+#     stopped_still     被停機的設備其動作類 tag 是否應該不再變動
+#     reading_decoupled 感測器故障的 tag 讀值是否應與同機的相關訊號脫鉤
+#   shoot               要截圖的 template(挑最能代表這個情境的機種)
+
+# 已知待修的問題:名稱含這些關鍵字的判定失敗會標成「已知問題」(琥珀)而不是「失敗」(紅)。
+# 這樣報告從第一天起就不會整片紅 —— 紅色留給**新出現**的問題,才不會被訓練成忽略它。
+# 修好之後把對應那筆刪掉,它就會回到一般判定。
+# 已知待修的問題:名稱含這些關鍵字的判定失敗會標成「已知問題」(琥珀)而不是「失敗」(紅)。
+# 這樣報告從第一天起就不會整片紅 —— 紅色留給**新出現**的問題,才不會被訓練成忽略它。
+# 修好之後把對應那筆刪掉,它就會回到一般判定。
+#
+# 目前沒有已知待修項目。
+# (歷史:2026-07-29 登記過「故障的設備仍回報運轉」—— 11 個 template 只有 6 個在 pre_step
+#  把 _fault_latched 納入判斷,其餘 5 個故障後仍回報 spindle_speed=8000 並繼續計件。
+#  已改成在 engine/device.py::step 統一擋下,不再需要各模板自己記得,故移除登記。)
+known_issues: []
+
+scenarios:
+  - key: baseline_day
+    title: 正常運轉基線(白班)
+    why: 學生 W4–W5 要在這個狀態下做敘述統計,基線不乾淨後面全錯
+    warmup_h: 10.0
+    observe_min: 40
+    inject: []
+    expect:
+      any_fault: false
+      all_running: true
+    shoot: [cnc_machining_center, robot_arm_6axis, conveyor]
+
+  - key: night_shift
+    title: 夜間非上班時段
+    why: two_shift 設備此時應「正確地停著」,而不是資料凍住或算成故障
+    warmup_h: 2.0
+    observe_min: 40
+    inject: []
+    expect:
+      any_fault: false
+      all_running: false
+    shoot: [stamping_press, cnc_machining_center]
+
+  - key: sudden_equipment_fault
+    title: 突發設備故障(主軸軸承)
+    why: W6「明顯異常」;柱燈要轉紅、機構要真的停、冒煙,而不只是換顏色
+    warmup_h: 10.0
+    observe_min: 30
+    inject:
+      - template: cnc_machining_center
+        component: spindle_bearing
+        fault_type: sudden
+        count: 2
+    expect:
+      any_fault: true
+    shoot: [cnc_machining_center]
+
+  - key: gradual_degradation
+    title: 漸進退化(減速機 / 液壓泵)
+    why: 預測性維護的主線 —— 振動與電流要同步上升,學生才有東西可外推
+    warmup_h: 10.0
+    observe_min: 120
+    inject:
+      - template: robot_arm_6axis
+        component: reducer_wear
+        fault_type: gradual
+        severity: 1.0
+        count: 3
+      - template: injection_molding
+        component: hydraulic_pump
+        fault_type: gradual
+        severity: 1.0
+        count: 2
+    expect:
+      trend_up: [vibration_rms]
+    shoot: [robot_arm_6axis, injection_molding]
+
+  - key: sensor_drift
+    title: 感測器漂移(讀值脫鉤)
+    why: W8 的核心 —— 學生要分辨「設備真的壞了」還是「感測器在說謊」
+    warmup_h: 10.0
+    observe_min: 60
+    inject:
+      - template: cnc_machining_center
+        tag: spindle_temp
+        fault_type: sensor_drift
+        severity: 0.8
+        count: 3
+      - template: air_compressor
+        tag: outlet_pressure
+        fault_type: sensor_stuck
+        severity: 1.0
+        count: 2
+    expect:
+      any_fault: false          # 感測器故障不該讓設備進 fault
+      sensor_marked: true       # 但引擎要記錄它是 sensor 型
+    shoot: [cnc_machining_center, air_compressor]
+
+  - key: teacher_stop
+    title: 教師停機(run_enable=0)
+    why: 畫面要看得出是「被停機」而非「剛好待機」,機構必須真的停住
+    warmup_h: 10.0
+    observe_min: 30
+    stop: 6
+    expect:
+      stopped_still: true
+    shoot: [stamping_press, conveyor, cnc_machining_center]
+
+  - key: disaster_day
+    title: 災難日(多機同時異常)
+    why: 期末情境;同時多台故障時,園區燈號彙整與 OEE 還算不算得對
+    warmup_h: 10.0
+    observe_min: 40
+    inject:
+      - template: cnc_machining_center
+        component: spindle_bearing
+        fault_type: sudden
+        count: 3
+      - template: stamping_press
+        component: clutch_brake_wear
+        fault_type: sudden
+        count: 2
+      - template: air_compressor
+        component: motor_bearing
+        fault_type: cascading
+        severity: 0.9
+        count: 2
+    expect:
+      any_fault: true
+    shoot: [cnc_machining_center, stamping_press, air_compressor]
+
+  - key: quality_subtle
+    title: 良率型 subtle fault(不會 fault 但東西在變壞)
+    why: 最難教的一類 —— 設備照跑、燈是綠的,只有良率指標在漂
+    warmup_h: 10.0
+    observe_min: 180
+    inject:
+      - template: semi_process_chamber
+        component: process_drift
+        fault_type: gradual
+        severity: 1.0
+        count: 2
+      - template: stamping_press
+        component: die_wear
+        fault_type: gradual
+        severity: 1.0
+        count: 2
+    expect:
+      any_fault: false          # 這類元件 causes_device_fault=false
+      trend_up: [particle_count, burr_rate]
+    shoot: [semi_process_chamber, stamping_press]
+
+  - key: utility_stress
+    title: 廠務異常(空壓濾網阻塞 / 電容老化)
+    why: 廠務不在主線上但會拖累全廠;學生要學會看「兩個訊號脫鉤」
+    # 濾網阻塞是慢速退化,120 分鐘看不出來 —— 拉長到 600
+    warmup_h: 10.0
+    observe_min: 600
+    inject:
+      - template: air_compressor
+        component: filter_clog
+        fault_type: gradual
+        severity: 1.0
+        count: 3
+      - template: energy_meter
+        component: capacitor_aging
+        fault_type: gradual
+        severity: 1.0
+        count: 3
+    expect:
+      # 濾網阻塞的診斷特徵不是「電流變大」而是「電流變大**但流量變小**」——
+      # 只驗電流會漏掉 W8 真正要教的那件事
+      decouple:
+        - up: motor_current
+          down: flow
+      trend_down: [power_factor]
+    shoot: [air_compressor, energy_meter]
+
+  - key: run_to_failure
+    title: 長時間 run-to-failure
+    why: 階段二資料集的來源 —— 要真的跑到壞,RUL 標籤才有東西可學
+    warmup_h: 10.0
+    observe_min: 600
+    inject:
+      - template: cnc_machining_center
+        component: spindle_bearing
+        fault_type: gradual
+        severity: 1.0
+        count: 4
+      - template: heat_treat_furnace
+        component: heating_element_aging
+        fault_type: gradual
+        severity: 1.0
+        count: 2
+    expect:
+      any_fault: true
+    shoot: [cnc_machining_center, heat_treat_furnace]

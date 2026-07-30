@@ -6,7 +6,8 @@
  * (改 3D 後只剩腔體 / 熱處理爐在用,現在兩者都有 3D 模型了)。
  */
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { DeviceSnapshot, getTeacherToken, setCoil, resetDevice } from "../api";
+import { CatalogSetpoint, DeviceSnapshot, getTeacherToken, setCoil, resetDevice } from "../api";
+import { SetpointList } from "../SetpointControls";
 import { DeviceMotion, MachineProps, buildMotion } from "./deviceMotion";
 import CncMachine3D from "./CncMachine3D";
 import RobotArm3D from "./RobotArm3D";
@@ -77,8 +78,10 @@ function pickTag(tags: Record<string, number>, cands: string[]): [string, number
   return null;
 }
 
-export default function DeviceDetailModal({ deviceId, snapshot, multiplier = 1, onClose }:
-  { deviceId: string; snapshot: DeviceSnapshot; multiplier?: number; onClose: () => void }) {
+export default function DeviceDetailModal({ deviceId, snapshot, multiplier = 1, setpointDefs = [], onClose }:
+  { deviceId: string; snapshot: DeviceSnapshot; multiplier?: number;
+    /** 目錄的設定點規格(min/max/register);有給就渲染可寫控件,沒給退回唯讀清單 */
+    setpointDefs?: CatalogSetpoint[]; onClose: () => void }) {
   const kind = snapshot.template;
   const histRef = useRef<number[]>([]);
   const [, forceTick] = useState(0);
@@ -185,7 +188,16 @@ export default function DeviceDetailModal({ deviceId, snapshot, multiplier = 1, 
                 </div>
               ))}
             </div>
-            {Object.keys(snapshot.setpoints || {}).length > 0 && (
+            {setpointDefs.length > 0 ? (
+              <>
+                <SecLabel>設定點 · SETPOINT FC06 ★學生可寫</SecLabel>
+                <div style={{ marginBottom: 18 }}>
+                  <SetpointList deviceId={deviceId} setpoints={setpointDefs}
+                                values={snapshot.setpoints ?? {}} onMsg={setResetMsg} />
+                  {resetMsg && !isTeacher && <div style={{ color: "var(--accent)", fontSize: 12, marginTop: 6 }}>{resetMsg}</div>}
+                </div>
+              </>
+            ) : Object.keys(snapshot.setpoints || {}).length > 0 && (
               <>
                 <SecLabel>設定點 · SETPOINT FC03/FC06</SecLabel>
                 <div className="mono" style={{ fontSize: 12.5, color: "var(--text-2)", marginBottom: 18 }}>

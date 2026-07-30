@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Catalog, CatalogSetpoint, DeviceSnapshot, EventMsg, Park, TelemetryMsg, CourseStatus,
-  getCatalog, getPark, getCourseStatus, subscribe, STATUS_COLOR_CSS, getTeacherToken, resetDevice, setCoil, setSetpoint,
+  getCatalog, getPark, getCourseStatus, subscribe, STATUS_COLOR_CSS, getTeacherToken, resetDevice, setCoil, setSetpoint, setEngraveText,
 } from "./api";
+import { ENGRAVE_MAX_CHARS, engraveText } from "./world/deviceMotion";
 import WorldView from "./world/WorldView";
 import CatalogView from "./catalog/CatalogView";
 import TeacherView from "./teacher/TeacherView";
@@ -306,7 +307,12 @@ function DevicePanel({ sel, setpoints, resetMsg, setResetMsg }: {
         <>
           <div className="sec-label">設定點 · SETPOINT FC06 ★學生可寫</div>
           <div className="card" style={{ padding: "10px 12px", background: "var(--panel-3)" }}>
-            {setpoints.map((sp) => (
+            {/* CNC 刻字:8 個 engrave_char_* 收成一個文字輸入(逐格 FC06 仍可用,見目錄) */}
+            {setpoints.some((sp) => sp.name === "engrave_char_1") && (
+              <EngraveTextControl deviceId={sel.id}
+                                  current={engraveText(sel.setpoints ?? {})} onMsg={setResetMsg} />
+            )}
+            {setpoints.filter((sp) => !sp.name.startsWith("engrave_char_")).map((sp) => (
               <SetpointControl key={sp.name} deviceId={sel.id} sp={sp}
                                value={sel.setpoints?.[sp.name] ?? sp.default} onMsg={setResetMsg} />
             ))}
@@ -314,6 +320,35 @@ function DevicePanel({ sel, setpoints, resetMsg, setResetMsg }: {
         </>
       )}
     </>
+  );
+}
+
+// CNC 刻字文字輸入:呼叫 /engrave_text 一次寫進 engrave_char_1..8(pattern 0 生效)。
+function EngraveTextControl({ deviceId, current, onMsg }: {
+  deviceId: string; current: string; onMsg: (m: string) => void;
+}) {
+  const [v, setV] = useState(current);
+  const write = async () => {
+    const text = v.toUpperCase().trim();
+    if (!/^[A-Z0-9 -]*$/.test(text)) { onMsg("僅支援 A–Z、0–9、空白、-"); return; }
+    if (text.length > ENGRAVE_MAX_CHARS) { onMsg(`最多 ${ENGRAVE_MAX_CHARS} 個字`); return; }
+    try {
+      const r = await setEngraveText(deviceId, text);
+      onMsg(`已寫刻字文字「${r.text || "(空白)"}」(machining_pattern=0 時生效)`);
+    } catch (e: any) { onMsg(`寫入失敗:${e.message}`); }
+  };
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, margin: "2px 0", flexWrap: "wrap" }}>
+      <span style={{ fontSize: 12, color: "var(--text-2)", minWidth: 116, fontFamily: "var(--font-mono)" }}>engrave_text</span>
+      <span className="muted mono" style={{ fontSize: 12 }}>{current || "(空白)"}</span>
+      <input className="inp mono" value={v} maxLength={ENGRAVE_MAX_CHARS} placeholder="NCUT"
+             onChange={(e) => setV(e.target.value.toUpperCase())} onKeyDown={(e) => e.key === "Enter" && write()}
+             style={{ width: 96, padding: "4px 7px" }} />
+      <button className="btn primary" style={{ padding: "4px 11px" }} onClick={write}>寫入</button>
+      <span className="muted" style={{ fontSize: 10.5, width: "100%" }}>
+        pattern 0 刻這串字(A–Z / 0–9 / - / 空白,≤{ENGRAVE_MAX_CHARS} 字)· 等同逐格 FC06 寫 reg 102..109 的 ASCII 碼
+      </span>
+    </div>
   );
 }
 

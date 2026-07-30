@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scenarios" / "scripts"))
 OUT = ROOT / "scenarios" / "default_park.yaml"
 
-from gen_class_park import ARCHETYPES, ZH, ALL_TEMPLATES  # noqa: E402
+from gen_class_park import ARCHETYPES, ZH, ALL_TEMPLATES, derive_line, line_note  # noqa: E402
 
 # 系上老師與各自的示範廠數(沿用原檔,不更動姓名與 id)
 TEACHERS = [
@@ -37,8 +37,8 @@ THEME_ORDER = [
     "heat_treat", "motion_robotics", "logistics", "precision_parts", "facility", "optics",
 ]
 
-INTRO = ("{teacher}指導的**合成**示範工廠;{label} · {product}。"
-         "設備:{devices}。所有數據皆為模擬產生,非真實場域量測。")
+INTRO = ("{teacher}指導的**合成**示範工廠;{label} · 主力產品:{product}。"
+         "廠內設備:{devices}。{line_note}所有數據皆為模擬產生,非真實場域量測。")
 
 
 def build() -> list[dict]:
@@ -55,7 +55,8 @@ def build() -> list[dict]:
             for tmpl in recipe:
                 dev_no += 1
                 devices.append({"id": f"{tid}-d{dev_no:03d}", "template": tmpl})
-            companies.append({
+            line = derive_line(devices)
+            company = {
                 "id": f"{tid}-f{f}",
                 # 廠名要說得出這條線在做什麼(而不是「第 N 工廠」),老師掛在後面當負責人。
                 # 每位老師一個主題、廠內產品各不相同,所以廠名天然唯一。
@@ -63,9 +64,13 @@ def build() -> list[dict]:
                 "industry": theme,
                 "product": product,
                 "intro": INTRO.format(teacher=teacher, label=arch["label"], product=product,
-                                      devices=" + ".join(ZH[t] for t in recipe)),
+                                      devices=" + ".join(ZH[t] for t in recipe),
+                                      line_note=line_note(line, devices)),
                 "devices": devices,
-            })
+            }
+            if line:
+                company["line"] = line
+            companies.append(company)
     return companies
 
 
@@ -109,6 +114,8 @@ def to_yaml(companies: list[dict]) -> str:
         lines.append(f"      industry: {c['industry']}")
         lines.append(f'      product: "{c["product"]}"')
         lines.append(f'      intro: "{c["intro"]}"')
+        if c.get("line"):
+            lines.append(f"      line: [{', '.join(c['line'])}]   # 產線物料流(engine/line.py)")
         lines.append("      devices:")
         for d in c["devices"]:
             lines.append(f"        - {{id: {d['id']}, template: {d['template']}}}")

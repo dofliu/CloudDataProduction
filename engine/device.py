@@ -208,6 +208,13 @@ class Device:
         self.mes_enabled: bool = False
         self.has_work: bool = True          # 此刻手上有沒有工單(MES 每 tick 指派)
         self.mes_order: Optional[dict] = None   # 當前工單精簡視圖(供 snapshot / 前端看板)
+        # 產線物料流(engine/line.py):被 line: 宣告管理的設備才會動這些旗標。
+        # 無料 / 滿料的待機屬 no-demand(不罰可用率),與 MES 無單同一種計帳。
+        self.line_enabled: bool = False
+        self.line_role: Optional[str] = None    # source / mid / sink / handler / terminal
+        self.line_has_input: bool = True        # 非首站 producer:入料緩衝有料才開工
+        self.line_output_blocked: bool = False  # 出料緩衝滿:停機等下游搬走
+        self.line_carry: bool = False           # handler(手臂):被授予搬運中
         self._last_op: dict = {}            # 上一 tick 實際運轉點(MES 據此累積產量)
         # 故障注入(老師面):感測器故障層 + 待生效注入佇列 + 故障起始時刻(ground-truth)
         self.sensor_faults: Dict[str, SensorFault] = {}
@@ -337,6 +344,12 @@ class Device:
         # MES 疊加(Phase 1):開工時段內、但手上沒工單 → 待機(不轉不磨)。班表關的時段本就已閒置。
         if self.mes_enabled and op["running"] and not self.has_work:
             op = {"running": False, "load": 0.0, "load_nom": op["load_nom"], "speed_factor": 0.0}
+        # 產線物料流疊加(engine/line.py):無料 / 滿料 → 待機(不轉不磨)。
+        # 與 MES 同樣放在 scheduled 之前:餓料 / 阻塞屬 no-demand,不罰可用率。
+        # handler(手臂)不在此擋 —— 它由 template 依 line_carry 自行決定要不要跑循環。
+        if self.line_enabled and self.line_role in ("source", "mid", "sink") and op["running"]:
+            if not self.line_has_input or self.line_output_blocked:
+                op = {"running": False, "load": 0.0, "load_nom": op["load_nom"], "speed_factor": 0.0}
         # 排程要它產出 = 班內 × 有工單 × 非稼動空檔(與 run_enable 無關)。OEE 可用率的分母基準:
         # 「排程內卻沒產出」(故障 / 教師鎖停中的故障)才算可用率損失。
         scheduled = bool(op["running"])

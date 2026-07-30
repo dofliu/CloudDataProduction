@@ -139,7 +139,8 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
     phase0 = float(rng.uniform(0, 2 * math.pi))   # 個體相位差
 
     st = {"t": 0.0, "cycles": 0.0, "angles": list(_JOINT_CENTER),
-          "tcp": list(forward_kinematics(_JOINT_CENTER)), "running": False}
+          "tcp": list(forward_kinematics(_JOINT_CENTER)), "running": False,
+          "ph": 0.0, "waiting": False}   # ph / waiting:產線 handler 模式用(事件驅動取放)
 
     # keyframe 快取:取放 setpoint 沒變就不重解 IK(每 tick 都會來讀)
     kf_cache: dict = {"key": None, "frames": None}
@@ -152,29 +153,58 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
             kf_cache["frames"] = build_keyframes((key[0], key[1]), (key[2], key[3]))
         return kf_cache["frames"]
 
-    def pre_step(dt_sim, op):
-        st["running"] = op["running"] and not device._fault_latched
-        if not st["running"]:
-            return
-        st["t"] += dt_sim
-        st["cycles"] += dt_sim / CYCLE_PERIOD
-
-        ph = ((st["t"] / CYCLE_PERIOD) + (phase0 / (2 * math.pi))) % 1.0
+    def _pose_at(ph: float) -> None:
+        """把相位 ph ∈ [0,1) 對應到六個 keyframe 的插值姿態,寫進 st["angles"]/st["tcp"]。"""
         idx = int(ph * 6)
         t_interp = (ph * 6) - idx
-        t_interp = t_interp * t_interp * (3 - 2 * t_interp) # Smoothstep
-
+        t_interp = t_interp * t_interp * (3 - 2 * t_interp)  # Smoothstep
         frames = _keyframes()
         k1 = frames[idx % 6]
         k2 = frames[(idx + 1) % 6]
         for i in range(6):
             st["angles"][i] = k1[i] + (k2[i] - k1[i]) * t_interp
-
         # 末端位置由同一組角度算出來 —— 不是另外編一條擺動曲線
         st["tcp"][0], st["tcp"][1], st["tcp"][2] = forward_kinematics(st["angles"])
 
+    def pre_step(dt_sim, op):
+        st["running"] = op["running"] and not device._fault_latched
+        if not st["running"]:
+            return
+
+        # ── 產線 handler 模式(engine/line.py):事件驅動 ──
+        # 被授予搬運(line_carry)才跑一次取放循環;沒料時停在取件點上方待命
+        # (待命 = 相位 0 = keyframe「上方(pick)」)。cycle_count 因此等於實際搬運次數,
+        # 產線帳本就用它記「工件何時落到下游」。
+        if device.line_enabled and device.line_role == "handler":
+            quota = int(device.line_carry)          # 在手件數(engine/line.py 依配額授予)
+            if quota > 0:
+                st["waiting"] = False
+                st["t"] += dt_sim
+                # 大 dt(高倍速場景)一拍可跑完多個循環:預算 = 殘餘相位 + dt/週期,
+                # 完成數以在手件數為上限 —— cycle_count 恆等於實際放下的件數。
+                budget = st["ph"] + dt_sim / CYCLE_PERIOD
+                done = min(quota, int(budget))
+                st["cycles"] += done
+                st["ph"] = 0.0 if done >= quota else min(0.999, budget - done)
+                _pose_at(st["ph"])
+            else:
+                st["waiting"] = True
+                st["ph"] = 0.0
+                _pose_at(0.0)                       # 取件點上方待命
+            return
+
+        # ── 自由循環模式(非產線場景,行為與先前相同)──
+        st["waiting"] = False
+        st["t"] += dt_sim
+        st["cycles"] += dt_sim / CYCLE_PERIOD
+        ph = ((st["t"] / CYCLE_PERIOD) + (phase0 / (2 * math.pi))) % 1.0
+        _pose_at(ph)
+
     def state_fn(op, comps):
-        return "running" if st["running"] else "idle"
+        if not st["running"]:
+            return "idle"
+        # 產線待命(無料可搬)→ idle:柱燈黃、機構停 —— 學生看得出「手臂在等料」
+        return "idle" if st["waiting"] else "running"
 
     def mk_angle(i):
         # encoder_drift 注入時,第 i 軸角度讀值會被感測器層額外汙染(此處給乾淨值)
@@ -182,7 +212,7 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
 
     def mk_current(i):
         def drv(op, c, dt):
-            if not st["running"]:
+            if not st["running"] or st["waiting"]:   # 停機或產線待命:只剩保持電流
                 return 0.3 + gaussian_noise(nrng, 0.03)
             h_red = health_of(comp_map, "reducer_wear")
             h_brg = health_of(comp_map, "joint_bearing")
@@ -194,13 +224,13 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
     def mk_temp(i):
         def drv(op, c, dt):
             h_red = health_of(comp_map, "reducer_wear")
-            load_heat = 12.0 if st["running"] else 0.0
+            load_heat = 12.0 if (st["running"] and not st["waiting"]) else 0.0
             return AMBIENT_C + load_heat + 14.0 * (1.0 - h_red) + i * 0.6 + gaussian_noise(nrng, 0.25)
         return drv
 
     def drv_vibration(op, c, dt):
         h_red = health_of(comp_map, "reducer_wear")
-        base = 0.8 if st["running"] else 0.1
+        base = 0.8 if (st["running"] and not st["waiting"]) else 0.1
         return max(0.0, base + 11.0 * (1.0 - h_red) ** 1.8 + gaussian_noise(nrng, 0.05))
 
     for i in range(6):

@@ -120,6 +120,60 @@ def _parse_name(text: str) -> str | None:
     return m.group(1) if m else None
 
 
+def _parse_multi(text: str) -> list[tuple[str, int]]:
+    """解析多型別描述:「2 台 CNC、1 支手臂、1 台 CNC」→ [(cnc,2), (arm,1), (cnc,1)]。
+
+    依關鍵字在描述中的**出現位置**排序(描述順序 = 產線站序);每個關鍵字往前找
+    數量詞(阿拉伯或中文數字),找不到當 1 台。單一型別時退回舊行為(_rule_based)。
+    """
+    low = text.lower()
+    hits: list[tuple[int, str, int]] = []       # (位置, template, count)
+    used_spans: list[tuple[int, int]] = []
+    for kw, tmpl in _TEMPLATE_KEYWORDS.items():
+        for m in re.finditer(re.escape(kw), low):
+            s, e = m.span()
+            if any(not (e <= us or s >= ue) for us, ue in used_spans):
+                continue                        # 已被更早配對的關鍵字涵蓋(如「機械手臂」vs「手臂」)
+            used_spans.append((s, e))
+            head = text[max(0, s - 8):s]        # 往前找數量詞
+            count = 1
+            mm = re.search(r"(\d+)\s*[台臺套部支座]?\s*$", head)
+            if mm:
+                count = int(mm.group(1))
+            else:
+                for ch, n in _CH_NUM.items():
+                    if re.search(ch + r"\s*[台臺套部支座]?\s*$", head):
+                        count = n
+                        break
+            hits.append((s, tmpl, max(1, min(20, count))))
+    hits.sort()
+    # 「機械手臂」會同時命中「機械手臂」與「手臂」等子字串 —— used_spans 已擋掉重疊;
+    # 這裡再壓掉同位置重複的 template
+    out: list[tuple[str, int]] = []
+    for _, tmpl, count in hits:
+        out.append((tmpl, count))
+    return out
+
+
+# 產線推導(與 scenarios/scripts/gen_class_park.py 的規則一致):
+# producer + 手臂 + (producer 或輸送帶)就接成引擎物料流(engine/line.py)。
+_LINE_PRODUCERS = {"cnc_machining_center", "injection_molding",
+                   "stamping_press", "semi_process_chamber"}
+
+
+def _derive_line(devices: list[dict]) -> list[str] | None:
+    producers = [d["id"] for d in devices if d["template"] in _LINE_PRODUCERS]
+    arms = [d["id"] for d in devices if d["template"] == "robot_arm_6axis"]
+    convs = [d["id"] for d in devices if d["template"] == "conveyor"]
+    if not arms:
+        return None
+    if len(producers) >= 2:
+        return [producers[0], arms[0], producers[1]]
+    if len(producers) == 1 and convs:
+        return [producers[0], arms[0], convs[0]]
+    return None
+
+
 def generate_factory(description: str, existing_company_ids: list[str] | None = None) -> dict:
     """回傳可餵給 world.add_company 的公司設定。
 
@@ -129,39 +183,54 @@ def generate_factory(description: str, existing_company_ids: list[str] | None = 
     if os.getenv("GEMINI_API_KEY"):
         try:
             res = _llm_factory(description)
-            if res and res.get("devices"):
-                return res
         except Exception as exc:            # 斷網 / 逾時 / 解析錯 → 不影響課堂,靜默回退規則式
             print(f"[factory] LLM 建廠失敗,回退規則式:{exc}")
-    return _rule_based_factory(description)
+        else:
+            if res and res.get("devices"):
+                res.setdefault("line", _derive_line(res["devices"]))
+                return res
+    cfg = _rule_based_factory(description)
+    cfg.setdefault("line", _derive_line(cfg["devices"]))   # 建得成產線就接上物料流
+    return cfg
 
 
 def _rule_based_factory(description: str) -> dict:
-    """規則式:關鍵字挑單一 template + 數量。免 key、離線、可預期。"""
-    template = _parse_template(description)
-    if template is None:
+    """規則式:關鍵字挑 template + 數量。免 key、離線、可預期。
+
+    支援**多型別**描述(如「2 台 CNC、1 支手臂」→ 依描述順序建 3 台),
+    單一型別時行為與先前相同。
+    """
+    multi = _parse_multi(description)
+    if not multi:
         raise ValueError(
             "無法從描述判斷設備類型。目前支援:CNC(加工中心)、空壓機、AGV(搬運車)、"
-            "機械手臂、半導體製程腔體、電表(能源節點)。例:『建一間有 3 台 CNC 的公司』"
+            "機械手臂、半導體製程腔體、電表(能源節點)、沖壓、熱處理爐。"
+            "例:『建一間有 3 台 CNC 的公司』或『2 台 CNC 加 1 支手臂』"
         )
-    count = _parse_count(description)
-    name = _parse_name(description) or f"AI 新建廠（{template}）"
-    prefix = _PREFIX[template]
+    if len(multi) == 1:                     # 單一型別:沿用整句數量解析(涵蓋「三套」等寫法)
+        multi = [(multi[0][0], _parse_count(description))]
+    name = _parse_name(description) or (
+        f"AI 新建廠（{multi[0][0]}）" if len(multi) == 1 else "AI 新建廠(多型別產線)")
 
     devices = []
-    for i in range(1, count + 1):
-        devices.append({
-            "id": f"{prefix}-ai{i:02d}",
-            "template": template,
-            "duty_cycle": {"profile": "continuous"},
-            "degradation": {k: dict(v) for k, v in _DEFAULT_DEGRADATION[template].items()},
-        })
+    seq: dict[str, int] = {}
+    for template, count in multi:
+        prefix = _PREFIX.get(template, template[:4])
+        for _ in range(count):
+            seq[template] = seq.get(template, 0) + 1
+            devices.append({
+                "id": f"{prefix}-ai{seq[template]:02d}",
+                "template": template,
+                "duty_cycle": {"profile": "continuous"},
+                "degradation": {k: dict(v) for k, v in _DEFAULT_DEGRADATION.get(template, {}).items()},
+            })
 
+    summary = "、".join(f"{c} 台 {t}" for t, c in multi)
     return {
         "name": name,
-        "industry": template,
+        "industry": multi[0][0],
         "devices": devices,
-        "_summary": f"{name}:{count} 台 {template}",
+        "_summary": f"{name}:{summary}",
         "_via": "rule",
     }
 

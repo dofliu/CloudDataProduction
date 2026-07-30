@@ -47,6 +47,10 @@ class SetpointRequest(BaseModel):
     value: float                    # 工程值;後端一律夾限到該設定點範圍
 
 
+class EngraveTextRequest(BaseModel):
+    text: str                       # CNC 刻字文字(≤8 字,A–Z / 0–9 / 空白 / -)
+
+
 class FaultRequest(BaseModel):
     device: str
     fault_type: str                 # sudden/gradual/intermittent/cascading/sensor_*
@@ -573,25 +577,52 @@ def create_app(
                 return c.get("owner")
         return None
 
+    def _authorize_setpoint_write(device, authorization: Optional[str]) -> None:
+        """學生只能改自己認領公司的設備(教師不限;dev 未啟用身分驗證時放行)。"""
+        user = current_user(authorization)
+        if user and user["role"] == "teacher":
+            return
+        if user and user["role"] == "student":
+            if _company_owner(device.company_id) != user["username"]:
+                raise HTTPException(403, "只能修改你認領公司的設備")
+            return
+        if auth_active():
+            raise HTTPException(401, "請先登入")
+
     # 學生可寫設定點(受控範圍):唯一開放學生寫的控制面;後端夾限 + 認領授權。
     @app.post("/api/devices/{device_id}/setpoint")
     def write_setpoint(device_id: str, req: SetpointRequest, authorization: str = Header(None)):
         device = world.devices.get(device_id)
         if device is None:
             raise HTTPException(404, f"無此設備:{device_id}")
-        # 授權:學生只能改自己認領公司的設備(教師不限;dev 未啟用身分驗證時放行)
-        user = current_user(authorization)
-        if user and user["role"] == "teacher":
-            pass
-        elif user and user["role"] == "student":
-            if _company_owner(device.company_id) != user["username"]:
-                raise HTTPException(403, "只能修改你認領公司的設備")
-        elif auth_active():
-            raise HTTPException(401, "請先登入")
+        _authorize_setpoint_write(device, authorization)
         result = device.set_setpoint(req.name, req.value)
         if not result.get("ok"):
             raise HTTPException(400, result.get("error", "設定點寫入失敗"))
         return result
+
+    # CNC 刻字便捷端點:一次把整串文字寫進 engrave_char_1..8(等同逐格 FC06)。
+    # 只是 setpoint 寫入的糖衣 —— 狀態仍只存在引擎的 setpoints,不另存文字。
+    @app.post("/api/devices/{device_id}/engrave_text")
+    def write_engrave_text(device_id: str, req: EngraveTextRequest, authorization: str = Header(None)):
+        from engine.templates._stroke_font import GLYPHS, MAX_CHARS
+        device = world.devices.get(device_id)
+        if device is None:
+            raise HTTPException(404, f"無此設備:{device_id}")
+        _authorize_setpoint_write(device, authorization)
+        if not any(s.name == "engrave_char_1" for s in device.setpoints):
+            raise HTTPException(400, f"設備 {device_id} 不支援刻字(非 CNC)")
+        text = req.text.upper()
+        if len(text) > MAX_CHARS:
+            raise HTTPException(400, f"文字最長 {MAX_CHARS} 字:{req.text!r}")
+        bad = sorted({c for c in text if c not in GLYPHS})
+        if bad:
+            raise HTTPException(400, f"不支援的字元:{bad}(可用 A–Z、0–9、空白、-)")
+        codes = [float(ord(c)) for c in text] + [0.0] * (MAX_CHARS - len(text))
+        for i, code in enumerate(codes):
+            device.set_setpoint(f"engrave_char_{i + 1}", code)
+        return {"ok": True, "device": device.id, "text": text,
+                "setpoints": {f"engrave_char_{i + 1}": codes[i] for i in range(MAX_CHARS)}}
 
     # 學生認領公司:綁登入身分;一人一廠;不能搶別人已認領的。
     def _save_owners():

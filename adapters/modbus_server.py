@@ -167,8 +167,10 @@ class ModbusAdapter:
                 continue
             last = self._sp_reflected.get(key)
             if last is not None and raw != last:            # client 透過 FC06 寫了新值
-                device.set_setpoint(sp.name, raw / sp.scale)
-            clamped_raw = int(round(sp.value * sp.scale))    # 引擎目前值(含 REST 寫入)→ 反射
+                # 允許負值的設定點(如手臂取放座標)走 int16 二補數:raw ≥ 0x8000 即負數
+                signed = raw - 65536 if (sp.min < 0 and raw >= 32768) else raw
+                device.set_setpoint(sp.name, signed / sp.scale)
+            clamped_raw = int(round(sp.value * sp.scale)) & 0xFFFF   # 負值反射回二補數
             try:
                 slave.setValues(3, sp.register, [clamped_raw])
             except Exception:

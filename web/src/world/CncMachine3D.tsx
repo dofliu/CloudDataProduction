@@ -12,8 +12,8 @@ import * as THREE from "three";
 import MachineScene, { Readout, Row } from "./MachineScene";
 import { FaultSmoke, HeatGlow, Shake, StatusBeacon, bodyColor } from "./MachineFx";
 import {
-  DeviceMotion, MachineProps, approach, clamp01, cncToolPath, lockCncPhase,
-  scaleNote, visualPeriod, visualSpin,
+  DeviceMotion, MachineProps, approach, clamp01, cncToolPath, engraveStrokes, engraveText,
+  lockCncPhase, scaleNote, visualPeriod, visualSpin,
 } from "./deviceMotion";
 
 const MM_PER_UNIT = 50;               // 引擎 mm → 模型單位
@@ -157,18 +157,23 @@ export const CNCModel = ({ motion, enclosed = false }: MachineProps & {
   const sparkPos = useRef(new THREE.Vector3());
   const lines = useRef(0);
   const lastPhase = useRef(0);
+  const lastStrokes = useRef<number[][][] | null>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
 
   useFrame((_, delta) => {
     const { tags, setpoints, running, timeScale } = motion;
     const pattern = Math.round(setpoints.machining_pattern ?? 0);   // ⚙ setpoint,不在 tags
+    // ⚙ 刻字筆畫由 engrave_char_1..8 setpoints 生成(pattern 0 用;預設 NCUT)
+    const strokes = engraveStrokes(setpoints);
     const cycle = tags.cycle_time || 45;
     const per = visualPeriod(cycle, timeScale);                     // L3:夾在可讀區間
 
-    // 換件 → 清空刻痕(part_count 是引擎的真實累積件數)
+    // 換件 → 清空刻痕(part_count 是引擎的真實累積件數);學生改了刻字文字也清
+    // (快取回傳同一個陣列參照,參照變了就是文字變了)
     const part = Math.round(tags.part_count ?? 0);
-    if (part !== lastPart.current) {
+    if (part !== lastPart.current || strokes !== lastStrokes.current) {
       lastPart.current = part;
+      lastStrokes.current = strokes;
       lines.current = 0;
       if (trailMeshRef.current) trailMeshRef.current.count = 0;
     }
@@ -180,14 +185,14 @@ export const CNCModel = ({ motion, enclosed = false }: MachineProps & {
       // 該循環的 Nyquist,硬鎖只會抖 —— 這時畫的是「代表性刀路」,倍率已標在畫面上。
       if (Math.abs(per.factor - 1) < 0.05 && typeof tags.pos_x === "number"
           && typeof tags.pos_y === "number" && typeof tags.pos_z === "number") {
-        phase.current = lockCncPhase(phase.current, tags.pos_x, tags.pos_y, tags.pos_z, pattern, delta);
+        phase.current = lockCncPhase(phase.current, tags.pos_x, tags.pos_y, tags.pos_z, pattern, delta, strokes);
       }
     }
 
     // 目標座標:running 用鎖定後的相位取曲線;停機 / 故障就抬刀回原點(與引擎一致)
     let tx = 0, ty = 0, tz = 1;
     if (running) {
-      const [mx, my, mz] = cncToolPath(phase.current, pattern);
+      const [mx, my, mz] = cncToolPath(phase.current, pattern, strokes);
       tx = mx / MM_PER_UNIT; ty = my / MM_PER_UNIT; tz = mz / MM_PER_UNIT;
     }
     // delta-based 趨近,與 frame rate 無關
@@ -213,7 +218,7 @@ export const CNCModel = ({ motion, enclosed = false }: MachineProps & {
         const steps = Math.min(MAX_MARKS_PER_FRAME, Math.ceil(d / PHASE_STEP));
         for (let k = 1; k <= steps && lines.current < MAX_TRAIL_POINTS; k++) {
           const ph = (lastPhase.current + (d * k) / steps) % 1;
-          const [mx, my, mz] = cncToolPath(ph, pattern);
+          const [mx, my, mz] = cncToolPath(ph, pattern, strokes);
           if (mz >= 0) continue;               // 抬刀段不留痕(語意同引擎的 pos_z<0)
           dummy.position.set(mx / MM_PER_UNIT, 1.25, my / MM_PER_UNIT);
           // 扁而窄:刻痕是「刀痕」不是「筆跡」。字高 120mm = 2.4 模型單位,
@@ -326,6 +331,7 @@ function CncReadout({ motion }: { motion: DeviceMotion }) {
     ["POS X / Y", `${(t.pos_x ?? 0).toFixed(0)} / ${(t.pos_y ?? 0).toFixed(0)} mm`],
     ["POS Z", `${(t.pos_z ?? 0).toFixed(0)} mm`, (t.pos_z ?? 0) < 0],
     ["PATTERN", `${Math.round(motion.setpoints.machining_pattern ?? 0)}`],
+    ["TEXT", engraveText(motion.setpoints) || "(blank)"],
     ["SPINDLE", `${(t.spindle_speed ?? 0).toFixed(0)} rpm`],
     ["SPINDLE T", `${(t.spindle_temp ?? 0).toFixed(1)} °C`, (t.spindle_temp ?? 0) > 85],
     ["CURRENT", `${(t.spindle_current ?? 0).toFixed(2)} A`, (t.spindle_current ?? 0) > 10],

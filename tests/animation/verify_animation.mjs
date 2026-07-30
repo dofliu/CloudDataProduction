@@ -233,8 +233,10 @@ console.log("\n[2] 六軸手臂 · slow(×1)—— 關節世界旋轉 ↔ joint_
 
   const tcpR = rows.map((r) => Math.hypot(r.probes.tcp.x, r.probes.tcp.z));
   const tcpY = rows.map((r) => r.probes.tcp.y);
-  check("手臂 TCP 隨姿態變化(J2/J3/J5 有被吃進去)", span(tcpR) > 0.3 && span(tcpY) > 0.5,
-    `TCP 半徑變動 ${span(tcpR).toFixed(3)}、高度變動 ${span(tcpY).toFixed(3)} 模型單位`);
+  // 判準看高度:取放 keyframe 改由 IK 生成後,提舉是**等半徑**的垂直移動(半徑只剩
+  // 角度插值帶來的微小起伏),「J2/J3/J5 有被吃進去」由高度大幅變化證明即可。
+  check("手臂 TCP 隨姿態變化(J2/J3/J5 有被吃進去)", span(tcpY) > 0.5,
+    `TCP 高度變動 ${span(tcpY).toFixed(3)} 模型單位(半徑變動 ${span(tcpR).toFixed(3)},等半徑提舉下可近 0)`);
 
   // J2 是主要的俯仰軸:角度越大(下探)TCP 越低
   const g = linreg(col(rows, (r) => r.tags.joint_angle_2), tcpY);

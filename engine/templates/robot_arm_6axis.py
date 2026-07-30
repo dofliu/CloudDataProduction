@@ -4,6 +4,10 @@ headline:諧波減速機(reducer_wear)退化 → 振動上升、各軸電流/溫
 encoder_drift 是感測器型(只汙染某軸角度讀值)。pre_step 讓六軸做 pick-and-place 擺動,
 tcp_x/y/z 由 forward_kinematics() 從同一組角度算出 —— 學生從 Modbus 讀六軸角度自己算
 正運動學,答案必須與 tcp 對得起來。
+
+取放兩點**可由學生指定**:setpoints pick_x/pick_y/place_x/place_y(mm,地面座標)。
+引擎用 inverse_kinematics() 把目標點解回六軸角度,再照六個 keyframe(上方→下探→上方)
+擺動 —— 學生寫進去的座標,從 Modbus 讀 tcp_x/y/z 就能驗證真的到了。
 """
 from __future__ import annotations
 
@@ -12,7 +16,7 @@ from typing import Optional
 
 import numpy as np
 
-from ..device import STATE_CODES, Device, DutyProfile
+from ..device import STATE_CODES, Device, DutyProfile, SetPoint
 from ..signals import gaussian_noise, health_of
 from ._common import build_components, build_tags, default_seed
 
@@ -51,6 +55,56 @@ def forward_kinematics(angles: list[float]) -> tuple[float, float, float]:
     a1 = d(angles[0])
     return reach * math.cos(a1), reach * math.sin(a1), z
 
+
+# ── 逆運動學(取放點 → 六軸角度)──────────────────────────
+# 腕部絕對俯仰固定在 170°(工具幾乎朝下,與原 keyframe 下探姿態相同),剩下 J2/J3
+# 就是標準的兩連桿平面 IK。J1 = atan2(y, x) —— 「方位角 ≡ J1」的不變量因此保持成立。
+_WRIST_PITCH_DEG = 170.0
+_Z_DOWN = 150.0            # 下探(夾取 / 放置)時的 TCP 高度(mm),即料檯面高度
+_Z_UP = 600.0              # 移動段抬升高度(mm)
+_R_MIN, _R_MAX = 300.0, 1250.0   # 水平距離可解範圍;超出就夾限(tcp 誠實回報實際位置)
+
+
+def inverse_kinematics(x: float, y: float, z: float) -> list[float]:
+    """目標 TCP(mm)→ [j1..j6](deg,控制器讀值)。
+
+    水平距離會夾限到 [_R_MIN, _R_MAX](兩連桿在 _Z_UP 高度仍可達的範圍);
+    夾限後的實際位置由 forward_kinematics 誠實反映在 tcp_x/y/z。
+    回傳的角度餵回 forward_kinematics 即還原目標點(engine 端測試驗證)。
+    """
+    j1 = math.degrees(math.atan2(y, x))
+    r = max(_R_MIN, min(_R_MAX, math.hypot(x, y)))
+    c5 = math.radians(_WRIST_PITCH_DEG)
+    # 腕心(J5 軸)位置:從 TCP 退掉腕段
+    rw = r - math.sin(c5) * _L_WRIST
+    zw = (z - math.cos(c5) * _L_WRIST) - _SHOULDER_H
+    d = math.hypot(rw, zw)
+    d = min(d, (_L_UPPER + _L_FORE) * 0.9999)          # 數值保險:不超過全伸
+    phi = math.atan2(rw, zw)                            # 腕心方向(自垂直軸起算)
+    cos_a = (_L_UPPER ** 2 + d ** 2 - _L_FORE ** 2) / (2.0 * _L_UPPER * d)
+    alpha = math.acos(max(-1.0, min(1.0, cos_a)))
+    c2 = phi - alpha                                    # 肘上解(與原 keyframe 同分支)
+    c3 = math.atan2(rw - math.sin(c2) * _L_UPPER, zw - math.cos(c2) * _L_UPPER)
+    j2 = math.degrees(c2) - _JOINT_ZERO["j2"]
+    j3 = math.degrees(c3 - c2) - _JOINT_ZERO["j3"]
+    j5 = math.degrees(c5 - c3) - _JOINT_ZERO["j5"]
+    return [j1, j2, j3, 0.0, j5, 0.0]
+
+
+# 預設取放點:與升級前 _KEYFRAMES 的下探姿態幾乎同位(J1=∓45°、reach≈1160 mm),
+# 預設行為與畫面佈局(processFlow 取放對位)因此不變。
+_DEFAULT_PICK = (820.0, -820.0)
+_DEFAULT_PLACE = (820.0, 820.0)
+
+
+def build_keyframes(pick_xy: tuple[float, float], place_xy: tuple[float, float]) -> list[list[float]]:
+    """由取放兩點組出六個 keyframe:上方(pick)→ 下探(pick)→ 上方 → 上方(place)→ 下探(place)→ 上方。"""
+    up_p = inverse_kinematics(pick_xy[0], pick_xy[1], _Z_UP)
+    dn_p = inverse_kinematics(pick_xy[0], pick_xy[1], _Z_DOWN)
+    up_q = inverse_kinematics(place_xy[0], place_xy[1], _Z_UP)
+    dn_q = inverse_kinematics(place_xy[0], place_xy[1], _Z_DOWN)
+    return [up_p, dn_p, up_p, up_q, dn_q, up_q]
+
 _TAG_SPEC = (
     [("state", "enum", "int16")]
     + [(f"joint_angle_{i}", "deg", "float32") for i in range(1, 7)]
@@ -87,14 +141,16 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
     st = {"t": 0.0, "cycles": 0.0, "angles": list(_JOINT_CENTER),
           "tcp": list(forward_kinematics(_JOINT_CENTER)), "running": False}
 
-    _KEYFRAMES = [
-        [-45.0, -20.0, 30.0, 0.0, 80.0, 0.0],  # 0: Above Pick (Left)
-        [-45.0,  15.0, 50.0, 0.0, 25.0, 0.0],  # 1: Pick (Down)
-        [-45.0, -20.0, 30.0, 0.0, 80.0, 0.0],  # 2: Above Pick
-        [ 45.0, -20.0, 30.0, 0.0, 80.0, 0.0],  # 3: Above Place (Right)
-        [ 45.0,  15.0, 50.0, 0.0, 25.0, 0.0],  # 4: Place (Down)
-        [ 45.0, -20.0, 30.0, 0.0, 80.0, 0.0],  # 5: Above Place
-    ]
+    # keyframe 快取:取放 setpoint 沒變就不重解 IK(每 tick 都會來讀)
+    kf_cache: dict = {"key": None, "frames": None}
+
+    def _keyframes() -> list[list[float]]:
+        key = (device.setpoint("pick_x", _DEFAULT_PICK[0]), device.setpoint("pick_y", _DEFAULT_PICK[1]),
+               device.setpoint("place_x", _DEFAULT_PLACE[0]), device.setpoint("place_y", _DEFAULT_PLACE[1]))
+        if key != kf_cache["key"]:
+            kf_cache["key"] = key
+            kf_cache["frames"] = build_keyframes((key[0], key[1]), (key[2], key[3]))
+        return kf_cache["frames"]
 
     def pre_step(dt_sim, op):
         st["running"] = op["running"] and not device._fault_latched
@@ -102,14 +158,15 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
             return
         st["t"] += dt_sim
         st["cycles"] += dt_sim / CYCLE_PERIOD
-        
+
         ph = ((st["t"] / CYCLE_PERIOD) + (phase0 / (2 * math.pi))) % 1.0
         idx = int(ph * 6)
         t_interp = (ph * 6) - idx
         t_interp = t_interp * t_interp * (3 - 2 * t_interp) # Smoothstep
-        
-        k1 = _KEYFRAMES[idx % 6]
-        k2 = _KEYFRAMES[(idx + 1) % 6]
+
+        frames = _keyframes()
+        k1 = frames[idx % 6]
+        k2 = frames[(idx + 1) % 6]
         for i in range(6):
             st["angles"][i] = k1[i] + (k2[i] - k1[i]) * t_interp
 
@@ -160,10 +217,21 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
         h_r = health_of(comp_map, "reducer_wear")
         return 0.8 + 0.2 * h_r, max(0.6, 1.0 - (1.0 - h_r) * 0.4)  # 減速機退化降表現與良率
 
+    # 學生可寫取放點(mm,受控範圍)。負值走 int16 二補數(Modbus 轉接層已處理)。
+    setpoints = [
+        SetPoint(name="pick_x", register=100, unit="mm", min=-_R_MAX, max=_R_MAX,
+                 default=_DEFAULT_PICK[0], scale=1.0),
+        SetPoint(name="pick_y", register=101, unit="mm", min=-_R_MAX, max=_R_MAX,
+                 default=_DEFAULT_PICK[1], scale=1.0),
+        SetPoint(name="place_x", register=102, unit="mm", min=-_R_MAX, max=_R_MAX,
+                 default=_DEFAULT_PLACE[0], scale=1.0),
+        SetPoint(name="place_y", register=103, unit="mm", min=-_R_MAX, max=_R_MAX,
+                 default=_DEFAULT_PLACE[1], scale=1.0),
+    ]
     device = Device(
         device_id=device_id, template="robot_arm_6axis", tags=tags,
         components=components, duty=duty, protocols=protocols, company_id=company_id,
-        state_fn=state_fn, pre_step_fn=pre_step, oee_fn=oee_fn,
+        state_fn=state_fn, pre_step_fn=pre_step, oee_fn=oee_fn, setpoints=setpoints,
     )
     tag_by_name["state"].driver = lambda op, c, dt: float(STATE_CODES.get(device.state, 0))
     return device

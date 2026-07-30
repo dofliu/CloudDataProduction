@@ -225,29 +225,108 @@ export function scaleNote(...scales: (VisualScale | string | undefined)[]): stri
 
 /** 與引擎 get_target_pos() 逐行對應。progress ∈ [0,1),回傳 mm。 */
 /**
- * pattern 0 的刀路:刻「NCUT」(校名縮寫)。**必須與 engine/templates/cnc_machining_center.py
- * 的 _ncut_strokes() 逐點相同** —— 相位鎖定(lockCncPhase)就是拿這條曲線去比對引擎回報的
- * pos_x/y/z,兩邊不一致就鎖不上。驗證見 tests/animation §1(刀尖世界座標 ↔ pos_*,R²≈1)。
+ * pattern 0 的刀路:刻字(預設「NCUT」,文字可由 setpoint engrave_char_1..8 改)。
+ * **STROKE_FONT 必須與 engine/templates/_stroke_font.py 的 GLYPHS 逐點相同** ——
+ * 相位鎖定(lockCncPhase)就是拿同一條曲線去比對引擎回報的 pos_x/y/z,兩邊不一致
+ * 就鎖不上。驗證見 tests/animation §1(刀尖世界座標 ↔ pos_*,R²≈1)。
  *
  * 字面朝向:引擎 pos_y 對到世界 Z,而相機在 +Z 看向原點,所以世界 +Z 在畫面上是往下,
  * 字母的「上緣」在引擎座標是 y = -60。用 +60 當上緣會畫成上下鏡像的「И Ⅽ ∩ ⊥」。
  */
 const GY_TOP = -60, GY_BOT = 60;
 const GLYPH_W = 60, GLYPH_GAP = 40;
-const glyphX = (i: number) => -(4 * GLYPH_W + 3 * GLYPH_GAP) / 2 + i * (GLYPH_W + GLYPH_GAP);
+const ENGRAVE_MAX_WIDTH = 440;      // 行程 ±220;總寬超過就整體等比縮小
+export const ENGRAVE_MAX_CHARS = 8;
 
-const NCUT_STROKES: number[][][] = (() => {
-  const [n, c, u, t] = [0, 1, 2, 3].map(glyphX);
-  const T = GY_TOP, B = GY_BOT, W = GLYPH_W;
-  return [
-    [[n, B], [n, T]], [[n, T], [n + W, B]], [[n + W, B], [n + W, T]],   // N
-    [[c + W, T], [c, T], [c, B], [c + W, B]],                            // C
-    [[u, T], [u, B], [u + W, B], [u + W, T]],                            // U
-    [[t, T], [t + W, T]], [[t + W / 2, T], [t + W / 2, B]],              // T
-  ];
-})();
+/** 每字 = 筆畫列表;每筆畫 = [xu, yu] 折線(xu 0..1 字寬、yu 0..1 上緣→下緣)。 */
+const STROKE_FONT: Record<string, number[][][]> = {
+  " ": [],
+  "-": [[[0.2, 0.5], [0.8, 0.5]]],
+  A: [[[0, 1], [0.5, 0], [1, 1]], [[0.2, 0.6], [0.8, 0.6]]],
+  B: [[[0, 0], [0, 1]], [[0, 0], [0.9, 0.1], [0.9, 0.4], [0, 0.5]], [[0, 0.5], [1, 0.6], [1, 0.9], [0, 1]]],
+  C: [[[1, 0], [0, 0], [0, 1], [1, 1]]],
+  D: [[[0, 0], [0, 1]], [[0, 0], [0.7, 0], [1, 0.3], [1, 0.7], [0.7, 1], [0, 1]]],
+  E: [[[1, 0], [0, 0], [0, 1], [1, 1]], [[0, 0.5], [0.7, 0.5]]],
+  F: [[[1, 0], [0, 0], [0, 1]], [[0, 0.5], [0.7, 0.5]]],
+  G: [[[1, 0], [0, 0], [0, 1], [1, 1], [1, 0.55], [0.5, 0.55]]],
+  H: [[[0, 0], [0, 1]], [[1, 0], [1, 1]], [[0, 0.5], [1, 0.5]]],
+  I: [[[0.2, 0], [0.8, 0]], [[0.5, 0], [0.5, 1]], [[0.2, 1], [0.8, 1]]],
+  J: [[[0.3, 0], [0.9, 0]], [[0.7, 0], [0.7, 0.8], [0.5, 1], [0.2, 1], [0, 0.8]]],
+  K: [[[0, 0], [0, 1]], [[1, 0], [0, 0.5], [1, 1]]],
+  L: [[[0, 0], [0, 1], [1, 1]]],
+  M: [[[0, 1], [0, 0], [0.5, 0.6], [1, 0], [1, 1]]],
+  N: [[[0, 1], [0, 0]], [[0, 0], [1, 1]], [[1, 1], [1, 0]]],
+  O: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]],
+  P: [[[0, 1], [0, 0], [1, 0], [1, 0.5], [0, 0.5]]],
+  Q: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]], [[0.6, 0.6], [1, 1]]],
+  R: [[[0, 1], [0, 0], [1, 0], [1, 0.5], [0, 0.5]], [[0.3, 0.5], [1, 1]]],
+  S: [[[1, 0], [0, 0], [0, 0.5], [1, 0.5], [1, 1], [0, 1]]],
+  T: [[[0, 0], [1, 0]], [[0.5, 0], [0.5, 1]]],
+  U: [[[0, 0], [0, 1], [1, 1], [1, 0]]],
+  V: [[[0, 0], [0.5, 1], [1, 0]]],
+  W: [[[0, 0], [0.25, 1], [0.5, 0.4], [0.75, 1], [1, 0]]],
+  X: [[[0, 0], [1, 1]], [[1, 0], [0, 1]]],
+  Y: [[[0, 0], [0.5, 0.5], [1, 0]], [[0.5, 0.5], [0.5, 1]]],
+  Z: [[[0, 0], [1, 0], [0, 1], [1, 1]]],
+  "0": [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]], [[1, 0.15], [0, 0.85]]],
+  "1": [[[0.2, 0.2], [0.5, 0], [0.5, 1]], [[0.2, 1], [0.8, 1]]],
+  "2": [[[0, 0], [1, 0], [1, 0.5], [0, 0.5], [0, 1], [1, 1]]],
+  "3": [[[0, 0], [1, 0], [1, 1], [0, 1]], [[0.3, 0.5], [1, 0.5]]],
+  "4": [[[0, 0], [0, 0.5], [1, 0.5]], [[1, 0], [1, 1]]],
+  "5": [[[1, 0], [0, 0], [0, 0.5], [1, 0.5], [1, 1], [0, 1]]],
+  "6": [[[1, 0], [0, 0], [0, 1], [1, 1], [1, 0.5], [0, 0.5]]],
+  "7": [[[0, 0], [1, 0], [1, 1]]],
+  "8": [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]], [[0, 0.5], [1, 0.5]]],
+  "9": [[[1, 0.5], [0, 0.5], [0, 0], [1, 0], [1, 1], [0, 1]]],
+};
 
-export function cncToolPath(progress: number, pattern: number): [number, number, number] {
+/** 文字 → 引擎座標(mm)筆畫;與引擎 _stroke_font.text_strokes() 逐點相同。 */
+export function textStrokes(text: string): number[][][] {
+  const t = text.slice(0, ENGRAVE_MAX_CHARS);
+  const n = t.length;
+  if (!n) return [];
+  const total = n * GLYPH_W + (n - 1) * GLYPH_GAP;
+  const s = Math.min(1, ENGRAVE_MAX_WIDTH / total);
+  const w = GLYPH_W * s, gap = GLYPH_GAP * s;
+  const yTop = GY_TOP * s, yBot = GY_BOT * s;
+  const left0 = -(n * w + (n - 1) * gap) / 2;
+  const out: number[][][] = [];
+  for (let i = 0; i < n; i++) {
+    const left = left0 + i * (w + gap);
+    for (const stroke of STROKE_FONT[t[i]] ?? []) {
+      out.push(stroke.map(([xu, yu]) => [left + xu * w, yTop + yu * (yBot - yTop)]));
+    }
+  }
+  return out;
+}
+
+/** setpoint 的 ASCII 碼列 → 文字;與引擎 codes_to_text() 同規則(0 / 未知碼 = 空白,去尾)。 */
+export function engraveText(setpoints: Record<string, number>): string {
+  if (!("engrave_char_1" in setpoints)) return "NCUT";   // 舊 telemetry(無此 setpoint)→ 預設
+  let s = "";
+  for (let i = 1; i <= ENGRAVE_MAX_CHARS; i++) {
+    const code = Math.round(setpoints[`engrave_char_${i}`] ?? 0);
+    const ch = code >= 32 && code < 127 ? String.fromCharCode(code).toUpperCase() : " ";
+    s += ch in STROKE_FONT ? ch : " ";
+  }
+  return s.replace(/\s+$/, "");
+}
+
+const NCUT_STROKES = textStrokes("NCUT");
+
+// 刻字筆畫快取:文字沒變就沿用同一個陣列(參照相等,呼叫端可拿來當 dirty key)
+let engraveCache: { text: string; strokes: number[][][] } = { text: "NCUT", strokes: NCUT_STROKES };
+
+/** 由 snapshot.setpoints 取得目前刻字筆畫(mm)。 */
+export function engraveStrokes(setpoints: Record<string, number>): number[][][] {
+  const text = engraveText(setpoints);
+  if (text !== engraveCache.text) engraveCache = { text, strokes: textStrokes(text) };
+  return engraveCache.strokes;
+}
+
+export function cncToolPath(
+  progress: number, pattern: number, strokes: number[][][] = NCUT_STROKES,
+): [number, number, number] {
   if (pattern === 1) {
     if (progress < 0.05 || progress > 0.95) return [0, -150, 50];
     const p = (progress - 0.05) / 0.9;
@@ -261,7 +340,7 @@ export function cncToolPath(progress: number, pattern: number): [number, number,
     if (p < 0.75) return [150 - 300 * ((p - 0.5) / 0.25), 150, -50];
     return [-150, 150 - 300 * ((p - 0.75) / 0.25), -50];
   }
-  const strokes = NCUT_STROKES;
+  if (!strokes.length) return [0, 0, 50];   // 全空白:停刀在原點上方(與引擎一致)
   const total = strokes.length;
   const segProgress = progress * total;
   const segIdx = Math.min(Math.floor(segProgress), total - 1);
@@ -296,7 +375,7 @@ const LOCK_TAU = 0.05;              // 收斂時間常數(秒)
 
 export function lockCncPhase(
   local: number, reportedX: number, reportedY: number, reportedZ: number, pattern: number,
-  dt = 1 / 60,
+  dt = 1 / 60, strokes: number[][][] = NCUT_STROKES,
 ): number {
   const SAMPLES = 256;
   const WINDOW = 0.12;              // 只信任前後 12% 的相位窗
@@ -304,7 +383,7 @@ export function lockCncPhase(
   let bestAny = -1, bestAnyErr = Infinity;
   for (let i = 0; i < SAMPLES; i++) {
     const ph = i / SAMPLES;
-    const [x, y, z] = cncToolPath(ph, pattern);
+    const [x, y, z] = cncToolPath(ph, pattern, strokes);
     const err = (x - reportedX) ** 2 + (y - reportedY) ** 2 + (Z_WEIGHT * (z - reportedZ)) ** 2;
     if (err < bestAnyErr) { bestAnyErr = err; bestAny = ph; }
     let d = Math.abs(ph - local);

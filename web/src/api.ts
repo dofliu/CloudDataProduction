@@ -226,6 +226,11 @@ export const setSetpoint = (id: string, name: string, value: number) =>
   post(`/api/devices/${id}/setpoint`, { name, value }) as
     Promise<{ ok: boolean; value: number; clamped: boolean; range: [number, number]; unit: string }>;
 
+// CNC 刻字文字(糖衣:一次寫進 engrave_char_1..8 八個設定點)
+export const setEngraveText = (id: string, text: string) =>
+  post(`/api/devices/${id}/engrave_text`, { text }) as
+    Promise<{ ok: boolean; text: string; setpoints: Record<string, number> }>;
+
 // ── 階段二:預測(學生面公開)───────────────────────────
 export interface PredictionBody {
   device: string; student: string; predicted_fault?: string;

@@ -347,7 +347,8 @@ class Device:
         # 產線物料流疊加(engine/line.py):無料 / 滿料 → 待機(不轉不磨)。
         # 與 MES 同樣放在 scheduled 之前:餓料 / 阻塞屬 no-demand,不罰可用率。
         # handler(手臂)不在此擋 —— 它由 template 依 line_carry 自行決定要不要跑循環。
-        if self.line_enabled and self.line_role in ("source", "mid", "sink") and op["running"]:
+        # terminal(輸送帶)帶上沒工件也待機:空帶不空轉,belt_speed / state 誠實反映。
+        if self.line_enabled and self.line_role in ("source", "mid", "sink", "terminal") and op["running"]:
             if not self.line_has_input or self.line_output_blocked:
                 op = {"running": False, "load": 0.0, "load_nom": op["load_nom"], "speed_factor": 0.0}
         # 排程要它產出 = 班內 × 有工單 × 非稼動空檔(與 run_enable 無關)。OEE 可用率的分母基準:

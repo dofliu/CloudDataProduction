@@ -28,6 +28,7 @@ export interface LineStation {
   out_buffer: number | null;   // 出料緩衝(非末站 producer)
   carrying: number | null;     // 手臂在手件數(handler)
   moved: number | null;        // 手臂累積搬運件數(handler)
+  on_belt: number | null;      // 帶上工件數(terminal 輸送帶;走完帶長才算出貨)
 }
 export interface LineView { company: string; stations: LineStation[]; shipped: number; }
 

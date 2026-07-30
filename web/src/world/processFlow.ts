@@ -8,9 +8,9 @@
  * 引擎 tag 驅動(契約 §0 鐵則一)。手臂的取放點是它自己 keyframe 姿態算出來的,
  * 這裡做的是反過來把「上游機台的出料側」擺到那個取件點上、把輸送帶擺到放件點上。
  *
- * ⚠ 誠實邊界:這是**空間上的對位**,不是引擎層的物料交接。手臂的節拍與射出機的節拍
- * 各自獨立(引擎沒有跨設備的工件傳遞),所以不會出現「射出機一頂出、手臂就伸手」那種
- * 同步。要做到真的同步,得在引擎加產線 / 工件流的概念 —— 那是另一件事,不在這層假裝。
+ * 誠實邊界(2026-07 更新):公司 YAML 有 `line:` 宣告時,引擎層真的有工件在流
+ * (engine/line.py),FactoryLine3D 會把緩衝方塊擺在這裡算出的取放點上 —— 空間對位
+ * 與物料帳在同一個點會合。沒有 `line:` 的公司仍只是空間對位,前端不假裝同步。
  */
 import { ARM_PICK_LOCAL } from "./RobotArm3D";
 
@@ -85,9 +85,10 @@ const UTILITY_Z = -7.5;
  * 轉 90° 之後就落在 X 軸 = 主線方向,取件在 −X(上游)、放件在 +X(下游)。
  */
 const ARM_YAW = Math.PI / 2;
-/** 轉 90° 後,取放點相對手臂基座的 X 位移與 Z 位移(已含縮放) */
+/** 轉 90° 後,取放點相對手臂基座的 X 位移與 Z 位移(已含縮放)。
+ *  REACH_X 供 FactoryLine3D 把產線緩衝方塊擺在手臂真正的取件 / 放件點上。 */
 const ARM_S = LINE_SCALE.robot_arm_6axis ?? 0.7;
-const ARM_REACH_X = Math.abs(ARM_PICK_LOCAL[2]) * ARM_S;   // 本地 z → 轉後的 X
+export const ARM_REACH_X = Math.abs(ARM_PICK_LOCAL[2]) * ARM_S;   // 本地 z → 轉後的 X
 const ARM_REACH_Z = Math.abs(ARM_PICK_LOCAL[0]) * ARM_S;   // 本地 x → 轉後的 Z
 
 export interface Placed {

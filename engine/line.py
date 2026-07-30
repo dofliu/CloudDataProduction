@@ -47,6 +47,8 @@ IN_CAP = 3      # 入料緩衝容量:滿了手臂不再搬(等下游消化)
 ARM_CYCLE_S = 8.0   # 手臂一次取放循環的 sim 秒(= robot_arm_6axis.CYCLE_PERIOD)。
                     # 一拍的搬運配額 = max(1, dt_sim / ARM_CYCLE_S) —— 大 dt(高倍速場景)
                     # 下手臂一拍能搬多件,才不會被 tick 粒度人為地變成產線瓶頸。
+BELT_TRANSIT_S = 8.0   # 工件走完輸送帶的 sim 秒(帶長 8 m ÷ 額定 1 m/s)
+BELT_CAP = 8           # 帶上最多同時幾件(滿了手臂等)
 
 
 class _Station:
@@ -55,6 +57,7 @@ class _Station:
         self.role = role                    # source / mid / sink / handler / terminal
         self.in_buf = 0                     # 入料緩衝(producer 非首站)
         self.out_buf = 0                    # 出料緩衝(producer 非末站)
+        self.on_belt: List[float] = []      # terminal 輸送帶:帶上各工件的剩餘輸送秒數
         self.prev_count: Optional[int] = None   # 累積量 tag 上次讀值(None=尚未初始化)
         self.count_tag = None               # 累積量 tag 物件(快取)
         tag_name = COUNT_TAGS.get(device.template) or (
@@ -91,9 +94,27 @@ class ProductionLine:
             if st.role == "handler":
                 # 手臂:被授予搬運才動。line_carry = 在手件數(配額由 advance() 授予/收回)
                 d.line_carry = sum(lk["in_hand"] for lk in self.links if lk["handler"] is st)
+            if st.role == "terminal":
+                # 輸送帶:帶上有工件才轉,空帶待機(不空轉 —— 誠實反映在 belt_speed / state)
+                d.line_has_input = len(st.on_belt) > 0
 
     # ── 每 tick,設備 step 之後:記帳 + 授予搬運 ─────────────
     def advance(self, dt_sim: float) -> None:
+        # 0. terminal 輸送帶:帶真的有在轉(running)工件才前進;走完帶長 → 出貨
+        for st in self.stations:
+            if st.role != "terminal" or not st.on_belt:
+                continue
+            if not bool(getattr(st.device, "_last_op", {}).get("running")):
+                continue                                   # 教師鎖停 / 故障:工件停在帶上
+            remaining: List[float] = []
+            for t in st.on_belt:
+                t -= dt_sim
+                if t <= 0.0:
+                    self.shipped += 1
+                else:
+                    remaining.append(t)
+            st.on_belt = remaining
+
         # 1. producer 完工進出料緩衝;非首站同時消耗入料
         for i, st in enumerate(self.stations):
             if st.role not in ("source", "mid", "sink"):
@@ -127,13 +148,14 @@ class ProductionLine:
                 delivered = min(done, lk["in_hand"])
                 lk["in_hand"] -= delivered
                 lk["moved"] += delivered
-                if down.role == "terminal":
-                    self.shipped += delivered
+                if down.role == "terminal":                # 放上輸送帶,走完帶長才算出貨
+                    down.on_belt.extend([BELT_TRANSIT_S] * delivered)
                 else:
                     down.in_buf += delivered
             up: _Station = lk["up"]
             while (lk["in_hand"] < cap and up.out_buf > 0
-                   and (down.role == "terminal" or down.in_buf + lk["in_hand"] < IN_CAP)):
+                   and (len(down.on_belt) + lk["in_hand"] < BELT_CAP if down.role == "terminal"
+                        else down.in_buf + lk["in_hand"] < IN_CAP)):
                 up.out_buf -= 1                            # 工件上手(從上游出料取走)
                 lk["in_hand"] += 1
 
@@ -151,6 +173,7 @@ class ProductionLine:
                                  if st.role == "handler" else None),
                     "moved": (sum(lk["moved"] for lk in self.links if lk["handler"] is st)
                               if st.role == "handler" else None),
+                    "on_belt": len(st.on_belt) if st.role == "terminal" else None,
                 }
                 for st in self.stations
             ],
@@ -229,6 +252,8 @@ class LineManager:
             points.append(("line_in_buffer", lambda d, s=st: int(s.in_buf)))
         if st.role in ("source", "mid"):
             points.append(("line_out_buffer", lambda d, s=st: int(s.out_buf)))
+        if st.role == "terminal":
+            points.append(("line_on_belt", lambda d, s=st: len(s.on_belt)))
         for name, fn in points:
             device.input_registers.append(InputRegPoint(
                 name=name, unit="count", datatype="int16", ir_address=addr,

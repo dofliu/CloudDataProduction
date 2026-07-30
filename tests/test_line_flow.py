@@ -127,6 +127,61 @@ def main() -> None:
                 break
     check(waited, "手臂沒搬運時待命(state=idle、電流掉回保持電流)")
 
+    check_terminal_conveyor()
+
+
+def check_terminal_conveyor() -> None:
+    """射出 → 手臂 → 輸送帶:帶上有工件才轉、走完帶長才出貨、上游停了帶也停。"""
+    import copy
+    park = copy.deepcopy(PARK)
+    park["companies"][0]["line"] = ["im-1", "arm-1", "conv-1"]
+    park["companies"][0]["devices"] = [
+        {"id": "im-1", "template": "injection_molding",
+         "duty_cycle": {"profile": "continuous", "load_nom": 70}},
+        {"id": "arm-1", "template": "robot_arm_6axis",
+         "duty_cycle": {"profile": "continuous", "load_nom": 65}},
+        {"id": "conv-1", "template": "conveyor",
+         "duty_cycle": {"profile": "continuous", "load_nom": 60}},
+    ]
+    world = World(park)
+    check(len(world.lines.lines) == 1, "終站輸送帶產線解析成功(射出 → 手臂 → 輸送帶)")
+
+    snap = run(world, 300)
+    line = snap["lines"][0]
+    made = int(snap["devices"]["im-1"]["tags"]["shot_count"])
+    moved = int(snap["devices"]["arm-1"]["tags"]["cycle_count"])
+    shipped = line["shipped"]
+    on_belt = {s["device"]: s for s in line["stations"]}["conv-1"]["on_belt"]
+    check(shipped > 10, f"成品走完輸送帶才出貨(已出貨 {shipped} 件)")
+    check(shipped + on_belt <= moved, f"出貨守恆:出貨 {shipped} + 帶上 {on_belt} ≤ 已搬 {moved}")
+    check(moved <= made, f"搬運守恆:已搬 {moved} ≤ 完工 {made}")
+    check("line_on_belt" in snap["devices"]["conv-1"]["input_regs"],
+          "輸送帶有 line_on_belt FC04 點位")
+
+    # 上游鎖停 → 帶上工件送完後,空帶待機(belt_speed → 0、state=idle,不空轉)
+    world.devices["im-1"].set_coil("run_enable", False)
+    run(world, 100)
+    s2 = run(world, 5)
+    conv = s2["devices"]["conv-1"]
+    ob2 = {x["device"]: x for x in s2["lines"][0]["stations"]}["conv-1"]["on_belt"]
+    check(ob2 == 0, f"上游停線後帶上工件清空({ob2})")
+    check(conv["state"] == "idle" and conv["tags"]["belt_speed"] < 0.05,
+          f"空帶待機:state={conv['state']}、belt_speed={conv['tags']['belt_speed']:.3f}(不空轉)")
+    # 恢復上游 → 帶重新轉、繼續出貨
+    world.devices["im-1"].set_coil("run_enable", True)
+    before = s2["lines"][0]["shipped"]
+    s3 = run(world, 120)
+    check(s3["lines"][0]["shipped"] > before,
+          f"上游恢復後繼續出貨({before} → {s3['lines'][0]['shipped']})")
+    # 找一拍帶在轉
+    running_seen = False
+    for _ in range(40):
+        s = run(world, 1)
+        if s["devices"]["conv-1"]["state"] == "running" and s["devices"]["conv-1"]["tags"]["belt_speed"] > 0.5:
+            running_seen = True
+            break
+    check(running_seen, "帶上有工件時輸送帶真的在轉(belt_speed ≈ 額定)")
+
     print(f"\n失敗 {len(FAIL)} 項")
     for f in FAIL:
         print(f"  - {f}")

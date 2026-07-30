@@ -15,6 +15,7 @@ import numpy as np
 from ..device import STATE_CODES, Device, DutyProfile, SetPoint, Tag
 from ..signals import ThermalLag, gaussian_noise, health_of
 from ._common import build_components, default_seed
+from ._stroke_font import MAX_CHARS, codes_to_text, text_strokes
 
 # ── 物理量級常數(讓學生畫出來像真的,docs/02 §7)────────────
 SPINDLE_NOM_RPM = 8000.0
@@ -65,33 +66,14 @@ def _build_tags(modbus_base: int, opcua_folder: str) -> list[Tag]:
     return tags
 
 
-# ── pattern 0 的刀路:刻「NCUT」(校名縮寫)────────────────────────
+# ── pattern 0 的刀路:刻字(預設「NCUT」,可由 setpoint 改文字)────────
 #
-# 字面朝向很容易寫錯,所以把上下緣具名:引擎的 pos_y 對到畫面的世界 Z,而相機在 +Z
-# 看向原點,所以**世界 +Z 在畫面上是往下**。字母的「上緣」在引擎座標因此是 y = -60。
-# 先前用 +60 當上緣,畫出來是上下鏡像的「И Ⅽ ∩ ⊥」。
-_GY_TOP, _GY_BOT = -60.0, 60.0        # 字面上緣 / 下緣(引擎 y,mm)
-_GLYPH_W, _GLYPH_GAP = 60.0, 40.0     # 字寬 / 字距 —— 四個字置中,總寬 360,在 ±220 行程內
-
-
-def _glyph_x(i: int) -> float:
-    """第 i 個字(由左至右)的左緣 x。四個字等距置中。"""
-    total = 4 * _GLYPH_W + 3 * _GLYPH_GAP
-    return -total / 2 + i * (_GLYPH_W + _GLYPH_GAP)
-
-
-def _ncut_strokes() -> list:
-    n, c, u, t = (_glyph_x(i) for i in range(4))
-    T, B, W = _GY_TOP, _GY_BOT, _GLYPH_W
-    return [
-        [(n, B), (n, T)], [(n, T), (n + W, B)], [(n + W, B), (n + W, T)],          # N
-        [(c + W, T), (c, T), (c, B), (c + W, B)],                                   # C
-        [(u, T), (u, B), (u + W, B), (u + W, T)],                                   # U
-        [(t, T), (t + W, T)], [(t + W / 2, T), (t + W / 2, B)],                     # T
-    ]
-
-
-_NCUT_STROKES = _ncut_strokes()
+# 文字來自 engrave_char_1..8 setpoints(ASCII 碼,學生用 Modbus FC06 或 REST 寫入),
+# 由 _stroke_font.text_strokes() 轉成筆畫。字面朝向很容易寫錯:引擎的 pos_y 對到畫面
+# 的世界 Z,而相機在 +Z 看向原點,所以**世界 +Z 在畫面上是往下**,字母「上緣」在引擎
+# 座標是 y = -60(詳見 _stroke_font.py 與 docs/animation_binding.md §4.13)。
+_DEFAULT_TEXT = "NCUT"                        # 校名縮寫;預設行為與升級前完全相同
+_ENGRAVE_DEFAULT_CODES = [ord(c) for c in _DEFAULT_TEXT] + [0] * (MAX_CHARS - len(_DEFAULT_TEXT))
 
 
 def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device:
@@ -178,6 +160,17 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
             part_state["count"] += dt / max(1.0, ct)
         return int(part_state["count"])
 
+    # 刻字筆畫快取:setpoint 沒變就不重建(每 tick 三個 pos driver 都會來讀)
+    engrave_cache = {"key": None, "strokes": []}
+
+    def _engrave_strokes() -> list:
+        codes = tuple(int(device.setpoint(f"engrave_char_{i + 1}", _ENGRAVE_DEFAULT_CODES[i]))
+                      for i in range(MAX_CHARS))
+        if codes != engrave_cache["key"]:
+            engrave_cache["key"] = codes
+            engrave_cache["strokes"] = text_strokes(codes_to_text(list(codes)))
+        return engrave_cache["strokes"]
+
     def get_target_pos(progress: float, pattern: int):
         if pattern == 1:
             if progress < 0.05 or progress > 0.95:
@@ -193,7 +186,9 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
             elif p < 0.75: return 150.0 - 300.0 * ((p-0.5)/0.25), 150.0, -50.0
             else: return -150.0, 150.0 - 300.0 * ((p-0.75)/0.25), -50.0
         else:
-            strokes = _NCUT_STROKES
+            strokes = _engrave_strokes()
+            if not strokes:                       # 全空白:停刀在原點上方,不切削
+                return 0.0, 0.0, 50.0
             total_segments = len(strokes)
             seg_progress = progress * total_segments
             seg_idx = min(int(seg_progress), total_segments - 1)
@@ -257,7 +252,12 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
         SetPoint(name="spindle_rpm_setpoint", register=100, unit="rpm",
                  min=2000.0, max=12000.0, default=SPINDLE_NOM_RPM, scale=1.0),
         SetPoint(name="machining_pattern", register=101, unit="enum",
-                 min=0.0, max=2.0, default=0.0, scale=1.0)
+                 min=0.0, max=2.0, default=0.0, scale=1.0),
+        # 刻字文字(pattern 0):每格一個 ASCII 碼(0=空白;支援 A–Z、0–9、-)。
+        # 學生對 register 102..109 逐格 FC06,或用 REST /engrave_text 一次寫整串。
+        *[SetPoint(name=f"engrave_char_{i + 1}", register=102 + i, unit="ascii",
+                   min=0.0, max=90.0, default=float(_ENGRAVE_DEFAULT_CODES[i]), scale=1.0)
+          for i in range(MAX_CHARS)],
     ]
     device = Device(
         device_id=device_id,

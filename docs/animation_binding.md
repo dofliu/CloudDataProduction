@@ -78,7 +78,8 @@
 | 龍門 Z 向(前後) | `pos_y` (mm, ±220) | L1 | `/50` → 模型單位 |
 | 主軸座 X 向(左右) | `pos_x` (mm, ±220) | L1 | `/50` |
 | 主軸頭升降 | `pos_z` (mm, +50 抬刀 / −50 下刀) | L1 | `/50` |
-| 加工圖樣 | ⚙ `machining_pattern` (0=CNC 字樣 / 1=圓 / 2=方) | L1 | 決定刀路;相位以 `pos_*` 反推鎖定 |
+| 加工圖樣 | ⚙ `machining_pattern` (0=刻字 / 1=圓 / 2=方) | L1 | 決定刀路;相位以 `pos_*` 反推鎖定 |
+| 刻字文字(pattern 0) | ⚙ `engrave_char_1` .. `engrave_char_8` (ASCII 碼,0=空白) | L1 | 筆畫由引擎與前端同一套筆畫字型生成(A–Z / 0–9 / -);預設「NCUT」。學生逐格 FC06 或 REST `/engrave_text` 寫入 |
 | 循環週期 | `cycle_time` (s, 45→60 隨刀具鈍化變長) | L3 | 牆鐘週期 = `cycle_time / multiplier`,夾在 3~20 s |
 | 主軸旋轉 | `spindle_speed` (rpm) | L3 | 降頻至 ≤1.5 rev/s,標示倍率 |
 | 切削中(火花 / 刻痕 / 冷卻液) | `pos_z < 0` | L1 | 引擎的 z<0 就是下刀切削 |
@@ -93,7 +94,8 @@
 | 視覺元素 | 引擎欄位 | 等級 | 映射 |
 |----------|----------|------|------|
 | J1~J6 關節角 | `joint_angle_1..6` (deg) | L1 | **六軸全用**,不再由 J1 合成 |
-| 夾爪開合 / 工件在手 | 由 `joint_angle_2`(俯衝角)過取放點推得 | L1 | 引擎 `_KEYFRAMES` 的 idx 1 / 4 是下探點 |
+| 取放兩站位置 | ⚙ `pick_x` `pick_y` `place_x` `place_y` (mm) | L1 | 料檯 = 座標 ÷200;引擎逆運動學保證下探時 TCP 落在該座標(學生 FC06 可寫,負值走 int16 二補數) |
+| 夾爪開合 / 工件在手 | 由 `joint_angle_*` 經前端 fk 過取放點推得 | L1 | fk 端點貼近下探高度(150 mm)且離哪站近就是在哪站取 / 放 |
 | 末端位置校驗 | `tcp_x/y/z` (mm) | L1 | 引擎由 `forward_kinematics(joint_angle_1..6)` 算出;÷200 = 世界單位。畫面夾爪必須對得上(§6) |
 | 循環計數 | `cycle_count` | L1 | |
 | 關節發熱 | `joint_temp_1..6` (°C) | L2 | 取最大值 |
@@ -237,8 +239,10 @@ CNC 在產線視圖套鈑金外殼(`enclosed`),讀起來才像一台機器;裸�
 
 **字面朝向**:引擎 `pos_y` 對到世界 Z,而相機在 +Z 看向原點,所以**世界 +Z 在畫面上
 是往下**。字母的「上緣」在引擎座標是 `y = -60`。用 +60 當上緣,畫出來是上下鏡像的
-「И Ⅽ ∩ ⊥」。定義在 `engine/templates/cnc_machining_center.py::_ncut_strokes()`,
-前端 `deviceMotion.ts::NCUT_STROKES` 必須逐點相同(相位鎖定要拿它比對引擎回報的座標)。
+「И Ⅽ ∩ ⊥」。筆畫字型定義在 `engine/templates/_stroke_font.py::GLYPHS`,
+前端 `deviceMotion.ts::STROKE_FONT` 必須逐點相同(相位鎖定要拿同一條刀路比對引擎
+回報的座標);文字由 ⚙ `engrave_char_1..8` 生成,兩端都用同一套版面規則
+(字寬 60 / 字距 40 / 超過 ±220 行程等比縮小)。
 
 **刻痕補點要沿相位,不是沿畫面位置**。用「畫面位置移動超過門檻就放一顆」是 frame-rate
 相依的:低幀率時一幀跨過大半個筆畫,一幀只放得到一顆 → 字變成散落的點;球放大到能連成

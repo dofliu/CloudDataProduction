@@ -1,6 +1,6 @@
 # Roadmap · TODO · Known Issues(路線圖 · 待辦 · 已知限制)
 
-> 進度 Progress: **~100%**(P0–P4 + 上線硬化 + 產業庫擴充 + 課堂即時練習 + 學生監控台 + 4D 暖色 UI 重設計 + 3D 動畫精準化與自動驗證)· 更新 Updated: 2026-07-28
+> 進度 Progress: **~100%**(P0–P4 + 上線硬化 + 產業庫擴充 + 課堂即時練習 + 學生監控台 + 4D 暖色 UI 重設計 + 3D 動畫精準化與自動驗證 + 學生可寫輸入控制 + **引擎產線物料流**)· 更新 Updated: 2026-07-30
 > 建置順序原始規劃見 [07-roadmap.md](07-roadmap.md);本檔為現況與後續。
 
 ---
@@ -39,6 +39,10 @@
 | **廠內產線製程佈局** | 廠內視圖不再把設備等距排一列各做各的,改依**製程角色**(產出 / 搬運 / 輸送 / 廠務)排成一條看得懂的線(`web/src/world/processFlow.ts`):相鄰工站邊靠邊、手臂轉 90° 讓**取件點對到上游機台出料口、放件點壓在輸送帶起點**、廠務退到後排不佔主線、地面畫料道與方向箭頭、畫面與說明卡寫出「製程流向:射出成型 → 手臂取放 → 輸送帶出料」(由實際設備推出來)。CNC 在產線視圖套鈑金外殼,裸露刀路留給詳情頁。各機種佔地半寬由 `preview/measure.mjs` 從真實場景量回來,不是估的。**⚠ 這是空間上的對位,不是引擎層的物料交接** —— 各設備節拍仍各自獨立 |
 
 | **場景產生器化** | `scenarios/*.yaml` 改由 `scenarios/scripts/gen_*.py` 產生(規則寫死、可重現):課堂版 65 廠 / 133 設備 / 46 種組合,示範版 37 廠 / 72 設備 / 32 種組合,11 種 template 兩份都全覆蓋。設備組合符合產業工程邏輯而非隨機湊。**公司名改為虛構**(合成資料掛真實廠商名等於對真實企業的不實陳述);示範版廠名改成「{產品線}廠({老師}負責)」,產生器加了廠名唯一性斷言 |
+
+| **學生可寫輸入控制(2026-07-30)** | ① **CNC 刻字**:pattern 0 從寫死刻 NCUT 升級為任意文字 —— 筆畫字型 `engine/templates/_stroke_font.py`(A–Z / 0–9 / `-`,引擎與前端逐點同一套),由 `engrave_char_1..8` setpoints(ASCII,reg 102..109)驅動,學生逐格 FC06 或 REST `/engrave_text` 一次寫整串,超行程等比縮小、預設 NCUT 零回歸。② **手臂取放兩點可指定**:`pick_x/pick_y/place_x/place_y` setpoints(±1250 mm),引擎逆運動學解回六軸 keyframes,`tcp_x/y/z` 誠實反映、「方位角 ≡ J1」不變量保持;**Modbus 轉接層補 int16 二補數**(負座標可寫、反射一致)。③ 設定點寫入控件抽成共用元件並**搬進詳情彈窗**(彈窗蓋住側欄,先前可寫欄位實際上點不到)。④ `tests/test_input_control.py` 掛 CI:預設零回歸、切削點對筆畫偏距 0、IK↔FK 往返 1e-13 mm、tcp 抵達指定點 <2 mm |
+
+| **引擎產線物料流(2026-07-30)** | 原 TODO「Material flow in the engine」完成:公司 YAML 宣告 `line:`(站序)後工件在引擎內**真實傳遞**(`engine/line.py`)。① 上游完工進出料緩衝(滿 3 件上游停)、手臂**事件驅動**取放(`cycle_count` = 實際搬運件數,無料在取件點上方待命、電流/振動掉回待機值)、下游無料真的停 —— 餓料/滿料計 no-demand 不罰 OEE 可用率;完工偵測直接讀各 template 累積量 tag(帳 = 學生 Modbus 讀值,不做兩套);大 dt 下搬運配額制(tick 粒度不成瓶頸)。② **終站輸送帶為真站**:工件上帶、走完帶長(8 sim 秒)才出貨,**空帶待機不空轉**(belt_speed→0)。③ 可觀測:FC04 `line_in_buffer`/`line_out_buffer`/`line_on_belt` 進目錄,WS snapshot 加 `lines` 帳。④ 前端:緩衝方塊擺在 processFlow 對位的**手臂實際取放點**、輸送帶只畫帳上件數、產線統計列;**「🎬 慢速觀察 ×2」教師鈕**(×120 下取放僅 0.07 牆鐘秒,物理上不可見 —— 慢速下全程真實資料呈現)。⑤ 兩份場景由產生器接線(課堂 12 條 / 示範 6 條)、單機工廠全數補上搭配設備、公司 intro 補產線流向;**建廠(規則式)升級支援多型別描述**(「2 台 CNC 和 1 支手臂」)且產出自動接線。⑥ `tests/test_line_flow.py` 掛 CI:守恆(完工=待取+在手+已搬;出貨+帶上≤已搬≤完工)、餓料/滿料/空帶誠實停機 |
 
 兩個教學階段皆可開課。Both teaching stages are classroom-ready.
 
@@ -84,13 +88,17 @@
 成本低、風險小,而且如果真的還有「兩套互相矛盾的資料」,那是**會直接教錯學生**的問題,
 優先度高於任何視覺改善。作法比照 `verify_scenario.py::check_kinematics`。
 
-### 3. 引擎層的物料流 Material flow in the engine
+### 3. 產線物料流的延伸 Line-flow follow-ups
 
-目前廠內產線是**空間上的對位**:手臂的取件點對到上游機台的出料口,但兩者節拍各自獨立,
-不會出現「射出機一頂出、手臂就伸手」。要真連動得在引擎加產線 / 工件傳遞的概念。
+> 基礎已完成(見 Done 表「引擎產線物料流」)。後續可做:
 
-教學價值高(學生能學到節拍不匹配造成的堆料 / 斷料、瓶頸分析),但這是**引擎的架構性改動**,
-會連帶影響 OEE 與件數統計。建議等課程流程確定需要再做。
+- **AGV 也能當產線搬運者** —— 目前 handler 只支援六軸手臂;AGV 入線可做「跨廠區物流」
+  (取貨點 / 卸貨點與巡迴路線掛勾),教學上對應廠內 vs 廠間物流。
+- **MES 多站路由(一單多站)** —— 工單目前一張綁一台;與 `line:` 串起來即可做
+  「一張單沿產線走」的製程路由、每站報工,對應 ISA-95 的 production routing。
+- **餓料 / 堵料課堂情境與評分** —— 產線帳(緩衝 / 出貨 / 搬運)都在 snapshot.lines,
+  可出「找出瓶頸站」「算節拍不匹配損失」這類題並自動批改(瓶頸分析、Little's Law)。
+- **產線層 KPI** —— 線平衡率、瓶頸站利用率、WIP 曲線,從 lines 帳自算即可。
 
 ### 4. 對外接入 External access
 
@@ -124,10 +132,10 @@ Cloudflare Tunnel(HTTP)+ Tailscale(原生協定),ACL 限校內 / 學生群組。
   student_kit 的 Python 或網頁 UI。PowerShell mangles `curl` JSON bodies — use the Python scripts or web UI for POST.
 - **必須用 venv python**:裸 `python` = 全域那支(版本會漂移,pymodbus 被拉到 3.9.2 會崩);一律 `run-engine.ps1`。
 - **本機埠 Local ports**:工業協定埠統一 6xxx(Modbus 6020 / OPC-UA 6041 / MQTT 6083 / multiport 6100+ / 控制埠 6023),避開 5040(CDPSvc)等保留埠;API 8077。含中文的 .ps1 須存 UTF-8 BOM。
-- **示範廠 c65 Demo company**:`scenarios/class_park.yaml` 有一間額外的「上下料示範廠」(c65:2 CNC + 手臂)。
-  廠內視圖改 3D 後,原本的 2D「雙機上下料工作站」畫法已移除,c65 現在就是一般的多機台產線;
-  上下料的搬運演示改由 **AGV 詳情場景**(兩個停靠站各有一支上下料手臂,節拍對齊引擎的 6 秒停靠)呈現。
-  c65 屬**教師展示用**,不需要時可刪除該公司。Extra teacher-demo company; remove it if not needed.
+- **示範廠 c65 Demo company**:`scenarios/class_park.yaml` 有一間額外的「上下料示範廠」
+  (c65:2 CNC + 手臂,**已接引擎產線物料流** —— 工件真實傳遞,搭配「🎬 慢速觀察」
+  即為完整的上下料演示)。屬**教師展示用**,不需要時可刪除該公司。
+  Teacher-demo company with a real engine-level material-flow line; remove it if not needed.
 - **4D 字體 Fonts**:見上 TODO §5 —— LAN 無外網,HTML 會回退系統字體;**3D 層不受影響**(不依賴外網)。
 - **動畫的時間換算 Animation time scaling**:場景預設 `time_multiplier: 120`,多數設備的真實循環在牆鐘上
   只有零點幾秒,直接畫會變閃爍。因此週期性動作與高轉速件會夾在可讀區間並**在畫面標出倍率**

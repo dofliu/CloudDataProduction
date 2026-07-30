@@ -3,8 +3,8 @@ name_zh: 雲端生產數據導論 — 虛擬智慧工業區教學平台
 category: edtech
 progress: 99
 status: active
-last_updated: "2026-07-06"
-next_milestone: "對外接入(Cloudflare Tunnel + Tailscale)——待能存取校內 5090 主機"
+last_updated: "2026-07-30"
+next_milestone: "每週凍結資料包(離線教材);對外接入(Cloudflare Tunnel + Tailscale)——待能存取校內 5090 主機"
 technologies:
   - Python 3.11
   - asyncio

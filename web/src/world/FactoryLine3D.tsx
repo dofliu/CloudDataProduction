@@ -9,7 +9,7 @@ import React from "react";
 import * as THREE from "three";
 import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls, Box, ContactShadows } from "@react-three/drei";
-import { DeviceSnapshot, LineView } from "../api";
+import { DeviceSnapshot, LineView, getTeacherToken, setClock } from "../api";
 import { DeviceMotion, buildMotion } from "./deviceMotion";
 import { StudioEnvironment } from "./MachineScene";
 import { CanvasLabel } from "./MachineFx";
@@ -26,7 +26,7 @@ import { EnergyMeterModel } from "./EnergyMeter3D";
 import { ProcessChamberModel } from "./ProcessChamber3D";
 import { HeatTreatFurnaceModel } from "./HeatTreatFurnace3D";
 
-import { LINE_SCALE, layoutLine } from "./processFlow";
+import { ARM_REACH_X, LINE_SCALE, layoutLine } from "./processFlow";
 
 type ModelComp = React.ComponentType<any>;
 
@@ -186,6 +186,21 @@ export default function FactoryLine3D({
   }, [line]);
   // 依製程角色排出一條看得懂的線(上游 → 搬運 → 出料),而不是等距一列各做各的
   const layout = React.useMemo(() => layoutLine(devices), [devices]);
+  // 手臂上下游的緩衝方塊要擺在手臂**真正的取放點**上(processFlow 對位的同一組數字),
+  // 手臂才是「伸到堆料處取件、轉身放到下一站」,而不是各畫各的。
+  const handoff = React.useMemo(() => {
+    if (!line) return null;
+    const idx = line.stations.findIndex((s) => s.role === "handler");
+    if (idx <= 0) return null;
+    const armPlaced = layout.placed.find((p) => p.id === line.stations[idx].device);
+    if (!armPlaced) return null;
+    return {
+      upDev: line.stations[idx - 1]?.device,
+      downDev: line.stations[idx + 1]?.device,
+      pick: { x: armPlaced.x - ARM_REACH_X, z: 0 },   // 取件點(上游出料側)
+      place: { x: armPlaced.x + ARM_REACH_X, z: 0 },  // 放件點(下游入料 / 輸送帶起點)
+    };
+  }, [line, layout]);
   const halfW = layout.placed.length
     ? Math.max(...layout.placed.map((p) => Math.abs(p.x))) + 3.5 : 9;
   const hasUtil = layout.placed.some((p) => p.role === "utility");
@@ -223,13 +238,16 @@ export default function FactoryLine3D({
           const snap = snapshots[p.id];
           const motion = buildMotion(snap ? { ...snap, template: p.template } : null, multiplier);
           const scale = LINE_SCALE[p.template] ?? 0.6;
+          const st = stationByDev[p.id];
           return (
             <group key={p.id} position={[p.x, 0, p.z]} rotation={[0, p.yaw, 0]}
                    onClick={(e) => { e.stopPropagation(); onDeviceClick?.(p.id); }}
                    onPointerOver={() => (document.body.style.cursor = "pointer")}
                    onPointerOut={() => (document.body.style.cursor = "default")}>
               <group name={`dev:${p.id}`} scale={scale}>
-                <Model motion={motion} stations={p.stations} enclosed />
+                {/* 輸送帶在產線裡只畫引擎帳上的工件數(on_belt),空帶就是空的 */}
+                <Model motion={motion} stations={p.stations} enclosed
+                       partCount={st?.role === "terminal" ? st.on_belt ?? 0 : undefined} />
               </group>
               {/* 名牌固定朝相機:機台本體可能被轉了 yaw,牌子要轉回來才讀得到 */}
               <group rotation={[0, -p.yaw, 0]} position={[p.role === "utility" ? 0 : 0, 0, 0]}>
@@ -238,17 +256,29 @@ export default function FactoryLine3D({
                 </Box>
                 <CanvasLabel text={p.id} position={[0, 0.02, 4.6]} rotation={[-Math.PI / 2, 0, 0]}
                              height={0.46} bg="none" />
-                {/* 產線緩衝:引擎帳上的待取(出料)/ 待加工(入料)件數,與 FC04 點位同值 */}
-                {stationByDev[p.id]?.out_buffer != null && (
-                  <BufferStack x={2.9} z={3.1} count={stationByDev[p.id].out_buffer!} label="待取" />
+                {/* 手臂交接以外的產線緩衝(如長線的中段)仍畫在機台旁 */}
+                {st?.out_buffer != null && p.id !== handoff?.upDev && (
+                  <BufferStack x={2.9} z={3.1} count={st.out_buffer} label="待取" />
                 )}
-                {stationByDev[p.id]?.in_buffer != null && (
-                  <BufferStack x={-2.9} z={3.1} count={stationByDev[p.id].in_buffer!} label="待加工" />
+                {st?.in_buffer != null && p.id !== handoff?.downDev && (
+                  <BufferStack x={-2.9} z={3.1} count={st.in_buffer} label="待加工" />
                 )}
               </group>
             </group>
           );
         })}
+
+        {/* 手臂交接點的緩衝:擺在手臂真正的取件 / 放件座標上(與 processFlow 對位同一組數字)。
+            上游完工 → 「待取」堆高 → 手臂伸到這裡取件;下游是機台 → 「待加工」在放件點;
+            下游是輸送帶 → 工件直接畫在帶上(on_belt),放件點不再另畫堆。 */}
+        {handoff && stationByDev[handoff.upDev]?.out_buffer != null && (
+          <BufferStack x={handoff.pick.x} z={handoff.pick.z}
+                       count={stationByDev[handoff.upDev].out_buffer!} label="待取" />
+        )}
+        {handoff && handoff.downDev && stationByDev[handoff.downDev]?.in_buffer != null && (
+          <BufferStack x={handoff.place.x} z={handoff.place.z}
+                       count={stationByDev[handoff.downDev].in_buffer!} label="待加工" />
+        )}
 
         <ContactShadows resolution={1024} scale={floorW + 6} blur={2} opacity={0.42} far={12} color="#4a3f2f" />
         {onMeasured && <Measurer ids={layout.placed} onMeasured={onMeasured} />}
@@ -276,6 +306,18 @@ export default function FactoryLine3D({
               ` · ${s.device} 累積搬運 ${s.moved ?? 0} 件${(s.carrying ?? 0) > 0 ? "(搬運中)" : ""}`
             ).join("")}
           </span>
+        )}
+        {/* ×120 下一件工件 0.2 秒就完成,取放動作本來就看不見 —— 慢速觀察把 sim 降到 ×2,
+            完工 → 待取堆高 → 手臂取放 → 輸送帶送出,全部用真實資料自然看得見(教師權限)。 */}
+        {line && getTeacherToken() && (
+          <button
+            onClick={() => setClock({ multiplier: multiplier > 4 ? 2 : 120 })}
+            style={{ pointerEvents: "auto", alignSelf: "flex-start", cursor: "pointer",
+                     background: multiplier > 4 ? "var(--accent, #c8703a)" : "var(--ok, #5a9e5a)",
+                     color: "#fffaf0", border: "none", borderRadius: 8, padding: "5px 12px",
+                     fontSize: 12, fontWeight: 700 }}>
+            {multiplier > 4 ? "🎬 慢速觀察 ×2(看得見取放)" : `⏩ 恢復 ×120`}
+          </button>
         )}
         {layout.utilityText && (
           <span style={{ background: "rgba(255,250,240,.8)", color: "var(--muted)", padding: "4px 10px",

@@ -202,13 +202,14 @@ function Line() {
         shipped: 42,
         stations: [
           { device: prod[0].id, template: prod[0].template, role: "source",
-            in_buffer: null, out_buffer: 2, carrying: null, moved: null },
+            in_buffer: null, out_buffer: 2, carrying: null, moved: null, on_belt: null },
           { device: arm.id, template: arm.template, role: "handler",
-            in_buffer: null, out_buffer: null, carrying: 1, moved: 43 },
+            in_buffer: null, out_buffer: null, carrying: 1, moved: 43, on_belt: null },
           ...(sink ? [{ device: sink.id, template: sink.template,
             role: sink.template === "conveyor" ? "terminal" : "sink",
             in_buffer: sink.template === "conveyor" ? null : 3,
-            out_buffer: null, carrying: null, moved: null }] : []),
+            out_buffer: null, carrying: null, moved: null,
+            on_belt: sink.template === "conveyor" ? 3 : null }] : []),
         ],
       };
     }

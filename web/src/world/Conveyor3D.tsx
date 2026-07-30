@@ -17,7 +17,10 @@ const LENGTH = 12, WIDTH = 2, HEIGHT = 1.5;
 const PART_COUNT = 8;
 const MAX_BELT_UPS = 3.0;      // 皮帶在畫面上的速度上限(模型單位/s),超過就降速並標示
 
-export const ConveyorModel = ({ motion }: MachineProps) => {
+export const ConveyorModel = ({ motion, partCount }: MachineProps & {
+  /** 產線視圖:帶上實際工件數(引擎 line 帳的 on_belt)。未給(單機/非產線)維持裝飾性工件。 */
+  partCount?: number | null;
+}) => {
   const partsRef = useRef<THREE.InstancedMesh>(null);
   const beltRef = useRef<THREE.Mesh>(null);
   const rollerRefs = [useRef<THREE.Mesh>(null), useRef<THREE.Mesh>(null)];
@@ -54,9 +57,15 @@ export const ConveyorModel = ({ motion }: MachineProps) => {
     for (const r of rollerRefs) if (r.current) r.current.rotation.x = travel.current / 0.2;
 
     if (partsRef.current) {
+      // 產線模式(partCount 有給):只畫引擎帳上的件數,空帶就是空的;否則維持裝飾性 8 件
+      const visible = partCount == null ? PART_COUNT : Math.min(PART_COUNT, Math.max(0, partCount));
       for (let i = 0; i < PART_COUNT; i++) {
-        const progress = ((travel.current / LENGTH + i / PART_COUNT) % 1 + 1) % 1;
-        dummy.position.set(-LENGTH / 2 + progress * LENGTH, HEIGHT + 0.3, 0);
+        if (i >= visible) {
+          dummy.position.set(0, -100, 0);            // 藏到地下(instancedMesh 沒有 per-instance 顯示開關)
+        } else {
+          const progress = ((travel.current / LENGTH + i / PART_COUNT) % 1 + 1) % 1;
+          dummy.position.set(-LENGTH / 2 + progress * LENGTH, HEIGHT + 0.3, 0);
+        }
         dummy.updateMatrix();
         partsRef.current.setMatrixAt(i, dummy.matrix);
       }

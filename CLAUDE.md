@@ -52,7 +52,9 @@ cloud-production-data/
 │   ├── signals.py             # 訊號模型(health→觀測,含熱滯後/雜訊)
 │   ├── sensor_faults.py       # 感測器故障層(stuck/drift/bias/dropout)
 │   ├── device.py              # Device = tags + drivers + health components
-│   ├── templates/             # 產業型別庫(見 docs/03)
+│   ├── templates/             # 產業型別庫(見 docs/03;_stroke_font.py = CNC 刻字筆畫字型)
+│   ├── line.py                # 產線物料流:line: 宣告的公司,工件在站間真實傳遞
+│   ├── mes.py                 # MES:工單驅動設備運轉
 │   └── world.py               # 載入場景、推進所有設備、廣播狀態
 ├── adapters/                  # 協定轉接層(讀 engine 狀態)
 │   ├── modbus_server.py
@@ -82,6 +84,8 @@ cloud-production-data/
 │   ├── teacher/               # 上帝視角控制台 + 參考客戶端儀表板
 │   └── catalog/               # 公開設備目錄頁
 ├── tests/animation/           # 動畫 ↔ 模擬資料一致性驗證(見該目錄 README)
+├── tests/test_input_control.py  # CNC 刻字 / 手臂取放:寫 setpoint 後輸出真的跟著變(CI)
+├── tests/test_line_flow.py      # 產線物料流:守恆 / 餓料滿料誠實停機 / 輸送帶終站(CI)
 ├── .github/workflows/verify.yml   # CI:場景健全性 / 前端建置 / 動畫一致性
 └── student_kit/               # 給學生的範例:連線骨架、目錄查詢、預測上傳範例
 ```

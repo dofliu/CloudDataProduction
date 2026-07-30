@@ -17,6 +17,7 @@ import yaml
 
 from .clock import SimClock
 from .device import Device
+from .line import LineManager
 from .mes import MES
 from .templates import get_builder
 from .templates._common import default_seed
@@ -48,6 +49,9 @@ class World:
         # MES(Phase 1):工單驅動設備運轉。疊在班表之上,只管離散製造設備。
         # 狀態只存在引擎(鐵則)—— 工單狀態全在這裡,adapters / API / 前端只讀。
         self.mes = MES(self, park.get("mes"))
+
+        # 產線物料流:公司 YAML 的 line: 宣告(工件在設備間真實傳遞,engine/line.py)。
+        self.lines = LineManager(self)
 
         self._subscribers: List[Subscriber] = []
         self._event_subscribers: List[Subscriber] = []
@@ -101,10 +105,12 @@ class World:
 
         uid = max(self._next_unit_id(), 50)   # 動態加的從 50 起,避開既有定址
         built = []
+        renamed: dict = {}                    # 撞名改 id 時,line: 站序也要跟著改
         for dev_cfg in company_cfg.get("devices", []) or []:
             did = dev_cfg["id"]
             if did in self.devices:
-                did = f"{did}-{uid}"
+                renamed[did] = f"{did}-{uid}"
+                did = renamed[did]
                 dev_cfg["id"] = did
             proto = dev_cfg.setdefault("protocols", {})
             proto.setdefault("modbus", {"unit_id": uid, "register_base": 0})
@@ -117,8 +123,11 @@ class World:
             self.devices[did] = device
             built.append(did)
 
+        if renamed and company_cfg.get("line"):
+            company_cfg["line"] = [renamed.get(x, x) for x in company_cfg["line"]]
         self.park.setdefault("companies", []).append(company_cfg)
         self.mes.register_company(company_cfg)   # 新公司的 producer 設備即時納入 MES(有工單才跑)
+        self.lines.register_company(company_cfg)  # 有 line: 宣告就接上產線物料流
         return {
             "company": cid, "name": company_cfg.get("name"), "devices": built,
             "note": "已即時加入:引擎/2D世界/WS/目錄/工單,以及原生協定"
@@ -140,9 +149,11 @@ class World:
         for device in self.devices.values():
             device.set_sim_t(sim_t)
         self.mes.assign(sim_t)              # 設備 step 前:指派當前工單、設 has_work
+        self.lines.gate()                   # 產線閘門:無料 / 滿料 → 該站本拍待機
         for device in self.devices.values():
             device.step(dt_sim)
         self.mes.advance(dt_sim, sim_t)     # 設備 step 後:依實際運轉累積產量、完工換單、補 backlog
+        self.lines.advance(dt_sim)          # 產線記帳:完工進緩衝、授予手臂搬運、工件落下游
         self._pending_events = self._detect_events(sim_t)
         snapshot = self._make_snapshot()
         self._last_snapshot = snapshot
@@ -180,6 +191,7 @@ class World:
             "sim_t": self.clock.now(),
             "multiplier": self.clock.time_multiplier,
             "devices": {d.id: d.public_snapshot() for d in self.devices.values()},
+            "lines": self.lines.view(),     # 產線物料流(緩衝 / 在手 / 出貨),學生面公開
         }
 
     async def run(self) -> None:

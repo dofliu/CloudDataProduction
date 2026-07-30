@@ -177,7 +177,8 @@ function Measure() {
 }
 
 function Line() {
-  const key = new URLSearchParams(location.search).get("line") || "1";
+  const q = new URLSearchParams(location.search);
+  const key = q.get("line") || "1";
   const idxs = LINE_COMBOS[key] ?? LINE_COMBOS.mixed;
   const picked = idxs.map((i) => CASES[i]);
   const snapshots: Record<string, any> = {};
@@ -187,9 +188,34 @@ function Line() {
                       tags: c.tags, setpoints: c.setpoints, coils: c.coils };
     return { id, template: c.template };
   });
+  // ?flow=1:掛一份模擬的產線帳(engine/line.py 的 snapshot.lines 形狀),
+  // 驗收站邊緩衝方塊與「工件實際流動」標示。取排在最前的 producer / handler / 其餘。
+  let line: any = undefined;
+  if (q.get("flow") === "1") {
+    const prod = devices.filter((d) => !["robot_arm_6axis", "conveyor", "agv_mobile_robot",
+      "air_compressor", "energy_meter", "wind_turbine"].includes(d.template));
+    const arm = devices.find((d) => d.template === "robot_arm_6axis");
+    if (prod.length && arm) {
+      const sink = prod[1] ?? devices.find((d) => d.template === "conveyor");
+      line = {
+        company: "preview",
+        shipped: 42,
+        stations: [
+          { device: prod[0].id, template: prod[0].template, role: "source",
+            in_buffer: null, out_buffer: 2, carrying: null, moved: null },
+          { device: arm.id, template: arm.template, role: "handler",
+            in_buffer: null, out_buffer: null, carrying: 1, moved: 43 },
+          ...(sink ? [{ device: sink.id, template: sink.template,
+            role: sink.template === "conveyor" ? "terminal" : "sink",
+            in_buffer: sink.template === "conveyor" ? null : 3,
+            out_buffer: null, carrying: null, moved: null }] : []),
+        ],
+      };
+    }
+  }
   return (
     <div style={{ position: "absolute", inset: 0 }}>
-      <FactoryLine3D devices={devices} snapshots={snapshots} multiplier={MULTIPLIER} />
+      <FactoryLine3D devices={devices} snapshots={snapshots} multiplier={MULTIPLIER} line={line} />
     </div>
   );
 }

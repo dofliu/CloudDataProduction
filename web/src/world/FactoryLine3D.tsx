@@ -9,7 +9,7 @@ import React from "react";
 import * as THREE from "three";
 import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls, Box, ContactShadows } from "@react-three/drei";
-import { DeviceSnapshot } from "../api";
+import { DeviceSnapshot, LineView } from "../api";
 import { DeviceMotion, buildMotion } from "./deviceMotion";
 import { StudioEnvironment } from "./MachineScene";
 import { CanvasLabel } from "./MachineFx";
@@ -45,8 +45,31 @@ const MODELS: Record<string, ModelComp> = {
 };
 
 /**
+ * 站邊緩衝:引擎產線物料流(snapshot.lines)的入/出料緩衝,一件一顆方塊。
+ * 這**不是**裝飾 —— 顆數 = 引擎帳上的件數,學生用 Modbus FC04 讀 line_in/out_buffer
+ * 會得到同一個數字。
+ */
+function BufferStack({ x, z, count, label }: { x: number; z: number; count: number; label: string }) {
+  return (
+    <group position={[x, 0, z]}>
+      <Box args={[1.5, 0.08, 1.5]} position={[0, 0.04, 0]} receiveShadow>
+        <meshStandardMaterial color="#b8ab90" roughness={0.9} />
+      </Box>
+      {Array.from({ length: Math.min(count, 6) }, (_, i) => (
+        <Box key={i} args={[0.62, 0.55, 0.62]} position={[0, 0.42 + i * 0.58, 0]} castShadow>
+          <meshStandardMaterial color="#3a8a3a" roughness={0.6} />
+        </Box>
+      ))}
+      <CanvasLabel text={`${label} ${count}`} position={[0, 0.02, 1.35]}
+                   rotation={[-Math.PI / 2, 0, 0]} height={0.42} bg="none" />
+    </group>
+  );
+}
+
+/**
  * 地面料道:一條從上游指向下游的導引帶 + 幾個方向箭頭。
- * 純視覺標示,不代表引擎裡真的有工件在跑(引擎沒有跨設備的工件傳遞)。
+ * 沒有 line: 宣告的公司,這仍只是空間上的對位標示;有產線的公司,工件在引擎裡
+ * 真實流動(緩衝方塊 = 引擎帳,見 BufferStack)。
  */
 function MaterialLane({ from, to }: { from: number; to: number }) {
   const len = Math.max(1, to - from);
@@ -145,15 +168,22 @@ function Measurer({ ids, onMeasured }: {
 }
 
 export default function FactoryLine3D({
-  devices, snapshots, multiplier = 1, onDeviceClick, onMeasured,
+  devices, snapshots, multiplier = 1, line, onDeviceClick, onMeasured,
 }: {
   devices: { id: string; template: string }[];
   snapshots: Record<string, DeviceSnapshot>;
   multiplier?: number;
+  /** 這間公司的產線物料流視圖(snapshot.lines;沒有 line: 宣告就是 undefined) */
+  line?: LineView;
   onDeviceClick?: (id: string) => void;
   /** dev 量測用,正式畫面不傳 */
   onMeasured?: (rows: any[]) => void;
 }) {
+  const stationByDev = React.useMemo(() => {
+    const m: Record<string, LineView["stations"][number]> = {};
+    for (const s of line?.stations ?? []) m[s.device] = s;
+    return m;
+  }, [line]);
   // 依製程角色排出一條看得懂的線(上游 → 搬運 → 出料),而不是等距一列各做各的
   const layout = React.useMemo(() => layoutLine(devices), [devices]);
   const halfW = layout.placed.length
@@ -208,6 +238,13 @@ export default function FactoryLine3D({
                 </Box>
                 <CanvasLabel text={p.id} position={[0, 0.02, 4.6]} rotation={[-Math.PI / 2, 0, 0]}
                              height={0.46} bg="none" />
+                {/* 產線緩衝:引擎帳上的待取(出料)/ 待加工(入料)件數,與 FC04 點位同值 */}
+                {stationByDev[p.id]?.out_buffer != null && (
+                  <BufferStack x={2.9} z={3.1} count={stationByDev[p.id].out_buffer!} label="待取" />
+                )}
+                {stationByDev[p.id]?.in_buffer != null && (
+                  <BufferStack x={-2.9} z={3.1} count={stationByDev[p.id].in_buffer!} label="待加工" />
+                )}
               </group>
             </group>
           );
@@ -228,6 +265,16 @@ export default function FactoryLine3D({
           <span style={{ background: "rgba(90,158,90,.16)", color: "#3f6b3f", padding: "4px 10px",
                          borderRadius: 8, alignSelf: "flex-start", fontWeight: 600 }}>
             製程流向:{layout.flowText}
+            {line ? " · 工件實際流動(引擎產線)" : ""}
+          </span>
+        )}
+        {line && (
+          <span className="mono" style={{ background: "rgba(90,158,90,.16)", color: "#3f6b3f",
+                                          padding: "4px 10px", borderRadius: 8, alignSelf: "flex-start" }}>
+            已出貨 {line.shipped} 件
+            {line.stations.filter((s) => s.role === "handler").map((s) =>
+              ` · ${s.device} 累積搬運 ${s.moved ?? 0} 件${(s.carrying ?? 0) > 0 ? "(搬運中)" : ""}`
+            ).join("")}
           </span>
         )}
         {layout.utilityText && (

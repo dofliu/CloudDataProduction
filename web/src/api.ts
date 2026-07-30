@@ -20,9 +20,21 @@ export interface DeviceSnapshot {
   coils?: Record<string, boolean>;         // 命令線圈(FC01/05)
   setpoints?: Record<string, number>;      // 學生可寫設定點(holding,受控範圍)
 }
+/** 產線物料流(engine/line.py):站間緩衝 / 手臂在手 / 出貨,學生面公開視圖。 */
+export interface LineStation {
+  device: string; template: string;
+  role: "source" | "mid" | "sink" | "handler" | "terminal";
+  in_buffer: number | null;    // 入料緩衝(非首站 producer)
+  out_buffer: number | null;   // 出料緩衝(非末站 producer)
+  carrying: number | null;     // 手臂在手件數(handler)
+  moved: number | null;        // 手臂累積搬運件數(handler)
+}
+export interface LineView { company: string; stations: LineStation[]; shipped: number; }
+
 export interface TelemetryMsg {
   wall_t: number; sim_t: number; multiplier: number;
   devices: Record<string, DeviceSnapshot>;
+  lines?: LineView[];          // 產線物料流(有 line: 宣告的公司才有)
 }
 export interface EventMsg {
   type: string; device: string; company?: string;

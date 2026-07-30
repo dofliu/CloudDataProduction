@@ -297,6 +297,7 @@ export default function WorldView({
           devices={fc ? fc.device_ids.map((did) => ({ id: did, template: telemetry?.devices[did]?.template || "unknown" })) : []}
           snapshots={telemetry?.devices || {}}
           multiplier={telemetry?.multiplier ?? 1}
+          line={fc ? telemetry?.lines?.find((l) => l.company === fc.id) : undefined}
           onDeviceClick={onSelect}
         />
       </div>

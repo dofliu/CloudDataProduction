@@ -128,6 +128,9 @@ def check_binding_tags(world: World) -> None:
         tags_by_tmpl.setdefault(d.template, set()).update(t.name for t in d.tags)
         tags_by_tmpl[d.template].update(s.name for s in d.setpoints)
         tags_by_tmpl[d.template].update(c.name for c in d.command_coils)
+        # 衍生點位也算「引擎有發」:FC04 輸入暫存器(含產線 line_in/out_buffer)與 FC02 DI
+        tags_by_tmpl[d.template].update(p.name for p in d.input_registers)
+        tags_by_tmpl[d.template].update(p.name for p in d.discrete_inputs)
 
     cur = None
     bad: list[str] = []

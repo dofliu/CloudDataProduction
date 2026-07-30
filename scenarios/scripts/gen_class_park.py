@@ -32,8 +32,8 @@ ARCHETYPES = {
         "label": "工具機加工",
         "products": ["CNC 立式加工中心", "CNC 車銑複合", "五軸加工中心", "精密模具加工"],
         "recipes": [
-            ["cnc_machining_center"],
-            ["cnc_machining_center", "robot_arm_6axis"],          # 手臂上下料
+            ["cnc_machining_center", "energy_meter"],              # 加工 + 用電監測
+            ["cnc_machining_center", "robot_arm_6axis", "conveyor"],   # 手臂下料到輸送帶
             ["cnc_machining_center", "conveyor"],                  # 加工完出料
             ["cnc_machining_center", "air_compressor"],            # 廠務氣源
             ["cnc_machining_center", "cnc_machining_center", "robot_arm_6axis"],
@@ -54,9 +54,9 @@ ARCHETYPES = {
         "label": "沖壓鈑金",
         "products": ["汽車鈑金件", "電子機殼沖壓", "五金沖壓件", "散熱片沖壓"],
         "recipes": [
-            ["stamping_press"],
+            ["stamping_press", "energy_meter"],
             ["stamping_press", "conveyor"],                        # 沖完直接出料
-            ["stamping_press", "robot_arm_6axis"],                 # 手臂取件
+            ["stamping_press", "robot_arm_6axis", "conveyor"],     # 手臂取件到輸送帶
             ["stamping_press", "air_compressor"],                  # 氣壓頂料
             ["stamping_press", "conveyor", "energy_meter"],
             ["stamping_press", "stamping_press", "conveyor"],      # 雙機連線
@@ -66,9 +66,9 @@ ARCHETYPES = {
         "label": "塑膠射出",
         "products": ["家電外殼射出", "汽車內飾件", "精密齒輪射出", "醫材塑件"],
         "recipes": [
-            ["injection_molding"],
+            ["injection_molding", "air_compressor"],
             ["injection_molding", "conveyor"],                     # 頂出落料到輸送帶
-            ["injection_molding", "robot_arm_6axis"],              # 取件機
+            ["injection_molding", "robot_arm_6axis", "conveyor"],  # 取件機下料到輸送帶
             ["injection_molding", "energy_meter"],                 # 射出耗電大
             ["injection_molding", "robot_arm_6axis", "conveyor"],
             ["injection_molding", "injection_molding", "energy_meter"],
@@ -78,7 +78,7 @@ ARCHETYPES = {
         "label": "半導體製程",
         "products": ["晶圓蝕刻製程", "薄膜沉積製程", "封測前段製程", "化合物半導體製程"],
         "recipes": [
-            ["semi_process_chamber"],
+            ["semi_process_chamber", "robot_arm_6axis", "semi_process_chamber"],   # 晶圓傳送手臂串兩腔
             ["semi_process_chamber", "agv_mobile_robot"],          # AGV 搬晶圓盒
             ["semi_process_chamber", "air_compressor"],            # 無塵室廠務
             ["semi_process_chamber", "energy_meter"],
@@ -89,7 +89,7 @@ ARCHETYPES = {
         "label": "熱處理",
         "products": ["真空熱處理", "滲碳淬火", "退火軟化處理", "時效硬化處理"],
         "recipes": [
-            ["heat_treat_furnace"],
+            ["heat_treat_furnace", "air_compressor"],
             ["heat_treat_furnace", "agv_mobile_robot"],            # 料籃搬運
             ["heat_treat_furnace", "energy_meter"],                # 爐子是耗電大戶
             ["heat_treat_furnace", "conveyor"],
@@ -100,7 +100,7 @@ ARCHETYPES = {
         "label": "自動化系統",
         "products": ["機械手臂整合", "取放系統整合", "視覺檢測工作站", "產線自動化"],
         "recipes": [
-            ["robot_arm_6axis"],
+            ["cnc_machining_center", "robot_arm_6axis", "conveyor"],   # 上下料整合示範線
             ["robot_arm_6axis", "conveyor"],
             ["robot_arm_6axis", "cnc_machining_center"],
             ["robot_arm_6axis", "air_compressor"],
@@ -121,7 +121,7 @@ ARCHETYPES = {
         "products": ["小型風力發電", "廠區自發自用綠電", "風場運維示範", "離岸風機監測示範"],
         "recipes": [
             ["wind_turbine", "energy_meter"],
-            ["wind_turbine"],
+            ["wind_turbine", "energy_meter"],
             ["wind_turbine", "wind_turbine", "energy_meter"],
         ],
     },
@@ -130,7 +130,7 @@ ARCHETYPES = {
         "products": ["壓縮空氣站", "廠區能源管理", "動力機房", "廠務用電需量管理"],
         "recipes": [
             ["air_compressor", "energy_meter"],
-            ["air_compressor"],
+            ["air_compressor", "air_compressor"],
             ["air_compressor", "air_compressor", "energy_meter"],
         ],
     },
@@ -172,8 +172,37 @@ NAMES = [
     ("環宇智慧工廠", "logistics"),
 ]
 
-INTRO = ("課堂教學用**合成**工廠(#{n:02d});{label} · {product}。"
-         "設備:{devices}。所有數據皆為模擬產生,非真實場域量測。")
+INTRO = ("課堂教學用**合成**工廠(#{n:02d});{label} · 主力產品:{product}。"
+         "廠內設備:{devices}。{line_note}所有數據皆為模擬產生,非真實場域量測。")
+
+# ── 產線推導:配方裡有「producer + 手臂 + (producer 或輸送帶)」就接成引擎物料流 ──
+# 站序規則與 engine/line.py 一致:手臂夾在兩台 producer 之間,或把成品搬上輸送帶出貨。
+LINE_PRODUCERS = {"cnc_machining_center", "injection_molding",
+                  "stamping_press", "semi_process_chamber"}
+
+
+def derive_line(devices: list[dict]) -> list[str] | None:
+    """由設備清單推導 line: 站序(引擎 engine/line.py 的物料流宣告)。接不成線回傳 None。"""
+    producers = [d["id"] for d in devices if d["template"] in LINE_PRODUCERS]
+    arms = [d["id"] for d in devices if d["template"] == "robot_arm_6axis"]
+    convs = [d["id"] for d in devices if d["template"] == "conveyor"]
+    if not arms:
+        return None
+    if len(producers) >= 2:
+        return [producers[0], arms[0], producers[1]]        # A → 手臂 → B(兩站加工)
+    if len(producers) == 1 and convs:
+        return [producers[0], arms[0], convs[0]]            # 加工 → 手臂 → 輸送帶出貨
+    return None
+
+
+def line_note(line: list[str] | None, devices: list[dict]) -> str:
+    """產線的介紹句(工件真實流動 + 可觀測點位)。沒有產線回傳空字串。"""
+    if not line:
+        return ""
+    zh = {d["id"]: ZH[d["template"]] for d in devices}
+    flow = " → ".join(f"{zh[i]}({i})" for i in line)
+    return (f"產線:{flow} —— 工件在引擎內真實流動,"
+            "上游完工、手臂搬運、下游才有料可加工(緩衝可讀 FC04 line_in/out_buffer)。")
 
 ZH = {
     "cnc_machining_center": "CNC 加工中心", "robot_arm_6axis": "六軸機械手臂",
@@ -203,28 +232,36 @@ def build() -> tuple[list[dict], list[str]]:
             dev_no += 1
             devices.append({"id": f"d{dev_no:03d}", "template": tmpl})
 
-        companies.append({
+        line = derive_line(devices)
+        company = {
             "id": f"c{i:02d}",
             "name": name,
             "industry": arch_key,
             "product": product,
             "intro": INTRO.format(n=i, label=arch["label"], product=product,
-                                  devices=" + ".join(ZH[t] for t in recipe)),
+                                  devices=" + ".join(ZH[t] for t in recipe),
+                                  line_note=line_note(line, devices)),
             "devices": devices,
-        })
+        }
+        if line:
+            company["line"] = line
+        companies.append(company)
 
     # 上下料示範廠(教師展示:雙 CNC + 手臂)
     demo = []
     for tmpl in ["cnc_machining_center", "cnc_machining_center", "robot_arm_6axis"]:
         dev_no += 1
         demo.append({"id": f"d{dev_no:03d}", "template": tmpl})
+    demo_line = derive_line(demo)
     companies.append({
         "id": "c65",
         "name": "上下料示範廠(教師展示)",
         "industry": "machine_tool",
         "product": "CNC 上下料自動化工作站",
-        "intro": "教師展示用:雙 CNC + 六軸手臂上下料工作站。不屬於一人一廠的個人作業範圍。",
+        "intro": ("教師展示用:雙 CNC + 六軸手臂上下料工作站。"
+                  + line_note(demo_line, demo) + "不屬於一人一廠的個人作業範圍。"),
         "devices": demo,
+        "line": demo_line,
     })
 
     warnings = []
@@ -264,6 +301,8 @@ def to_yaml(companies: list[dict]) -> str:
         lines.append(f"      industry: {c['industry']}")
         lines.append(f'      product: "{c["product"]}"')
         lines.append(f'      intro: "{c["intro"]}"')
+        if c.get("line"):
+            lines.append(f"      line: [{', '.join(c['line'])}]   # 產線物料流(engine/line.py)")
         lines.append("      devices:")
         for d in c["devices"]:
             lines.append(f"        - {{id: {d['id']}, template: {d['template']}}}")

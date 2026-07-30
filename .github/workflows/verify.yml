@@ -43,6 +43,9 @@ jobs:
       # 輸入控制:CNC 刻字文字 / 手臂取放點,寫 setpoint 後引擎輸出真的跟著變
       - name: verify_input_control
         run: python3 tests/test_input_control.py
+      # 產線物料流:工件真實流動、守恆、餓料/滿料誠實停機
+      - name: verify_line_flow
+        run: python3 tests/test_line_flow.py
 
   # ── 前端型別 + 建置 ──────────────────────────────────────
   web:

@@ -73,11 +73,18 @@ class LevelManager:
 
     # ── 判定 ───────────────────────────────────────────────
     def _student_devices(self, student: str) -> List[str]:
-        out: List[str] = []
-        for c in self.world.park.get("companies", []):
-            if c.get("owner") == student:
-                out.extend(c.get("device_ids") or [])
-        return out
+        """學生名下的設備 id。
+
+        **從 world.devices 反查 company_id,不要讀 park 的 device_ids** ——
+        那個欄位只有 `world.park_view()`(給前端的視圖)才有,原始 park 設定裡是
+        `devices: [{id: …}]`。先前讀 device_ids 會永遠拿到空清單,讓「產生」關(認領)
+        永遠過不了。熱加的設備也只有 world.devices 才看得到。
+        """
+        if not student:
+            return []
+        owned = {c.get("id") for c in self.world.park.get("companies", [])
+                 if c.get("owner") == student}
+        return sorted(d.id for d in self.world.devices.values() if d.company_id in owned)
 
     def _check(self, student: str, spec: dict) -> dict:
         """回傳 {done, evidence}。evidence 是給學生看的一句話,說明「你現在到哪」。"""

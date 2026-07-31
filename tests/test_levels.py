@@ -36,12 +36,24 @@ class FakeClock:
         return 0.0
 
 
+class FakeDevice:
+    def __init__(self, did: str, company_id: str) -> None:
+        self.id = did
+        self.company_id = company_id
+
+
 class FakeWorld:
+    """park 的結構要**跟真的一樣**:公司下面是 `devices: [{id: …}]`,沒有 `device_ids`
+    (那是 world.park_view() 才組出來的視圖欄位),設備真值在 world.devices。
+
+    先前這個假物件圖方便用了 device_ids,結果 api/levels.py 讀 device_ids 也「通過」測試,
+    但接到真的 World 上永遠拿到空清單 —— 認領關過不了。假物件說謊,測試就白寫了。"""
+
     def __init__(self, owners: dict) -> None:
         self.clock = FakeClock()
-        self.devices = {}
+        self.devices = {f"{cid}-dev1": FakeDevice(f"{cid}-dev1", cid) for cid in owners}
         self.park = {"companies": [
-            {"id": cid, "name": cid, "owner": owner, "device_ids": [f"{cid}-dev1"]}
+            {"id": cid, "name": cid, "owner": owner, "devices": [{"id": f"{cid}-dev1"}]}
             for cid, owner in owners.items()
         ]}
 
@@ -130,6 +142,8 @@ def test_auto_checks_use_platform_facts() -> None:
     st = m.status("S001")
     by = {l["id"]: l for l in st["levels"]}
     check(by["L1_generate"]["done"], "認領了公司 → 產生關過")
+    check("1 台" in by["L1_generate"]["evidence"],
+          f"設備數從 world.devices 反查得到(實際:{by['L1_generate']['evidence']})")
     check(by["L2_ingest"]["done"], "有通過的 connect 作業 → 接取關過")
     check("88" in by["L2_ingest"]["evidence"], f"佐證帶出分數:{by['L2_ingest']['evidence']}")
     check(not by["L5_stats"]["done"], "沒交 stats → 統計關沒過")

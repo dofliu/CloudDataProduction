@@ -22,6 +22,7 @@ from engine.world import World
 from historian.writer import Historian
 from .alarm_rules import AlarmRuleStore
 from .catalog import build_catalog
+from .levels import LevelManager
 from .maintenance import MaintenanceStore
 from .submissions import SubmissionStore
 from .classroom import ClassroomManager
@@ -88,6 +89,13 @@ class AlarmRuleRequest(BaseModel):
     student: Optional[str] = None
 
 
+class LevelMarkRequest(BaseModel):
+    """教師勾選人工判定的關卡(視覺化 demo / 期末報告)。"""
+    student: str
+    level: str
+    done: bool = True
+
+
 class ClaimRequest(BaseModel):
     student_id: Optional[str] = None      # 登入後由 session 推定;教師可代為指派
 
@@ -146,6 +154,7 @@ class SessionResetRequest(BaseModel):
     devices: bool = True        # 把所有設備修回健康(清故障 / 注入)
     maintenance: bool = True    # 保養紀錄
     alarm_rules: bool = True    # 學生託管告警規則與告警紀錄
+    levels: bool = True         # 關卡的教師勾選紀錄(自動判定的關卡本就跟著資料歸零)
 
 
 def create_app(
@@ -158,6 +167,7 @@ def create_app(
     multiport=None,
     control=None,
     state=None,
+    access_log=None,
 ) -> FastAPI:
     public_host = config.get("public_host", "127.0.0.1")
     teacher_token = config.get("teacher_token", "")
@@ -232,6 +242,13 @@ def create_app(
     classroom = ClassroomManager(world, submissions,
                                  path=config.get("classroom_file", "scenarios/classroom_exercises.yaml"),
                                  persist=state)
+
+    # 資料的一生九關:通關判定全部復用既有的誠實批改器與各 store,不自存進度(見 api/levels.py)
+    levels = LevelManager(
+        world, submissions, tickets, maintenance, alarm_rules, predictions,
+        access_log=access_log,
+        roster=lambda: [u["username"] for u in auth.list_users() if u.get("role") == "student"],
+        path=config.get("levels_file", "scenarios/levels.yaml"), persist=state)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -550,6 +567,39 @@ def create_app(
     def alarm_rule_scores():
         return alarm_rules.scores()
 
+    # ── 資料的一生九關 ─────────────────────────────────────
+    @app.get("/api/levels")
+    def level_defs():
+        """關卡定義(公開):九關 + 支線徽章,含每關的提示與判定方式。"""
+        return {"levels": levels.levels, "badges": levels.badges}
+
+    @app.get("/api/levels/{student}")
+    def level_status(student: str):
+        """某學生的過關狀態:每關 done + 佐證一句話 + 下一關提示。全部現查,不快取。"""
+        return levels.status(student)
+
+    @app.get("/api/levels/board/all", dependencies=[Depends(require_teacher)])
+    def level_board():
+        """全班進度熱力圖:N×9 矩陣 + 每關卡關人數 + 瓶頸關。"""
+        return levels.board()
+
+    @app.post("/api/levels/mark", dependencies=[Depends(require_teacher)])
+    def level_mark(req: LevelMarkRequest, authorization: str = Header(None)):
+        """教師勾選人工判定的關卡(視覺化 demo / 期末報告)。"""
+        u = current_user(authorization)
+        res = levels.mark(req.student, req.level, req.done, by=(u or {}).get("username", "teacher"))
+        if not res.get("ok"):
+            raise HTTPException(400, res.get("error", "勾選失敗"))
+        return res
+
+    @app.get("/api/access_log")
+    def get_access_log(device: Optional[str] = None):
+        """協定端存取軌跡:哪台設備被讀了幾次、平均多久打一次。
+        教 W2 接取 / W10 輪詢vs訂閱時可直接把學生自己的請求量投影出來。"""
+        if access_log is None:
+            return {"rows": [], "note": "未啟用協定存取軌跡"}
+        return access_log.view(device)
+
     # ── MES 工單(學生面公開唯讀;Phase 1)──────────────────
     @app.get("/api/orders")
     def list_orders(company: Optional[str] = None, device: Optional[str] = None,
@@ -856,6 +906,10 @@ def create_app(
             cleared["maintenance"] = maintenance.clear()
         if body.alarm_rules:
             cleared["alarm_rules"] = alarm_rules.clear()
+        if body.levels:
+            cleared["levels"] = levels.clear()
+            if access_log is not None:
+                cleared["access_log"] = access_log.clear()
         if body.devices:
             for d in world.devices.values():
                 d.reset()                       # 清故障 / 感測器故障 / 注入 → 全綠開場

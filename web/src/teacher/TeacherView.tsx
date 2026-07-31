@@ -10,6 +10,7 @@ import {
   StudentOverviewRow, getStudentsOverview, StudentDetail, getStudentDetail,
 } from "../api";
 import ClassroomTeacherPanel from "./ClassroomTeacherPanel";
+import LevelBoard from "./LevelBoard";
 
 const FAULT_TYPES = [
   "gradual", "sudden", "intermittent", "cascading",
@@ -226,6 +227,9 @@ export default function TeacherView({
           </div>
 
           <ClassroomTeacherPanel onMsg={setMsg} />
+
+          {/* 全班關卡進度:一眼看到誰卡住、瓶頸在哪一關 */}
+          <LevelBoard />
 
           <div className="card">
             <div className="card-title">👥 帳號管理(名冊)</div>

@@ -6,6 +6,7 @@ import {
 } from "../api";
 import PageGuide from "../help/PageGuide";
 import DecisionPanel from "./DecisionPanel";
+import LevelsPanel from "./LevelsPanel";
 
 // 學生面公開頁:設定學生 id → 認領公司 → 我的工單(ack/resolve)→ 競賽榜。全程免教師 token。
 function fmtH(s: number | null | undefined) { return s == null ? "—" : (s / 3600).toFixed(1) + "h"; }
@@ -119,6 +120,9 @@ export default function StudentView({ park, telemetry }: { park: Park; telemetry
           </div>
         </div>
         {msg && <div className="hint" style={{ color: "var(--accent)", marginTop: -8, marginBottom: 12 }}>· {msg}</div>}
+
+        {/* 資料的一生九關:你走到哪、下一關要做什麼 */}
+        <LevelsPanel me={me} />
 
         {/* 公司認領:搜尋 + 篩選(64 廠好找) */}
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", margin: "4px 0 10px" }}>

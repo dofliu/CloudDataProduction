@@ -12,6 +12,7 @@ import os
 import uvicorn
 from dotenv import load_dotenv
 
+from adapters.access_log import AccessLog
 from adapters.modbus_multiport import ModbusMultiPortAdapter
 from adapters.modbus_server import ModbusAdapter
 from adapters.mqtt_publisher import MqttPublisher
@@ -31,6 +32,10 @@ def build():
     # Modbus 埠可由 .env 覆寫(Windows 綁 502 需管理員;開發用 5020 之類)。
     # 覆寫後同步回 world.ports,讓設備目錄公布的埠與實際一致。
     # MODBUS_ENABLED 預設開;關閉時世界 / API / WebSocket 照常(供純前端或缺相依時開發)。
+    # 協定端存取軌跡:記「哪台設備被讀了幾次、多久打一次」,供輪詢頻率教學與關卡佐證。
+    # 拿不到 client 身分(見 adapters/access_log.py),所以不當通關依據。
+    access_log = AccessLog()
+
     modbus = None
     if os.getenv("MODBUS_ENABLED", "true").lower() == "true":
         modbus_port = int(os.getenv("MODBUS_PORT", world.ports.get("modbus", 502)))
@@ -39,6 +44,7 @@ def build():
             world,
             host=os.getenv("MODBUS_HOST", "0.0.0.0"),
             port=modbus_port,
+            access_log=access_log,
         )
 
     historian = Historian(
@@ -90,7 +96,8 @@ def build():
         "web_dist": os.getenv("WEB_DIST", ""),   # 設為 web/dist 則同源提供前端(單一 Cloudflare Tunnel 對外)
     }
     app = create_app(world, historian, modbus, config, opcua=opcua, mqtt=mqtt,
-                     multiport=multiport, control=control, state=state)
+                     multiport=multiport, control=control, state=state,
+                     access_log=access_log)
     return app
 
 

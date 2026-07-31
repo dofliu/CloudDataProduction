@@ -283,6 +283,33 @@ export async function deleteAlarmRule(id: string) {
   return r.json();
 }
 
+// ── 資料的一生九關(api/levels.py)──────────────────────────
+export interface LevelState {
+  id: string; name: string; title: string; week: number | null;
+  hint: string; manual: boolean; done: boolean; evidence: string;
+}
+export interface AccessRow {
+  device: string; protocol: string; reads: number;
+  last_wall_t: number | null; avg_interval_s: number | null;
+}
+export interface LevelStatus {
+  student: string; levels: LevelState[]; badges: LevelState[];
+  done: number; total: number; next: LevelState | null; access: AccessRow[];
+}
+export interface LevelBoard {
+  students: LevelStatus[];
+  levels: { id: string; name: string; week: number | null; manual: boolean; done: number; stuck: number }[];
+  bottleneck: { id: string; name: string; count: number } | null;
+  count: number;
+}
+export const getLevelStatus = (student: string) =>
+  getJSON<LevelStatus>(`/api/levels/${encodeURIComponent(student)}`);
+export const getLevelBoard = () => getJSON<LevelBoard>("/api/levels/board/all");
+export const markLevel = (student: string, level: string, done: boolean) =>
+  post("/api/levels/mark", { student, level, done });
+export const getAccessLog = () =>
+  getJSON<{ rows: AccessRow[]; note: string }>("/api/access_log");
+
 export interface ScoreRow {
   company: string; name: string; owner: string | null;
   faults: number; detected: number; resolved: number; missed: number;

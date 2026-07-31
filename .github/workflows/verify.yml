@@ -52,6 +52,9 @@ jobs:
       # 學生託管告警規則:持續時間 / 重新武裝 / 對 ground-truth 的 F1 與 lead time
       - name: verify_alarm_rules
         run: python3 tests/test_alarm_rules.py
+      # 資料的一生九關:自動判定查平台事實、人工勾選不能濫用、瓶頸關算法
+      - name: verify_levels
+        run: python3 tests/test_levels.py
 
   # ── 前端型別 + 建置 ──────────────────────────────────────
   web:

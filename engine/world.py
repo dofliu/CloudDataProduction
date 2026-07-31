@@ -58,6 +58,9 @@ class World:
         self._running = False
         self._last_snapshot: dict = {}
         self._prev_states: Dict[str, str] = {}      # 偵測狀態轉換用
+        # 故障事件改看「故障閂鎖的邊緣」而非 state 字串:設備進維修時 state 會變 maintenance,
+        # 若處置選錯,維修結束會再翻回 fault —— 只看字串就會對同一次故障重複開單。
+        self._prev_faulted: Dict[str, bool] = {}
         self._pending_events: List[dict] = []
 
     # ── 建構 ────────────────────────────────────────────────
@@ -165,24 +168,26 @@ class World:
         for device in self.devices.values():
             cur = device.state
             prev = self._prev_states.get(device.id)
-            if prev is not None and cur != prev:
-                if cur == "fault":
-                    # 找出造成故障的元件(本體退化),附上型態供評分 / 顯示
-                    failed = next(
-                        (c.name for c in device.components.values()
-                         if c.failed and c.causes_device_fault),
-                        None,
-                    )
-                    events.append({
-                        "type": "fault", "device": device.id, "company": device.company_id,
-                        "component": failed, "fault_type": "gradual", "sim_t": sim_t,
-                    })
-                else:
-                    events.append({
-                        "type": "state_change", "device": device.id, "company": device.company_id,
-                        "from": prev, "to": cur, "sim_t": sim_t,
-                    })
+            was_faulted = self._prev_faulted.get(device.id, False)
+            now_faulted = device.faulted
+            if now_faulted and not was_faulted:
+                # 故障閂鎖的上升緣 = 一次新故障(一次故障只開一張單,不管中途進出維修)
+                failed = next(
+                    (c.name for c in device.components.values()
+                     if c.failed and c.causes_device_fault),
+                    None,
+                )
+                events.append({
+                    "type": "fault", "device": device.id, "company": device.company_id,
+                    "component": failed, "fault_type": "gradual", "sim_t": sim_t,
+                })
+            elif prev is not None and cur != prev:
+                events.append({
+                    "type": "state_change", "device": device.id, "company": device.company_id,
+                    "from": prev, "to": cur, "sim_t": sim_t,
+                })
             self._prev_states[device.id] = cur
+            self._prev_faulted[device.id] = now_faulted
         return events
 
     def _make_snapshot(self) -> dict:

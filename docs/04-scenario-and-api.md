@@ -90,10 +90,18 @@ park:
 | GET | `/api/catalog` | **設備目錄(規格書)**:每台設備的協定 / IP / port / unit_id / topic / node / tag 清單 |
 | GET | `/api/devices/{id}` | 單台設備公開資訊(不含 ground-truth) |
 | POST | `/api/companies/{id}/claim` | 學生認領公司 `{student_id}` |
-| GET | `/api/tickets?owner=` | 我的工單 |
-| POST | `/api/tickets/{id}/ack` / `/resolve` | 確認 / 結案工單 |
+| GET | `/api/tickets?owner=` | 我的工單(**學生視圖不含 component / fault_type**,那是根因 = 答案;只給 `symptom`) |
+| POST | `/api/tickets/{id}/ack` | 確認工單(記偵測延遲) |
+| POST | `/api/tickets/{id}/resolve` | **帶處置動作**結案 `{action, student}`;選對才修得好,選錯扣 60% 工時且退回處理中 |
+| GET | `/api/repair/actions` | 維修手冊:動作 / 工時 / **數據上的徵候**(不含哪台該用哪個,不洩答案) |
+| POST | `/api/maintenance` | 預防保養 `{device, action}`(需認領授權);停機計入可用率損失 |
+| GET | `/api/maintenance?actor=` | 我的保養紀錄 + 各公司彙整 |
+| POST | `/api/alarm_rules` | 託管告警規則 `{device, tag, agg, window_s, op, threshold, for_s}` |
+| GET | `/api/alarm_rules?student=` | 我的規則與最近告警 |
+| DELETE | `/api/alarm_rules/{id}` | 刪除自己的規則 |
+| GET | `/api/alarm_rules/scores` | 告警規則排行:precision / recall / F1 / 平均提前量 |
 | POST | `/api/predictions` | **階段二**:上傳模型預測 `{device, predicted_fault, eta, confidence}` |
-| GET | `/api/scores` | 計分排名(公開榜) |
+| GET | `/api/scores` | 計分排名(公開榜,含誤修次數 `wrong_repairs`) |
 
 ### 教師面(需 auth)
 

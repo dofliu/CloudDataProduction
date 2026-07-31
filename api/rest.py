@@ -20,7 +20,9 @@ from .auth import AuthStore
 from engine.course import CourseManager
 from engine.world import World
 from historian.writer import Historian
+from .alarm_rules import AlarmRuleStore
 from .catalog import build_catalog
+from .maintenance import MaintenanceStore
 from .submissions import SubmissionStore
 from .classroom import ClassroomManager
 from .diagnostics import run_diagnostics
@@ -58,6 +60,32 @@ class FaultRequest(BaseModel):
     severity: float = 1.0
     onset_sim_s: Optional[float] = None
     params: dict = {}
+
+
+class ResolveRequest(BaseModel):
+    """結案必須帶處置動作 —— 選對才修得好(見 engine/repair.py)。
+    診斷不出來可以用 overhaul(整機大修),一定成功但停機最久。"""
+    action: str
+    student: Optional[str] = None         # 未登入的班級用它記名;登入時以 session 為準
+
+
+class MaintenanceRequest(BaseModel):
+    """預防保養:在還沒壞之前做。停機會計入可用率損失,所以做太勤也會扣分。"""
+    device: str
+    action: str
+    student: Optional[str] = None
+
+
+class AlarmRuleRequest(BaseModel):
+    """學生託管告警規則(平台代跑,對 ground-truth 算 F1 / lead time)。"""
+    device: str
+    tag: str
+    threshold: float
+    op: str = ">"                          # > >= < <=
+    agg: str = "raw"                       # raw | ema(指數移動平均)
+    window_s: float = 0.0                  # agg=ema 的時間常數(模擬秒)
+    for_s: float = 0.0                     # 條件需持續多久才告警(模擬秒)
+    student: Optional[str] = None
 
 
 class ClaimRequest(BaseModel):
@@ -116,6 +144,8 @@ class SessionResetRequest(BaseModel):
     predictions: bool = True    # 階段二預測
     oee: bool = True            # OEE 累積器
     devices: bool = True        # 把所有設備修回健康(清故障 / 注入)
+    maintenance: bool = True    # 保養紀錄
+    alarm_rules: bool = True    # 學生託管告警規則與告警紀錄
 
 
 def create_app(
@@ -190,6 +220,11 @@ def create_app(
     # OEE 設備總效率排名
     oee = OeeEngine(world)
 
+    # 學生的兩個「有代價的決策」:預防保養(停機換壽命)與託管告警規則(門檻對不對)
+    maintenance = MaintenanceStore(world, persist=state)
+    alarm_rules = AlarmRuleStore(world, persist=state)
+    alarm_rules.set_emitter(events_mgr.broadcast)
+
     # 課程情境(教師手動套用每週條件)+ 作業自動比對(對 ground-truth 計分)
     course = CourseManager(world, path=config.get("course_file", "scenarios/course_weeks.yaml"))
     submissions = SubmissionStore(world, historian, course, persist=state)
@@ -222,6 +257,8 @@ def create_app(
         world.subscribe_events(events_mgr.on_message)     # 事件 → 瀏覽器
         world.subscribe_events(tickets.on_event)          # 故障事件 → 自動開工單
         world.subscribe_events(predictions.on_event)      # 故障事件 → 比對預測命中
+        world.subscribe(alarm_rules.on_snapshot)          # 每 snapshot 評估學生託管的告警規則
+        world.subscribe_events(alarm_rules.on_event)      # 故障事件 → 告警命中 / 漏報配對
         if modbus is not None:
             modbus.start_background()
         if control is not None:
@@ -431,22 +468,87 @@ def create_app(
 
     # ── 工單 / 評分(學生面公開)──────────────────────────
     @app.get("/api/tickets")
-    def list_tickets(owner: Optional[str] = None, status: Optional[str] = None):
-        return {"tickets": tickets.list(owner=owner, status=status)}
+    def list_tickets(owner: Optional[str] = None, status: Optional[str] = None,
+                     authorization: str = Header(None)):
+        """學生面看不到 component / fault_type(那是根因 = 答案),只看得到症狀。
+        教師身分才 reveal 根因。"""
+        u = current_user(authorization)
+        reveal = bool(u and u["role"] == "teacher") or not auth_active()
+        return {"tickets": tickets.list(owner=owner, status=status, reveal=reveal)}
 
     @app.post("/api/tickets/{ticket_id}/ack")
     def ack_ticket(ticket_id: str):
         t = tickets.ack(ticket_id)
         if t is None:
             raise HTTPException(404, f"無此工單:{ticket_id}")
-        return t
+        return {"ok": True, "ticket": tickets._redact(t)}
 
+    # 結案要選處置動作:選對才修得好,選錯照樣扣維修工時、工單退回處理中。
+    # 動作清單與各自的「數據上長什麼樣」見 GET /api/repair/actions。
     @app.post("/api/tickets/{ticket_id}/resolve")
-    def resolve_ticket(ticket_id: str):
-        t = tickets.resolve(ticket_id)
-        if t is None:
-            raise HTTPException(404, f"無此工單:{ticket_id}")
-        return t
+    def resolve_ticket(ticket_id: str, req: ResolveRequest, authorization: str = Header(None)):
+        u = current_user(authorization)
+        actor = (u["username"] if u else None) or req.student
+        res = tickets.resolve(ticket_id, req.action, actor=actor)
+        if not res.get("ok"):
+            raise HTTPException(404 if "無此工單" in str(res.get("error", "")) else 400,
+                                res.get("error", "處置失敗"))
+        return res
+
+    # 維修手冊(公開):有哪些處置動作、各要多少工時、在數據上長什麼樣。
+    # 不含「哪台該用哪個」—— 那要學生自己從遙測判斷,所以給出去不會洩答案。
+    @app.get("/api/repair/actions")
+    def repair_actions():
+        from engine.repair import manual
+        return {"actions": manual(),
+                "note": "選錯動作不會修好設備,但仍佔用 60% 工時(停機計入可用率損失)。"}
+
+    # ── 預防保養(學生面,需認領授權)────────────────────────
+    @app.post("/api/maintenance")
+    def do_maintenance(req: MaintenanceRequest, authorization: str = Header(None)):
+        device = world.devices.get(req.device)
+        if device is None:
+            raise HTTPException(404, f"無此設備:{req.device}")
+        _authorize_setpoint_write(device, authorization)     # 只能保養自己認領公司的設備
+        u = current_user(authorization)
+        actor = (u["username"] if u else None) or req.student
+        res = maintenance.apply(req.device, req.action, actor=actor)
+        if not res.get("ok"):
+            raise HTTPException(400, res.get("error", "保養失敗"))
+        return res
+
+    @app.get("/api/maintenance")
+    def list_maintenance(actor: Optional[str] = None, device: Optional[str] = None):
+        return {"maintenance": maintenance.list(actor=actor, device=device),
+                "summary": maintenance.summary()}
+
+    # ── 學生託管告警規則(平台代跑,對 ground-truth 算 F1 / lead time)──
+    @app.post("/api/alarm_rules")
+    def create_alarm_rule(req: AlarmRuleRequest, authorization: str = Header(None)):
+        u = current_user(authorization)
+        student = (u["username"] if u else None) or req.student or "anon"
+        res = alarm_rules.add({**req.model_dump(), "student": student})
+        if not res.get("ok"):
+            raise HTTPException(400, res.get("error", "規則建立失敗"))
+        return res
+
+    @app.get("/api/alarm_rules")
+    def list_alarm_rules(student: Optional[str] = None):
+        return {"rules": alarm_rules.list(student=student),
+                "alerts": alarm_rules.list_alerts(student=student)}
+
+    @app.delete("/api/alarm_rules/{rule_id}")
+    def delete_alarm_rule(rule_id: str, authorization: str = Header(None)):
+        u = current_user(authorization)
+        owner = None if (u and u["role"] == "teacher") else (u["username"] if u else None)
+        res = alarm_rules.delete(rule_id, student=owner)
+        if not res.get("ok"):
+            raise HTTPException(400, res.get("error", "刪除失敗"))
+        return res
+
+    @app.get("/api/alarm_rules/scores")
+    def alarm_rule_scores():
+        return alarm_rules.scores()
 
     # ── MES 工單(學生面公開唯讀;Phase 1)──────────────────
     @app.get("/api/orders")
@@ -750,9 +852,14 @@ def create_app(
             if state is not None:
                 state.save("oee", world.oee_snapshot())
             cleared["oee_reset"] = len(world.devices)
+        if body.maintenance:
+            cleared["maintenance"] = maintenance.clear()
+        if body.alarm_rules:
+            cleared["alarm_rules"] = alarm_rules.clear()
         if body.devices:
             for d in world.devices.values():
                 d.reset()                       # 清故障 / 感測器故障 / 注入 → 全綠開場
+                d.repair_log.clear()            # 處置紀錄一併歸零(當作這學期沒發生過)
             cleared["devices_reset"] = len(world.devices)
         return {"reset": True, "cleared": cleared, "synthetic": True}
 

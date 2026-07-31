@@ -212,20 +212,81 @@ export async function getHealth(id: string): Promise<HealthGT> {
 }
 
 // ── 工單 / 評分(學生面公開)─────────────────────────────
+// component / fault_type 只有教師身分拿得到 —— 那是根因(等於答案),學生面被後端遮掉。
 export interface Ticket {
   id: string; device: string; company: string; owner: string | null;
-  component: string | null; fault_type: string | null; onset_sim_t: number;
+  component?: string | null; fault_type?: string | null; onset_sim_t: number;
   status: string; ack_sim_t: number | null; resolve_sim_t: number | null;
   detection_latency_sim_s: number | null; mttr_sim_s: number | null;
+  symptom?: string;                                  // 學生看得到的症狀(不含根因)
+  attempts?: { action: string; success: boolean; sim_t: number; actor: string | null }[];
+  wrong_attempts?: number;                           // 誤修次數
+  repair_downtime_h?: number;                        // 這張單累計花掉的維修工時(含白花的)
 }
 export const getTickets = (owner?: string) =>
   getJSON<{ tickets: Ticket[] }>(`/api/tickets${owner ? `?owner=${encodeURIComponent(owner)}` : ""}`);
 export const ackTicket = (id: string) => post(`/api/tickets/${id}/ack`);
-export const resolveTicket = (id: string) => post(`/api/tickets/${id}/resolve`);
+
+/** 結案要帶處置動作:選對才修得好,選錯扣工時且工單退回處理中。 */
+export interface RepairResult {
+  action: string; success: boolean; still_faulted: boolean; downtime_h: number;
+}
+export const resolveTicket = (id: string, action: string, student?: string) =>
+  post(`/api/tickets/${id}/resolve`, { action, student }) as
+    Promise<{ ok: boolean; ticket: Ticket; repair: RepairResult | null; note?: string }>;
+
+/** 維修手冊:有哪些處置動作、各要多少工時、在數據上長什麼樣(公開,不含哪台該用哪個)。 */
+export interface RepairAction {
+  action: string; label: string; duration_h: number; signature: string;
+}
+export const getRepairActions = () =>
+  getJSON<{ actions: RepairAction[]; note: string }>("/api/repair/actions");
+
+// ── 預防保養(需認領授權)────────────────────────────────
+export interface MaintenanceRec {
+  id: string; device: string; company: string | null; actor: string | null;
+  action: string; sim_t: number; downtime_h: number; health_gain: number; effective: boolean;
+}
+export const doMaintenance = (device: string, action: string, student?: string) =>
+  post("/api/maintenance", { device, action, student }) as
+    Promise<{ ok: boolean; maintenance: MaintenanceRec; hint: string | null }>;
+export const getMaintenance = (actor?: string) =>
+  getJSON<{ maintenance: MaintenanceRec[]; summary: { rows: any[]; total: number } }>(
+    `/api/maintenance${actor ? `?actor=${encodeURIComponent(actor)}` : ""}`);
+
+// ── 學生託管告警規則(平台代跑,對 ground-truth 算 F1 / lead time)──
+export interface AlarmRule {
+  id: string; student: string; device: string; tag: string;
+  agg: "raw" | "ema"; window_s: number; op: string; threshold: number;
+  for_s: number; enabled: boolean; created_sim_t: number;
+}
+export interface AlarmAlert {
+  id: string; rule: string; student: string; device: string; tag: string;
+  value: number; sim_t: number;
+}
+export interface AlarmScoreRow {
+  student: string; rules: number; alerts: number; hits: number;
+  false_alarms: number; misses: number; duplicates: number;
+  precision: number; recall: number; f1: number;
+  avg_lead_time_h: number | null; score: number;
+}
+export const createAlarmRule = (r: Partial<AlarmRule> & { device: string; tag: string; threshold: number }) =>
+  post("/api/alarm_rules", r) as Promise<{ ok: boolean; rule: AlarmRule; note: string }>;
+export const getAlarmRules = (student?: string) =>
+  getJSON<{ rules: AlarmRule[]; alerts: AlarmAlert[] }>(
+    `/api/alarm_rules${student ? `?student=${encodeURIComponent(student)}` : ""}`);
+export const getAlarmScores = () =>
+  getJSON<{ horizon_h: number; ranking: AlarmScoreRow[] }>("/api/alarm_rules/scores");
+export async function deleteAlarmRule(id: string) {
+  const r = await fetch(`/api/alarm_rules/${id}`, { method: "DELETE", headers: authHeaders() });
+  if (!r.ok) throw new Error(`delete rule ${id} -> ${r.status}`);
+  return r.json();
+}
 
 export interface ScoreRow {
   company: string; name: string; owner: string | null;
   faults: number; detected: number; resolved: number; missed: number;
+  wrong_repairs?: number;
   avg_detection_h: number | null; avg_mttr_h: number | null; score: number;
 }
 export const getScores = () => getJSON<{ ranking: ScoreRow[] }>("/api/scores");

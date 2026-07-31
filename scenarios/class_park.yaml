@@ -635,3 +635,40 @@ park:
         - {id: d152, template: cnc_machining_center}
         - {id: d153, template: cnc_machining_center}
         - {id: d154, template: robot_arm_6axis}
+
+  # 跨公司供應鏈:A 出貨 = B 進料(engine/supply.py)。
+  # 上游同學的機台壞了沒人管,你的產線就餓料停機;你停太久,下游的進料倉塞爆,
+  # 反過來把你卡住。每 4 間一條鏈(= 課堂分組大小),每條鏈最後一段刻意不給外部備援。
+  supply_chain:
+    - {from: c01, to: c02, part: "CNC 立式加工中心", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c02, to: c03, part: "電子機殼沖壓", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c03, to: c04, part: "封測前段製程", cap: 45, initial: 18, external_backup_h: 0.0}
+    - {from: c05, to: c06, part: "CNC 立式加工中心", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c06, to: c07, part: "取放系統整合", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c07, to: c09, part: "車用鏡頭元件", cap: 45, initial: 18, external_backup_h: 0.0}
+    - {from: c10, to: c11, part: "CNC 車銑複合", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c11, to: c12, part: "五金沖壓件", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c12, to: c13, part: "醫材塑件", cap: 45, initial: 18, external_backup_h: 0.0}
+    - {from: c16, to: c17, part: "精密模具加工", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c17, to: c18, part: "家電外殼射出", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c18, to: c20, part: "電子機殼沖壓", cap: 45, initial: 18, external_backup_h: 0.0}
+    - {from: c22, to: c25, part: "自行車傳動件", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c25, to: c26, part: "機械手臂整合", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c26, to: c27, part: "CNC 車銑複合", cap: 45, initial: 18, external_backup_h: 0.0}
+    - {from: c28, to: c29, part: "散熱片沖壓", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c29, to: c30, part: "家電外殼射出", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c30, to: c31, part: "薄膜沉積製程", cap: 45, initial: 18, external_backup_h: 0.0}
+    - {from: c34, to: c37, part: "自行車傳動件", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c37, to: c38, part: "CNC 立式加工中心", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c38, to: c39, part: "電子機殼沖壓", cap: 45, initial: 18, external_backup_h: 0.0}
+    - {from: c40, to: c43, part: "化合物半導體製程", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c43, to: c44, part: "車用鏡頭元件", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c44, to: c46, part: "醫療器械零件", cap: 45, initial: 18, external_backup_h: 0.0}
+    - {from: c47, to: c48, part: "五金沖壓件", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c48, to: c49, part: "醫材塑件", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c49, to: c52, part: "晶圓蝕刻製程", cap: 45, initial: 18, external_backup_h: 0.0}
+    - {from: c53, to: c54, part: "汽車鈑金件", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c54, to: c55, part: "汽車內飾件", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c55, to: c60, part: "封測前段製程", cap: 45, initial: 18, external_backup_h: 0.0}
+    - {from: c61, to: c62, part: "航太結構件", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c62, to: c63, part: "CNC 車銑複合", cap: 45, initial: 18, external_backup_h: 0.0}

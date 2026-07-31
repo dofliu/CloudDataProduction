@@ -275,6 +275,46 @@ def build() -> tuple[list[dict], list[str]]:
     return companies, warnings
 
 
+# 供應鏈:每 4 間串成一條鏈(c01→c02→c03→c04、c05→…),64 廠剛好 16 條。
+# 為什麼是 4 而不是全班一條長鏈:一條 64 節的鏈只要有人停機,後面 60 個人全陪葬,
+# 那不是教學是連坐。4 節剛好等於課堂分組的大小,斷鏈的因果也還看得清楚。
+CHAIN_LEN = 4
+# 只有這些 template 有「完成一件」的累積量 tag,供應鏈才數得出誰出了幾件
+# (與 engine/line.py 的 COUNT_TAGS 一致)。沒有這種設備的廠不參與供應鏈 ——
+# 電表廠 / 壓縮機房本來就不是在做零件,硬接進去只會在啟動時噴一堆略過警告。
+SUPPLY_TEMPLATES = {"cnc_machining_center", "injection_molding", "stamping_press", "semi_process_chamber"}
+# 每條鏈的**最後一段**不給外部備援(external_backup_h=0)—— 刻意留一個對照組:
+# 有備援的那幾段會看到「靠外購撐著」,沒備援的那段上游一停就真的死給你看。
+BACKUP_H = 3.0
+# 進料倉容量 / 開場庫存。倉越小,上下游耦合越緊(缺料與阻塞越頻繁);想讓班上耦合鬆一點
+# 就把 CAP 調大再重跑這支。開場庫存是為了不讓開學第一分鐘全班一起餓料。
+CAP, INITIAL = 45, 18
+
+
+def build_supply_chain(companies: list[dict]) -> list[dict]:
+    """把「做得出零件」的公司每 CHAIN_LEN 間串成一條供應鏈。教師示範廠(c65)不參與。
+
+    鏈上的公司不必是連號 —— 中間跳過的是沒有 producer 的廠(電表 / 壓縮機 / 風機那類)。"""
+    pool = [c for c in companies
+            if c["id"] != "c65"
+            and any(d["template"] in SUPPLY_TEMPLATES for d in c["devices"])]
+    links: list[dict] = []
+    for start in range(0, len(pool), CHAIN_LEN):
+        chain = pool[start:start + CHAIN_LEN]
+        if len(chain) < 2:
+            break
+        for i in range(len(chain) - 1):
+            up, down = chain[i], chain[i + 1]
+            last_hop = i == len(chain) - 2
+            links.append({
+                "from": up["id"], "to": down["id"],
+                "part": up["product"],
+                "cap": CAP, "initial": INITIAL,
+                "external_backup_h": 0.0 if last_hop else BACKUP_H,
+            })
+    return links
+
+
 def to_yaml(companies: list[dict]) -> str:
     lines = [
         "# 課堂場景(64 廠一人一廠 + 1 間教師示範廠)。",
@@ -307,6 +347,19 @@ def to_yaml(companies: list[dict]) -> str:
         for d in c["devices"]:
             lines.append(f"        - {{id: {d['id']}, template: {d['template']}}}")
         lines.append("")
+
+    chain = build_supply_chain(companies)
+    lines += [
+        "  # 跨公司供應鏈:A 出貨 = B 進料(engine/supply.py)。",
+        "  # 上游同學的機台壞了沒人管,你的產線就餓料停機;你停太久,下游的進料倉塞爆,",
+        "  # 反過來把你卡住。每 4 間一條鏈(= 課堂分組大小),每條鏈最後一段刻意不給外部備援。",
+        "  supply_chain:",
+    ]
+    for lk in chain:
+        lines.append(
+            f"    - {{from: {lk['from']}, to: {lk['to']}, part: \"{lk['part']}\", "
+            f"cap: {lk['cap']}, initial: {lk['initial']}, external_backup_h: {lk['external_backup_h']}}}")
+    lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -318,7 +371,9 @@ def main() -> None:
     for d in devices:
         tmpl_count[d["template"]] = tmpl_count.get(d["template"], 0) + 1
 
-    print(f"{len(companies)} 公司 / {len(devices)} 設備 / {len(combos)} 種設備組合")
+    chain = build_supply_chain(companies)
+    print(f"{len(companies)} 公司 / {len(devices)} 設備 / {len(combos)} 種設備組合 / "
+          f"{len(chain)} 條供應關係({len(chain) // (CHAIN_LEN - 1)} 條鏈)")
     print("  template 分布:")
     for t in sorted(tmpl_count, key=lambda k: -tmpl_count[k]):
         print(f"    {tmpl_count[t]:3d}  {t}  ({ZH[t]})")

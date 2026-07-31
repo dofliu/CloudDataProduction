@@ -283,6 +283,25 @@ export async function deleteAlarmRule(id: string) {
   return r.json();
 }
 
+// ── 跨公司供應鏈(engine/supply.py)────────────────────────
+export interface SupplyLinkView {
+  from: string; to: string; part: string;
+  stock: number; cap: number;
+  delivered: number; purchased: number; consumed: number;
+  starved_h: number; blocked_h: number;
+  starving: boolean; blocking: boolean;
+  self_sufficiency: number | null;      // 進料有多少比例真的來自上游同學
+  external_backup_h: number | null;
+}
+export interface SupplyImpactRow {
+  kind: "starving" | "blocking"; from: string; to: string; part: string; detail: string;
+}
+export const getSupply = () =>
+  getJSON<{ links: SupplyLinkView[]; impact: SupplyImpactRow[] }>("/api/supply");
+export const getCompanySupply = (companyId: string) =>
+  getJSON<{ company: string; inbound: SupplyLinkView[]; outbound: SupplyLinkView[] }>(
+    `/api/supply/${encodeURIComponent(companyId)}`);
+
 // ── 資料的一生九關(api/levels.py)──────────────────────────
 export interface LevelState {
   id: string; name: string; title: string; week: number | null;

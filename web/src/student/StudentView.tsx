@@ -7,6 +7,7 @@ import {
 import PageGuide from "../help/PageGuide";
 import DecisionPanel from "./DecisionPanel";
 import LevelsPanel from "./LevelsPanel";
+import SupplyPanel from "./SupplyPanel";
 
 // 學生面公開頁:設定學生 id → 認領公司 → 我的工單(ack/resolve)→ 競賽榜。全程免教師 token。
 function fmtH(s: number | null | undefined) { return s == null ? "—" : (s / 3600).toFixed(1) + "h"; }
@@ -213,6 +214,9 @@ export default function StudentView({ park, telemetry }: { park: Park; telemetry
             </table>
           </div>
         )}
+
+        {/* 我的上下游:上游停我就餓料、我停下游就塞爆 —— 全班第一次感覺到彼此存在 */}
+        <SupplyPanel me={me} companies={companies} />
 
         {/* 兩個有代價的決策:預防保養(停機換壽命)與託管告警規則(門檻對不對) */}
         <DecisionPanel me={me} myDevices={myDeviceIds} telemetry={telemetry} actions={actions} />

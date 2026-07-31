@@ -11,6 +11,7 @@ import {
 } from "../api";
 import ClassroomTeacherPanel from "./ClassroomTeacherPanel";
 import LevelBoard from "./LevelBoard";
+import SupplyImpact from "./SupplyImpact";
 
 const FAULT_TYPES = [
   "gradual", "sudden", "intermittent", "cascading",
@@ -230,6 +231,9 @@ export default function TeacherView({
 
           {/* 全班關卡進度:一眼看到誰卡住、瓶頸在哪一關 */}
           <LevelBoard />
+
+          {/* 供應鏈連鎖反應:今天全班產出掉了,是誰停了害到誰 */}
+          <SupplyImpact />
 
           <div className="card">
             <div className="card-title">👥 帳號管理(名冊)</div>

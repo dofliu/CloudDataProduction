@@ -632,6 +632,21 @@ def create_app(
         return access_log.view(device)
 
     # ── MES 工單(學生面公開唯讀;Phase 1)──────────────────
+    # ── 跨公司供應鏈(engine/supply.py;學生面公開唯讀)──────
+    @app.get("/api/supply")
+    def get_supply():
+        """所有供應關係的進料倉狀態 + 目前正在餓料 / 阻塞的連鎖反應。
+        全部現讀引擎(鐵則一:庫存真值在 engine/supply.py)。"""
+        return {"links": world.supply.view(), "impact": world.supply.impact(),
+                "synthetic": True}
+
+    @app.get("/api/supply/{company_id}")
+    def get_company_supply(company_id: str):
+        """我等誰的料、誰在等我 —— 學生面的上下游視圖。"""
+        if not any(c.get("id") == company_id for c in world.park.get("companies", [])):
+            raise HTTPException(404, f"無此公司:{company_id}")
+        return world.supply.for_company(company_id)
+
     @app.get("/api/orders")
     def list_orders(company: Optional[str] = None, device: Optional[str] = None,
                     status: Optional[str] = None):

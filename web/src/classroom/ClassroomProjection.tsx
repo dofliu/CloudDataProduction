@@ -2,8 +2,8 @@ import { ClassroomActive, ClassroomBoardRow } from "../api";
 
 // 投影模式:全螢幕大字題卡,適合投影給全班看。顯示目前佈題的每一題 + 即時作答統計。
 export default function ClassroomProjection({
-  active, board, onClose,
-}: { active: ClassroomActive; board: ClassroomBoardRow[]; onClose: () => void }) {
+  active, board, remain, onClose,
+}: { active: ClassroomActive; board: ClassroomBoardRow[]; remain?: number | null; onClose: () => void }) {
   const byId = new Map(board.map((b) => [b.question, b]));
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 100, background: "var(--bg)", overflow: "auto", padding: "3vh 4vw" }}>
@@ -13,6 +13,13 @@ export default function ClassroomProjection({
           {active.difficulty === "advanced" ? "進階" : "基礎"}
         </span>
         <span className="pill mono" style={{ fontSize: 16 }}>設備 {active.target}</span>
+        {remain != null && (
+          <span className="mono" style={{ fontSize: "clamp(22px,2.4vw,38px)", fontWeight: 900, padding: "2px 18px", borderRadius: 999,
+            background: remain <= 0 ? "var(--fault)" : remain <= 30 ? "var(--warn)" : "var(--panel-3)",
+            color: remain <= 30 ? "#fffaf0" : "var(--text-2)" }}>
+            {remain <= 0 ? "時間到" : `⏱ ${Math.floor(remain / 60)}:${String(Math.floor(remain % 60)).padStart(2, "0")}`}
+          </span>
+        )}
         <span style={{ flex: 1 }} />
         <button className="btn ghost" style={{ fontSize: 16, padding: "8px 16px" }} onClick={onClose}>✕ 離開投影</button>
       </div>
@@ -59,6 +66,11 @@ export default function ClassroomProjection({
                 <span className="muted">作答 <b style={{ color: "var(--text)" }}>{b?.students ?? 0}</b> 人</span>
                 <span className="muted">答對率 <b style={{ color: (b?.rate ?? 0) >= 0.6 ? "var(--ok)" : "var(--warn)" }}>
                   {b?.rate != null ? `${Math.round(b.rate * 100)}%` : "—"}</b></span>
+                {b?.first_solver && (
+                  <span style={{ color: "var(--warn)", fontWeight: 700 }}>
+                    🥇 首答 {b.first_solver}{b.first_elapsed_s != null ? ` · ${b.first_elapsed_s}s` : ""}
+                  </span>
+                )}
                 {qn.hint && <span className="muted">💡 {qn.hint}</span>}
               </div>
             </div>

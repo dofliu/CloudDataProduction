@@ -1,0 +1,51 @@
+# 全班投票(api/polls.py)—— 投完平台**真的照多數決去動引擎**。
+#
+# 這跟課堂練習(有標準答案、批改)不同:投票沒有正解,是**取捨**。全班投完,平台照多數決
+# 執行,下一節課回來看後果。這是把「課堂決策」接到真實引擎上的唯一入口。
+#
+# effect.kind:
+#   maintenance  對設備做預防保養(action: auto = 挑目前最該保養的部位)
+#   run_enable   停機 / 復機(教師線圈)
+#   utilization  調整全園區訂單密度(MES 稼動)
+#   none         什麼都不做(「維持現況」那一票也要有,不然投票是假的)
+
+polls:
+  - id: maintain_now
+    question: 這台的振動已經在爬了。現在要不要停機保養?
+    brief: 保養要停機,停機會扣可用率;不保養就是賭它撐得到下次。沒有正解,投你相信的那個。
+    device: auto                 # auto = 目前課堂練習的佈題設備,沒有就挑第一台會生產的
+    options:
+      - id: maintain
+        label: 現在停機保養
+        detail: 買到壽命,但這幾小時的產出沒了。
+        effect: {kind: maintenance, action: auto}
+      - id: wait
+        label: 先撐著,壞了再說
+        detail: 產出保住了,但如果它真的壞,停機會更久。
+        effect: {kind: none}
+
+  - id: push_output
+    question: 這個月訂單趕不出來,要不要把稼動拉到最高?
+    brief: 產出上去了,設備也磨得更快。這是產能與壽命的交換。
+    options:
+      - id: push
+        label: 拉高稼動衝產量
+        effect: {kind: utilization, value: high}
+      - id: keep
+        label: 維持現況
+        effect: {kind: none}
+      - id: ease
+        label: 放慢,先保設備
+        effect: {kind: utilization, value: light}
+
+  - id: stop_or_run
+    question: 這台的溫度異常,但今天的單還沒做完。停不停?
+    brief: 停機 = 今天交不了貨;硬撐 = 可能把它operating到壞。工廠現場每天在做這個決定。
+    device: auto
+    options:
+      - id: stop
+        label: 立刻停機檢查
+        effect: {kind: run_enable, value: false}
+      - id: keep_running
+        label: 撐到下班再說
+        effect: {kind: none}

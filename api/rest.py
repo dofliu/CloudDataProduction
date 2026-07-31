@@ -24,6 +24,7 @@ from .alarm_rules import AlarmRuleStore
 from .catalog import build_catalog
 from .levels import LevelManager
 from .maintenance import MaintenanceStore
+from .polls import PollManager
 from .submissions import SubmissionStore
 from .classroom import ClassroomManager
 from .diagnostics import run_diagnostics
@@ -141,6 +142,30 @@ class ClassroomAnswerRequest(BaseModel):
     answer: object = None
 
 
+class ClassroomLaunchRequest(BaseModel):
+    """佈題可帶倒數(wall-clock 秒;學生盯的是教室的鐘,不是模擬時鐘)。"""
+    duration_s: Optional[float] = None
+
+
+class ClassroomExtendRequest(BaseModel):
+    seconds: float = 120.0      # 延長倒數(可為負 = 提早收)
+
+
+class PollOpenRequest(BaseModel):
+    duration_s: Optional[float] = 120.0
+    device: Optional[str] = None
+
+
+class PollVoteRequest(BaseModel):
+    poll: str
+    option: str
+    student: str
+
+
+class PollCloseRequest(BaseModel):
+    execute: bool = True        # 收票後是否真的照多數決去動引擎
+
+
 class ClassroomStopRequest(BaseModel):
     reset: bool = True          # 收題時是否把設備修回健康
 
@@ -154,6 +179,7 @@ class SessionResetRequest(BaseModel):
     devices: bool = True        # 把所有設備修回健康(清故障 / 注入)
     maintenance: bool = True    # 保養紀錄
     alarm_rules: bool = True    # 學生託管告警規則與告警紀錄
+    polls: bool = True          # 全班投票紀錄
     levels: bool = True         # 關卡的教師勾選紀錄(自動判定的關卡本就跟著資料歸零)
 
 
@@ -242,6 +268,11 @@ def create_app(
     classroom = ClassroomManager(world, submissions,
                                  path=config.get("classroom_file", "scenarios/classroom_exercises.yaml"),
                                  persist=state)
+
+    # 全班投票(投完照多數決真的去動引擎;投票對象跟著課堂佈題那台)
+    polls = PollManager(world, classroom=classroom,
+                        path=config.get("polls_file", "scenarios/classroom_polls.yaml"),
+                        persist=state)
 
     # 資料的一生九關:通關判定全部復用既有的誠實批改器與各 store,不自存進度(見 api/levels.py)
     levels = LevelManager(
@@ -679,13 +710,21 @@ def create_app(
             raise HTTPException(400, str(e))
 
     @app.post("/api/classroom/exercises/{exercise_id}/launch", dependencies=[Depends(require_teacher)])
-    def classroom_launch(exercise_id: str):
+    def classroom_launch(exercise_id: str, req: ClassroomLaunchRequest = ClassroomLaunchRequest()):
         try:
-            return classroom.launch(exercise_id)
+            return classroom.launch(exercise_id, duration_s=req.duration_s)
         except KeyError as e:
             raise HTTPException(404, str(e))
         except ValueError as e:
             raise HTTPException(400, str(e))
+
+    @app.post("/api/classroom/extend", dependencies=[Depends(require_teacher)])
+    def classroom_extend(req: ClassroomExtendRequest):
+        """延長 / 提早收倒數(學生喊「再兩分鐘」時按一下)。"""
+        res = classroom.extend(req.seconds)
+        if not res.get("ok"):
+            raise HTTPException(400, res.get("error", "沒有進行中的練習"))
+        return res
 
     @app.post("/api/classroom/stop", dependencies=[Depends(require_teacher)])
     def classroom_stop(req: ClassroomStopRequest):
@@ -698,6 +737,51 @@ def create_app(
     @app.get("/api/classroom/gradebook", dependencies=[Depends(require_teacher)])
     def classroom_gradebook():
         return {"gradebook": classroom.gradebook()}
+
+    # ── 全班投票(沒有正解的取捨題;收票後平台真的照多數決去動引擎)──
+    @app.get("/api/polls")
+    def list_polls():
+        return {"polls": polls.list_polls()}
+
+    @app.get("/api/polls/active")
+    def poll_active():
+        """學生手機 / 投影幕輪詢:題面 + 即時票數。票數公開 —— 投票不是考試,
+        看得到風向才有討論。"""
+        return polls.view()
+
+    @app.post("/api/polls/{poll_id}/open", dependencies=[Depends(require_teacher)])
+    def poll_open(poll_id: str, req: PollOpenRequest = PollOpenRequest()):
+        res = polls.open(poll_id, duration_s=req.duration_s, device=req.device)
+        if not res.get("ok"):
+            raise HTTPException(400, res.get("error", "開票失敗"))
+        return res
+
+    @app.post("/api/polls/vote")
+    def poll_vote(req: PollVoteRequest, authorization: str = Header(None)):
+        u = current_user(authorization)
+        student = (u["username"] if u else None) or req.student
+        res = polls.vote(req.poll, req.option, student)
+        if not res.get("ok"):
+            raise HTTPException(400, res.get("error", "投票失敗"))
+        return res
+
+    @app.post("/api/polls/close", dependencies=[Depends(require_teacher)])
+    async def poll_close(req: PollCloseRequest = PollCloseRequest()):
+        res = polls.close(execute=req.execute)
+        if not res.get("ok"):
+            raise HTTPException(400, res.get("error", "收票失敗"))
+        await events_mgr.broadcast({          # 投票結果進事件列,世界頁 / 投影幕看得到
+            "type": "class_vote", "poll": res["closed"]["poll"],
+            "winner": res["closed"]["winner_label"], "device": res["closed"]["device"],
+            "detail": (res["closed"]["result"] or {}).get("detail"),
+            "sim_t": world.clock.now(),
+        })
+        return res
+
+    @app.get("/api/polls/history")
+    def poll_history():
+        """歷次全班決定與後果 —— 下一節課回來對照 OEE 用。"""
+        return {"history": list(reversed(polls.history))}
 
     @app.get("/api/scores")
     def get_scores():
@@ -906,6 +990,8 @@ def create_app(
             cleared["maintenance"] = maintenance.clear()
         if body.alarm_rules:
             cleared["alarm_rules"] = alarm_rules.clear()
+        if body.polls:
+            cleared["polls"] = polls.clear()
         if body.levels:
             cleared["levels"] = levels.clear()
             if access_log is not None:

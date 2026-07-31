@@ -371,26 +371,60 @@ export interface ClassroomExercise {
 export interface ClassroomActive {
   exercise: string; title: string; brief?: string; difficulty?: string;
   target: string; launched_wall: number; questions: ClassroomQuestion[];
+  // 倒數用 wall clock(學生盯的是教室裡的鐘,不是模擬時鐘)
+  deadline_wall?: number | null; remain_s?: number | null; closed?: boolean;
 }
 export interface ClassroomAnswerResult {
   correct: boolean; passed: boolean; score: number; feedback: string; explain?: string;
+  first?: boolean; elapsed_s?: number | null;      // 全班第一個答對的人留名
 }
 export interface ClassroomBoardRow {
   question: string; prompt: string; tier: string; students: number;
   correct: number; rate: number | null; avg: number | null; dist: Record<string, number>;
+  first_solver?: string | null; first_elapsed_s?: number | null;
 }
 export const getClassroomExercises = () =>
   getJSON<{ name: string; exercises: ClassroomExercise[] }>("/api/classroom/exercises");
 export const getClassroomActive = () => getJSON<{ active: ClassroomActive | null }>("/api/classroom/active");
 export const answerClassroom = (exercise: string, question: string, student: string, answer: any) =>
   post("/api/classroom/answer", { exercise, question, student, answer }) as Promise<ClassroomAnswerResult>;
-export const launchClassroom = (exerciseId: string) =>
-  post(`/api/classroom/exercises/${exerciseId}/launch`, undefined, true) as Promise<{ target: string; applied: Record<string, any> }>;
+export const launchClassroom = (exerciseId: string, duration_s?: number | null) =>
+  post(`/api/classroom/exercises/${exerciseId}/launch`, { duration_s: duration_s ?? null }, true) as
+    Promise<{ target: string; applied: Record<string, any>; deadline_wall: number | null }>;
+export const extendClassroom = (seconds: number) =>
+  post("/api/classroom/extend", { seconds }, true) as Promise<{ ok: boolean; deadline_wall: number }>;
 export const stopClassroom = (reset = true) =>
   post("/api/classroom/stop", { reset }, true) as Promise<{ stopped: boolean; target: string | null; reset: boolean }>;
 export const getClassroomBoard = (exercise?: string) =>
-  getJSON<{ exercise: string; title: string; questions: ClassroomBoardRow[] }>(
+  getJSON<{ exercise: string; title: string; questions: ClassroomBoardRow[];
+            remain_s: number | null; closed: boolean; target: string | null }>(
     `/api/classroom/board${exercise ? `?exercise=${encodeURIComponent(exercise)}` : ""}`);
+
+// ── 全班投票(沒有正解的取捨題;收票後平台照多數決真的去動引擎)──
+export interface PollOption { id: string; label: string; detail?: string; }
+export interface PollDef { id: string; question: string; brief?: string; options: PollOption[]; }
+export interface PollActive {
+  poll: string; question: string; brief?: string; device: string | null;
+  options: PollOption[]; tally: Record<string, number>; votes: number;
+  remain_s: number | null; closed: boolean;
+}
+export interface PollRecord {
+  poll: string; question: string; device: string | null; closed_wall: number;
+  sim_t: number; votes: number; tally: Record<string, number>;
+  winner: string | null; winner_label: string | null;
+  result: { kind: string; detail: string; ok?: boolean };
+}
+export const getPolls = () => getJSON<{ polls: PollDef[] }>("/api/polls");
+export const getActivePoll = () =>
+  getJSON<{ active: PollActive | null; history: PollRecord[] }>("/api/polls/active");
+export const openPoll = (id: string, duration_s: number | null = 120, device?: string) =>
+  post(`/api/polls/${id}/open`, { duration_s, device }, true) as Promise<{ ok: boolean; active: PollActive }>;
+export const votePoll = (poll: string, option: string, student: string) =>
+  post("/api/polls/vote", { poll, option, student }) as
+    Promise<{ ok: boolean; voted: string; tally: Record<string, number> }>;
+export const closePoll = (execute = true) =>
+  post("/api/polls/close", { execute }, true) as Promise<{ ok: boolean; closed: PollRecord }>;
+export const getPollHistory = () => getJSON<{ history: PollRecord[] }>("/api/polls/history");
 export const getClassroomGradebook = () =>
   getJSON<{ gradebook: { student: string; answered: number; avg: number }[] }>("/api/classroom/gradebook");
 

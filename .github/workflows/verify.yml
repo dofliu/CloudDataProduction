@@ -55,6 +55,9 @@ jobs:
       # 資料的一生九關:自動判定查平台事實、人工勾選不能濫用、瓶頸關算法
       - name: verify_levels
         run: python3 tests/test_levels.py
+      # 課堂即時互動:倒數截止 / 首答留名 / 全班投票真的動到引擎
+      - name: verify_classroom_live
+        run: python3 tests/test_classroom_live.py
 
   # ── 前端型別 + 建置 ──────────────────────────────────────
   web:

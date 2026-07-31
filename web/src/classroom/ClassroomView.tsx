@@ -4,19 +4,31 @@ import {
   getClassroomActive, answerClassroom,
 } from "../api";
 import PageGuide from "../help/PageGuide";
+import PollCard from "./PollCard";
 
 // 學生面「課堂即時練習」——手機友善:老師佈題後,這裡顯示題目,學生輸入座號/學號作答,即時批改。
 export default function ClassroomView() {
   const [active, setActive] = useState<ClassroomActive | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [sid, setSid] = useState(() => localStorage.getItem("student_id") || localStorage.getItem("seat_no") || "");
+  const [remain, setRemain] = useState<number | null>(null);
 
   useEffect(() => {
-    const tick = () => getClassroomActive().then((r) => { setActive(r.active); setLoaded(true); }).catch(() => setLoaded(true));
+    const tick = () => getClassroomActive().then((r) => {
+      setActive(r.active); setLoaded(true);
+      setRemain(r.active?.remain_s ?? null);
+    }).catch(() => setLoaded(true));
     tick();
     const id = setInterval(tick, 5000);
     return () => clearInterval(id);
   }, []);
+
+  // 倒數在本地每秒遞減,不為了跑秒去打 API(5 秒一次的輪詢會把它校正回來)
+  useEffect(() => {
+    if (remain == null) return;
+    const id = setInterval(() => setRemain((r) => (r == null ? null : Math.max(0, r - 1))), 1000);
+    return () => clearInterval(id);
+  }, [remain == null]);
 
   const saveSid = (v: string) => { setSid(v); localStorage.setItem("seat_no", v); };
 
@@ -49,13 +61,30 @@ export default function ClassroomView() {
           <div className="muted" style={{ fontSize: 13 }}>老師在教師控制台佈題後,題目會自動出現在這裡(每 5 秒更新)。</div>
         </div>
       ) : (
-        <Exercise active={active} sid={sid} />
+        <Exercise active={active} sid={sid} remain={remain} />
       )}
+
+      {/* 全班投票:沒有正解的取捨題,投完平台真的照多數決去動引擎 */}
+      <PollCard sid={sid} />
     </div>
   );
 }
 
-function Exercise({ active, sid }: { active: ClassroomActive; sid: string }) {
+function Countdown({ remain }: { remain: number }) {
+  const m = Math.floor(remain / 60), sec = Math.floor(remain % 60);
+  const hot = remain <= 30;
+  return (
+    <span className="mono" style={{
+      fontSize: 15, fontWeight: 800, padding: "2px 10px", borderRadius: 999,
+      background: remain <= 0 ? "var(--fault)" : hot ? "var(--warn)" : "var(--panel-3)",
+      color: remain <= 0 || hot ? "#fffaf0" : "var(--text-2)",
+    }}>
+      {remain <= 0 ? "已截止" : `⏱ ${m}:${String(sec).padStart(2, "0")}`}
+    </span>
+  );
+}
+
+function Exercise({ active, sid, remain }: { active: ClassroomActive; sid: string; remain: number | null }) {
   return (
     <>
       <div className="card" style={{ padding: "12px 14px", marginBottom: 12 }}>
@@ -63,6 +92,8 @@ function Exercise({ active, sid }: { active: ClassroomActive; sid: string }) {
           <span style={{ fontSize: 17, fontWeight: 700 }}>{active.title}</span>
           <DiffBadge d={active.difficulty} />
           <span className="pill mono" style={{ fontSize: 11 }}>設備 {active.target}</span>
+          <span style={{ flex: 1 }} />
+          {remain != null && <Countdown remain={remain} />}
         </div>
         {active.brief && <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>{active.brief}</div>}
         <div className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
@@ -70,8 +101,16 @@ function Exercise({ active, sid }: { active: ClassroomActive; sid: string }) {
         </div>
       </div>
 
+      {remain != null && remain <= 0 && (
+        <div className="card" style={{ padding: "10px 12px", marginBottom: 10, borderColor: "var(--fault)" }}>
+          <b style={{ color: "var(--fault)" }}>時間到,這輪不再收答案。</b>
+          <span className="muted" style={{ fontSize: 12.5 }}> 老師可以延長時間或重佈同一題。</span>
+        </div>
+      )}
+
       {active.questions.map((q, i) => (
-        <Question key={q.id} exercise={active.exercise} q={q} n={i + 1} sid={sid} />
+        <Question key={q.id} exercise={active.exercise} q={q} n={i + 1} sid={sid}
+                  closed={remain != null && remain <= 0} />
       ))}
     </>
   );
@@ -86,7 +125,9 @@ function DiffBadge({ d }: { d?: string }) {
   );
 }
 
-function Question({ exercise, q, n, sid }: { exercise: string; q: ClassroomQuestion; n: number; sid: string }) {
+function Question({ exercise, q, n, sid, closed }: {
+  exercise: string; q: ClassroomQuestion; n: number; sid: string; closed?: boolean;
+}) {
   const [val, setVal] = useState("");
   const [res, setRes] = useState<ClassroomAnswerResult | null>(null);
   const [busy, setBusy] = useState(false);
@@ -103,6 +144,7 @@ function Question({ exercise, q, n, sid }: { exercise: string; q: ClassroomQuest
   };
 
   const complex = q.tier === "complex";
+  const locked = !!closed || busy;
   return (
     <div className="card" style={{ padding: "12px 14px", marginBottom: 10 }}>
       <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
@@ -116,7 +158,7 @@ function Question({ exercise, q, n, sid }: { exercise: string; q: ClassroomQuest
       {q.type === "choice" ? (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {(q.choices ?? []).map((c) => (
-            <button key={c} className="btn" disabled={busy}
+            <button key={c} className="btn" disabled={locked}
               style={{ padding: "9px 14px", fontSize: 14, background: "var(--panel-3)", border: "1px solid var(--line)" }}
               onClick={() => submit(c)}>{c}</button>
           ))}
@@ -127,7 +169,7 @@ function Question({ exercise, q, n, sid }: { exercise: string; q: ClassroomQuest
                  placeholder="填你算出的數字" onKeyDown={(e) => e.key === "Enter" && submit(val)}
                  style={{ width: 170, padding: "9px 11px", fontSize: 15 }} />
           {q.unit && <span className="muted mono" style={{ fontSize: 13 }}>{q.unit}</span>}
-          <button className="btn primary" disabled={busy} style={{ padding: "9px 16px" }} onClick={() => submit(val)}>送出</button>
+          <button className="btn primary" disabled={locked} style={{ padding: "9px 16px" }} onClick={() => submit(val)}>送出</button>
         </div>
       )}
 
@@ -139,6 +181,8 @@ function Question({ exercise, q, n, sid }: { exercise: string; q: ClassroomQuest
                       border: `1px solid ${res.passed ? "var(--ok)" : "var(--fault)"}` }}>
           <div style={{ fontWeight: 600, color: res.passed ? "var(--ok)" : "var(--fault)" }}>
             {res.passed ? "✓ " : "✗ "}得分 {res.score}
+            {res.first && <span style={{ marginLeft: 8, color: "var(--warn)" }}>🥇 全班第一個答對!</span>}
+            {res.elapsed_s != null && <span className="muted mono" style={{ marginLeft: 8, fontSize: 11.5 }}>{res.elapsed_s}s</span>}
           </div>
           <div style={{ fontSize: 13, marginTop: 4 }}>{res.feedback}</div>
           {res.explain && <div className="muted" style={{ fontSize: 12.5, marginTop: 6 }}>📖 {res.explain}</div>}

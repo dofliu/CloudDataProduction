@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
 import {
-  Park, Company, TelemetryMsg, Ticket, ScoreRow, PredScoreRow, OeeRow,
+  Park, Company, TelemetryMsg, Ticket, ScoreRow, PredScoreRow, OeeRow, RepairAction,
   getTickets, ackTicket, resolveTicket, getScores, getPredictionScores, getOee, getPark, claimCompany,
+  getRepairActions, getAlarmScores, AlarmScoreRow,
 } from "../api";
 import PageGuide from "../help/PageGuide";
+import DecisionPanel from "./DecisionPanel";
+import LevelsPanel from "./LevelsPanel";
+import SupplyPanel from "./SupplyPanel";
 
 // 學生面公開頁:設定學生 id → 認領公司 → 我的工單(ack/resolve)→ 競賽榜。全程免教師 token。
 function fmtH(s: number | null | undefined) { return s == null ? "—" : (s / 3600).toFixed(1) + "h"; }
@@ -18,9 +22,15 @@ export default function StudentView({ park, telemetry }: { park: Park; telemetry
   const [scores, setScores] = useState<ScoreRow[]>([]);
   const [predScores, setPredScores] = useState<PredScoreRow[]>([]);
   const [oee, setOee] = useState<OeeRow[]>([]);
+  const [alarmScores, setAlarmScores] = useState<AlarmScoreRow[]>([]);
   const [msg, setMsg] = useState("");
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "mine" | "free" | "fault">("all");
+  // 維修手冊 + 每張工單選了哪個處置動作(選對才修得好,所以要學生自己挑)
+  const [actions, setActions] = useState<RepairAction[]>([]);
+  const [pick, setPick] = useState<Record<string, string>>({});
+
+  useEffect(() => { getRepairActions().then((r) => setActions(r.actions)).catch(() => {}); }, []);
 
   const refresh = () => {
     getPark().then((p) => setCompanies(p.companies)).catch(() => {});
@@ -28,6 +38,7 @@ export default function StudentView({ park, telemetry }: { park: Park; telemetry
     getScores().then((r) => setScores(r.ranking)).catch(() => {});
     getPredictionScores().then((r) => setPredScores(r.ranking)).catch(() => {});
     getOee().then((r) => setOee(r.ranking)).catch(() => {});
+    getAlarmScores().then((r) => setAlarmScores(r.ranking)).catch(() => {});
   };
   useEffect(() => { refresh(); const id = setInterval(refresh, 4000); return () => clearInterval(id); }, []);
 
@@ -39,9 +50,23 @@ export default function StudentView({ park, telemetry }: { park: Park; telemetry
   const act = async (fn: (id: string) => Promise<unknown>, id: string, label: string) => {
     try { await fn(id); setMsg(`已${label} ${id}`); refresh(); } catch { setMsg(`${label}失敗`); }
   };
+  // 處置:帶動作送出。選錯不會修好 —— 回饋只說「修好了沒」,不會告訴你真正壞的是哪裡。
+  const doResolve = async (t: Ticket) => {
+    const action = pick[t.id];
+    if (!action) { setMsg(`${t.id}:請先從維修手冊挑一個處置動作`); return; }
+    try {
+      const r = await resolveTicket(t.id, action, me || undefined);
+      const rep = r.repair;
+      if (!rep) setMsg(`${t.id} 已結案(設備已恢復)`);
+      else if (rep.success && !rep.still_faulted) setMsg(`✅ ${t.id} 修好了(停機 ${rep.downtime_h}h)`);
+      else setMsg(`❌ ${t.id} 沒修好 —— 拆檢仍花了 ${rep.downtime_h}h。再看一次資料換個動作。`);
+      refresh();
+    } catch { setMsg(`${t.id} 處置失敗(可能正在維修工時中)`); }
+  };
 
   const devFault = (c: Company) => (c.device_ids || []).some((d) => telemetry?.devices[d]?.state === "fault");
   const myCompanyIds = new Set(companies.filter((c) => c.owner === me && !!me).map((c) => c.id));
+  const myDeviceIds = companies.filter((c) => myCompanyIds.has(c.id)).flatMap((c) => c.device_ids || []);
   const myTickets = me ? tickets.filter((t) => myCompanyIds.has(t.company || "")) : tickets;
   const openCount = tickets.filter((t) => t.status !== "resolved").length;
 
@@ -74,8 +99,9 @@ export default function StudentView({ park, telemetry }: { park: Park; telemetry
         <PageGuide id="student" title="這頁怎麼用" steps={[
           <>在身分卡填你的<b>學號</b>並按「設定」(課堂用它記分)。</>,
           <>用搜尋框 / 篩選找到一間<b>未認領</b>的公司,按「<b>認領</b>」——之後只有你能處理它的工單。</>,
-          <>設備退化或被老師注入故障會<b>自動開工單</b>:先按 <b>ack</b> 確認、修好後按 <b>resolve</b> 結案。</>,
-          <>偵測快、修得快、階段二預測抓得早,右側<b>競賽榜</b>名次就往上爬。</>,
+          <>設備退化或被老師注入故障會<b>自動開工單</b>:先按 <b>ack</b> 確認,再看資料<b>判斷根因</b>、挑一個處置動作按「執行」。<b>選錯不會修好</b>,拆檢工時照樣停機。</>,
+          <>下方還有兩個決策:<b>預防保養</b>(停機換壽命)與<b>託管告警規則</b>(平台幫你 24 小時盯著,對真實故障算 F1)。</>,
+          <>偵測快、修得準、保養得宜、預警抓得早,右側<b>競賽榜</b>名次就往上爬。</>,
         ]} note="讀資料 / 繳作業免登入;認領與寫設定點才需要帳號。" />
 
         {/* 身分卡 */}
@@ -95,6 +121,9 @@ export default function StudentView({ park, telemetry }: { park: Park; telemetry
           </div>
         </div>
         {msg && <div className="hint" style={{ color: "var(--accent)", marginTop: -8, marginBottom: 12 }}>· {msg}</div>}
+
+        {/* 資料的一生九關:你走到哪、下一關要做什麼 */}
+        <LevelsPanel me={me} />
 
         {/* 公司認領:搜尋 + 篩選(64 廠好找) */}
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", margin: "4px 0 10px" }}>
@@ -134,11 +163,18 @@ export default function StudentView({ park, telemetry }: { park: Park; telemetry
         </div>
 
         {/* 我的工單 */}
-        <h3 style={{ fontSize: 15, margin: "22px 0 8px" }}>{me ? "我的工單" : "所有工單"} <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>(ack 確認 → resolve 處置)</span></h3>
+        <h3 style={{ fontSize: 15, margin: "22px 0 8px" }}>{me ? "我的工單" : "所有工單"} <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>(ack 確認 → 診斷 → 選處置動作結案)</span></h3>
+        {myTickets.length > 0 && (
+          <div className="hint" style={{ marginBottom: 8 }}>
+            工單<b>不會告訴你哪裡壞了</b>。先看那台設備的遙測(振動?壓差?讀值脫鉤?),
+            對照下方每個動作的「數據徵候」再選 —— 選錯不會修好,但拆檢工時照樣停機。
+            真的看不出來可以選「整機大修」,一定修得好,但停機 24 小時。
+          </div>
+        )}
         {myTickets.length === 0 ? <p className="hint">目前沒有工單。等老師注入故障 / 設備自然退化故障後會自動開單。</p> : (
           <div className="card" style={{ padding: "4px 14px" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead><tr>{["單號", "設備", "公司", "元件", "狀態", "偵測延遲", "MTTR", "動作"].map((h) => (
+              <thead><tr>{["單號", "設備", "公司", "症狀", "狀態", "偵測延遲", "MTTR", "處置"].map((h) => (
                 <th key={h} className="mono" style={{ textAlign: "left", padding: "7px 8px", color: "var(--dim)", fontSize: 10.5, letterSpacing: ".5px", borderBottom: "1px solid var(--line)", fontWeight: 500 }}>{h}</th>
               ))}</tr></thead>
               <tbody>
@@ -147,14 +183,30 @@ export default function StudentView({ park, telemetry }: { park: Park; telemetry
                     <td className="mono" style={{ padding: "6px 8px", borderBottom: "1px solid var(--line-3)", fontWeight: 600 }}>{t.id}</td>
                     <td className="mono" style={{ padding: "6px 8px", borderBottom: "1px solid var(--line-3)" }}>{t.device}</td>
                     <td className="muted" style={{ padding: "6px 8px", borderBottom: "1px solid var(--line-3)", fontSize: 11.5 }}>{t.company}</td>
-                    <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--line-3)" }}>{t.component ?? "—"}</td>
+                    <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--line-3)", fontSize: 11.5 }}>
+                      {/* 教師身分才拿得到 component;學生看到的是症狀 */}
+                      {t.component ?? t.symptom ?? "跳機停線"}
+                      {!!t.wrong_attempts && <span className="mono" style={{ color: "var(--fault)", marginLeft: 6 }}>誤修 ×{t.wrong_attempts}</span>}
+                    </td>
                     <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--line-3)" }}>
                       <span style={{ color: STATUS_COL[t.status] ?? "var(--muted)", fontWeight: 600 }}>● {STATUS_ZH[t.status] ?? t.status}</span></td>
                     <td className="mono" style={{ padding: "6px 8px", borderBottom: "1px solid var(--line-3)", textAlign: "right" }}>{fmtH(t.detection_latency_sim_s)}</td>
                     <td className="mono" style={{ padding: "6px 8px", borderBottom: "1px solid var(--line-3)", textAlign: "right" }}>{fmtH(t.mttr_sim_s)}</td>
-                    <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--line-3)", display: "flex", gap: 6 }}>
+                    <td style={{ padding: "6px 8px", borderBottom: "1px solid var(--line-3)", display: "flex", gap: 6, flexWrap: "wrap" }}>
                       {t.status === "open" && <button className="btn" style={{ background: "var(--warn)", color: "#fffaf0", padding: "3px 9px", fontSize: 11.5 }} onClick={() => act(ackTicket, t.id, "確認")}>ack</button>}
-                      {t.status !== "resolved" && <button className="btn" style={{ background: "var(--ok)", color: "#fffaf0", padding: "3px 9px", fontSize: 11.5 }} onClick={() => act(resolveTicket, t.id, "處置")}>resolve</button>}
+                      {t.status !== "resolved" && (
+                        <>
+                          <select className="inp" value={pick[t.id] ?? ""} style={{ padding: "2px 6px", fontSize: 11.5, maxWidth: 190 }}
+                                  onChange={(e) => setPick({ ...pick, [t.id]: e.target.value })}>
+                            <option value="">選擇處置動作…</option>
+                            {actions.map((a) => (
+                              <option key={a.action} value={a.action} title={a.signature}>{a.label}({a.duration_h}h)</option>
+                            ))}
+                          </select>
+                          <button className="btn" style={{ background: "var(--ok)", color: "#fffaf0", padding: "3px 9px", fontSize: 11.5 }}
+                                  onClick={() => doResolve(t)}>執行</button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -162,13 +214,24 @@ export default function StudentView({ park, telemetry }: { park: Park; telemetry
             </table>
           </div>
         )}
+
+        {/* 我的上下游:上游停我就餓料、我停下游就塞爆 —— 全班第一次感覺到彼此存在 */}
+        <SupplyPanel me={me} companies={companies} />
+
+        {/* 兩個有代價的決策:預防保養(停機換壽命)與託管告警規則(門檻對不對) */}
+        <DecisionPanel me={me} myDevices={myDeviceIds} telemetry={telemetry} actions={actions} />
       </div>
 
       {/* 右側競賽榜(窄螢幕自動換到下方) */}
       <div style={{ flex: "1 1 320px", minWidth: 300, maxWidth: 460, display: "grid", gap: 14 }}>
-        <Leaderboard title="故障管理" cols={["公司", "偵測", "結案", "漏", "分數"]}
-          rows={scores.map((r) => [r.name, `${r.detected}/${r.faults}`, String(r.resolved), String(r.missed), r.score.toFixed(0)])}
+        <Leaderboard title="故障管理" cols={["公司", "偵測", "結案", "漏", "誤修", "分數"]}
+          rows={scores.map((r) => [r.name, `${r.detected}/${r.faults}`, String(r.resolved), String(r.missed),
+                                   String(r.wrong_repairs ?? 0), r.score.toFixed(0)])}
           mine={me ? scores.findIndex((r) => r.owner === me) : -1} />
+        <Leaderboard title="告警規則(F1)" cols={["學生", "命中", "誤報", "漏", "提前h", "分數"]}
+          rows={alarmScores.map((r) => [r.student, String(r.hits), String(r.false_alarms), String(r.misses),
+                                        r.avg_lead_time_h?.toFixed(1) ?? "—", r.score.toFixed(0)])}
+          mine={me ? alarmScores.findIndex((r) => r.student === me) : -1} />
         <Leaderboard title="預測(階段二)" cols={["學生", "命中", "誤報", "提前h", "分數"]}
           rows={predScores.map((r) => [r.student, `${r.hits}/${r.predictions}`, String(r.false_alarms), r.avg_lead_time_h?.toFixed(1) ?? "—", r.score.toFixed(0)])}
           mine={me ? predScores.findIndex((r) => r.student === me) : -1} />

@@ -1,0 +1,104 @@
+# 資料的一生 —— 九關(api/levels.py)
+#
+# 關卡不是另外發明的遊戲劇情,而是課程主軸「資料的一生」的九個階段。刻意不另創世界觀,
+# 免得跟課程打架:過關的條件就是課程本來就要交的東西。
+#
+# 通關判定一律復用平台既有的誠實批改器(api/submissions.py 對 ground-truth 容差計分)、
+# 認領狀態、告警規則 F1、預測命中。要學生自己交出對得上真值的數字 —— 那個假不了。
+# 兩關(視覺化、報告)本質要人看,用 kind: manual,教師在關卡看板上勾。
+#
+# check.kind:
+#   claim       已認領一間公司
+#   submission  某型別的作業有一筆 passed(可加 min_score)
+#   access      該學生名下設備的協定存取次數達門檻(教師確定班上不互讀時才適合當條件)
+#   tickets     結案工單數達門檻(可加 max_wrong 限制誤修)
+#   maintenance 有效保養次數達門檻
+#   alarm       告警規則 F1 達門檻
+#   prediction  預測命中數達門檻
+#   manual      教師勾選
+#   any / all   組合:of: [ ...子條件... ]
+
+levels:
+  - id: L1_generate
+    name: 產生
+    title: 資料是從哪來的
+    week: 1
+    hint: 認領一間公司。這些數字不是亂數,是設備的物理與退化算出來的 —— 先有廠才有資料。
+    check: {kind: claim}
+
+  - id: L2_ingest
+    name: 接取
+    title: 用工業協定把值抓下來
+    week: 2
+    hint: 用 Modbus / OPC-UA / MQTT 任一種讀到你設備的即時值,交 type=connect 的作業。
+    check: {kind: submission, type: connect}
+
+  - id: L3_stream
+    name: 串流
+    title: 輪詢 vs 訂閱,事件是怎麼來的
+    week: 10
+    hint: 訂閱事件並記成時間軸,交 type=events 的作業。順便看看你的 client 打得多兇。
+    check: {kind: submission, type: events}
+
+  - id: L4_store
+    name: 儲存
+    title: 高頻資料要先聚合才存得下
+    week: 7
+    hint: 把高頻資料重取樣成每小時 / 每班的統計,交 type=aggregate 的作業。
+    check: {kind: submission, type: aggregate}
+
+  - id: L5_stats
+    name: 統計
+    title: 正常長什麼樣,你得先量過
+    week: 4
+    hint: 算一段時間窗的平均 / 標準差,交 type=stats 的作業。
+    check: {kind: submission, type: stats}
+
+  - id: L6_visualize
+    name: 視覺化
+    title: 把數字變成看得懂的圖
+    week: 4
+    hint: 自建即時介面顯示多訊號,課堂 demo 給老師看過就算過。
+    check: {kind: manual}
+
+  - id: L7_kpi
+    name: KPI
+    title: 從資料算出可用率 × 表現 × 良率
+    week: 11
+    hint: 純用你自己接取的資料算 OEE,交 type=oee 的作業跟平台對答案。
+    check: {kind: submission, type: oee}
+
+  - id: L8_warn
+    name: 預警
+    title: 在它壞掉之前先叫
+    week: 13
+    hint: 兩條路任選 —— 託管一條告警規則把 F1 拉到 0.5 以上,或寫服務 POST 預測命中一次。
+    check:
+      kind: any
+      of:
+        - {kind: alarm, min_f1: 0.5}
+        - {kind: prediction, min_hits: 1}
+
+  - id: L9_report
+    name: 報告
+    title: 把資料變成別人能拿去決策的東西
+    week: 18
+    hint: 期末專題 / 報告,教師依 rubric 認定。
+    check: {kind: manual}
+
+# 支線徽章:不擋主線,但把「決策做得好」單獨標出來(見 docs/決策與後果.md)。
+badges:
+  - id: B_first_try
+    name: 一次修好
+    hint: 結案過工單,而且從沒選錯處置動作 —— 你是真的看資料在判斷。
+    check: {kind: tickets, min_resolved: 1, max_wrong: 0}
+
+  - id: B_prevention
+    name: 防患未然
+    hint: 做過 3 次以上「有效」的預防保養(真的買到壽命,不是白停機)。
+    check: {kind: maintenance, min_effective: 3}
+
+  - id: B_no_false_alarm
+    name: 零誤報
+    hint: 告警規則抓到過真故障,而且一次誤報都沒有。
+    check: {kind: alarm, min_hits: 1, max_false_alarms: 0}

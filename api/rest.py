@@ -20,7 +20,11 @@ from .auth import AuthStore
 from engine.course import CourseManager
 from engine.world import World
 from historian.writer import Historian
+from .alarm_rules import AlarmRuleStore
 from .catalog import build_catalog
+from .levels import LevelManager
+from .maintenance import MaintenanceStore
+from .polls import PollManager
 from .submissions import SubmissionStore
 from .classroom import ClassroomManager
 from .diagnostics import run_diagnostics
@@ -58,6 +62,39 @@ class FaultRequest(BaseModel):
     severity: float = 1.0
     onset_sim_s: Optional[float] = None
     params: dict = {}
+
+
+class ResolveRequest(BaseModel):
+    """結案必須帶處置動作 —— 選對才修得好(見 engine/repair.py)。
+    診斷不出來可以用 overhaul(整機大修),一定成功但停機最久。"""
+    action: str
+    student: Optional[str] = None         # 未登入的班級用它記名;登入時以 session 為準
+
+
+class MaintenanceRequest(BaseModel):
+    """預防保養:在還沒壞之前做。停機會計入可用率損失,所以做太勤也會扣分。"""
+    device: str
+    action: str
+    student: Optional[str] = None
+
+
+class AlarmRuleRequest(BaseModel):
+    """學生託管告警規則(平台代跑,對 ground-truth 算 F1 / lead time)。"""
+    device: str
+    tag: str
+    threshold: float
+    op: str = ">"                          # > >= < <=
+    agg: str = "raw"                       # raw | ema(指數移動平均)
+    window_s: float = 0.0                  # agg=ema 的時間常數(模擬秒)
+    for_s: float = 0.0                     # 條件需持續多久才告警(模擬秒)
+    student: Optional[str] = None
+
+
+class LevelMarkRequest(BaseModel):
+    """教師勾選人工判定的關卡(視覺化 demo / 期末報告)。"""
+    student: str
+    level: str
+    done: bool = True
 
 
 class ClaimRequest(BaseModel):
@@ -105,6 +142,30 @@ class ClassroomAnswerRequest(BaseModel):
     answer: object = None
 
 
+class ClassroomLaunchRequest(BaseModel):
+    """佈題可帶倒數(wall-clock 秒;學生盯的是教室的鐘,不是模擬時鐘)。"""
+    duration_s: Optional[float] = None
+
+
+class ClassroomExtendRequest(BaseModel):
+    seconds: float = 120.0      # 延長倒數(可為負 = 提早收)
+
+
+class PollOpenRequest(BaseModel):
+    duration_s: Optional[float] = 120.0
+    device: Optional[str] = None
+
+
+class PollVoteRequest(BaseModel):
+    poll: str
+    option: str
+    student: str
+
+
+class PollCloseRequest(BaseModel):
+    execute: bool = True        # 收票後是否真的照多數決去動引擎
+
+
 class ClassroomStopRequest(BaseModel):
     reset: bool = True          # 收題時是否把設備修回健康
 
@@ -116,6 +177,10 @@ class SessionResetRequest(BaseModel):
     predictions: bool = True    # 階段二預測
     oee: bool = True            # OEE 累積器
     devices: bool = True        # 把所有設備修回健康(清故障 / 注入)
+    maintenance: bool = True    # 保養紀錄
+    alarm_rules: bool = True    # 學生託管告警規則與告警紀錄
+    polls: bool = True          # 全班投票紀錄
+    levels: bool = True         # 關卡的教師勾選紀錄(自動判定的關卡本就跟著資料歸零)
 
 
 def create_app(
@@ -128,6 +193,7 @@ def create_app(
     multiport=None,
     control=None,
     state=None,
+    access_log=None,
 ) -> FastAPI:
     public_host = config.get("public_host", "127.0.0.1")
     teacher_token = config.get("teacher_token", "")
@@ -190,6 +256,11 @@ def create_app(
     # OEE 設備總效率排名
     oee = OeeEngine(world)
 
+    # 學生的兩個「有代價的決策」:預防保養(停機換壽命)與託管告警規則(門檻對不對)
+    maintenance = MaintenanceStore(world, persist=state)
+    alarm_rules = AlarmRuleStore(world, persist=state)
+    alarm_rules.set_emitter(events_mgr.broadcast)
+
     # 課程情境(教師手動套用每週條件)+ 作業自動比對(對 ground-truth 計分)
     course = CourseManager(world, path=config.get("course_file", "scenarios/course_weeks.yaml"))
     submissions = SubmissionStore(world, historian, course, persist=state)
@@ -197,6 +268,18 @@ def create_app(
     classroom = ClassroomManager(world, submissions,
                                  path=config.get("classroom_file", "scenarios/classroom_exercises.yaml"),
                                  persist=state)
+
+    # 全班投票(投完照多數決真的去動引擎;投票對象跟著課堂佈題那台)
+    polls = PollManager(world, classroom=classroom,
+                        path=config.get("polls_file", "scenarios/classroom_polls.yaml"),
+                        persist=state)
+
+    # 資料的一生九關:通關判定全部復用既有的誠實批改器與各 store,不自存進度(見 api/levels.py)
+    levels = LevelManager(
+        world, submissions, tickets, maintenance, alarm_rules, predictions,
+        access_log=access_log,
+        roster=lambda: [u["username"] for u in auth.list_users() if u.get("role") == "student"],
+        path=config.get("levels_file", "scenarios/levels.yaml"), persist=state)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -222,6 +305,8 @@ def create_app(
         world.subscribe_events(events_mgr.on_message)     # 事件 → 瀏覽器
         world.subscribe_events(tickets.on_event)          # 故障事件 → 自動開工單
         world.subscribe_events(predictions.on_event)      # 故障事件 → 比對預測命中
+        world.subscribe(alarm_rules.on_snapshot)          # 每 snapshot 評估學生託管的告警規則
+        world.subscribe_events(alarm_rules.on_event)      # 故障事件 → 告警命中 / 漏報配對
         if modbus is not None:
             modbus.start_background()
         if control is not None:
@@ -431,24 +516,137 @@ def create_app(
 
     # ── 工單 / 評分(學生面公開)──────────────────────────
     @app.get("/api/tickets")
-    def list_tickets(owner: Optional[str] = None, status: Optional[str] = None):
-        return {"tickets": tickets.list(owner=owner, status=status)}
+    def list_tickets(owner: Optional[str] = None, status: Optional[str] = None,
+                     authorization: str = Header(None)):
+        """學生面看不到 component / fault_type(那是根因 = 答案),只看得到症狀。
+        教師身分才 reveal 根因。"""
+        u = current_user(authorization)
+        reveal = bool(u and u["role"] == "teacher") or not auth_active()
+        return {"tickets": tickets.list(owner=owner, status=status, reveal=reveal)}
 
     @app.post("/api/tickets/{ticket_id}/ack")
     def ack_ticket(ticket_id: str):
         t = tickets.ack(ticket_id)
         if t is None:
             raise HTTPException(404, f"無此工單:{ticket_id}")
-        return t
+        return {"ok": True, "ticket": tickets._redact(t)}
 
+    # 結案要選處置動作:選對才修得好,選錯照樣扣維修工時、工單退回處理中。
+    # 動作清單與各自的「數據上長什麼樣」見 GET /api/repair/actions。
     @app.post("/api/tickets/{ticket_id}/resolve")
-    def resolve_ticket(ticket_id: str):
-        t = tickets.resolve(ticket_id)
-        if t is None:
-            raise HTTPException(404, f"無此工單:{ticket_id}")
-        return t
+    def resolve_ticket(ticket_id: str, req: ResolveRequest, authorization: str = Header(None)):
+        u = current_user(authorization)
+        actor = (u["username"] if u else None) or req.student
+        res = tickets.resolve(ticket_id, req.action, actor=actor)
+        if not res.get("ok"):
+            raise HTTPException(404 if "無此工單" in str(res.get("error", "")) else 400,
+                                res.get("error", "處置失敗"))
+        return res
+
+    # 維修手冊(公開):有哪些處置動作、各要多少工時、在數據上長什麼樣。
+    # 不含「哪台該用哪個」—— 那要學生自己從遙測判斷,所以給出去不會洩答案。
+    @app.get("/api/repair/actions")
+    def repair_actions():
+        from engine.repair import manual
+        return {"actions": manual(),
+                "note": "選錯動作不會修好設備,但仍佔用 60% 工時(停機計入可用率損失)。"}
+
+    # ── 預防保養(學生面,需認領授權)────────────────────────
+    @app.post("/api/maintenance")
+    def do_maintenance(req: MaintenanceRequest, authorization: str = Header(None)):
+        device = world.devices.get(req.device)
+        if device is None:
+            raise HTTPException(404, f"無此設備:{req.device}")
+        _authorize_setpoint_write(device, authorization)     # 只能保養自己認領公司的設備
+        u = current_user(authorization)
+        actor = (u["username"] if u else None) or req.student
+        res = maintenance.apply(req.device, req.action, actor=actor)
+        if not res.get("ok"):
+            raise HTTPException(400, res.get("error", "保養失敗"))
+        return res
+
+    @app.get("/api/maintenance")
+    def list_maintenance(actor: Optional[str] = None, device: Optional[str] = None):
+        return {"maintenance": maintenance.list(actor=actor, device=device),
+                "summary": maintenance.summary()}
+
+    # ── 學生託管告警規則(平台代跑,對 ground-truth 算 F1 / lead time)──
+    @app.post("/api/alarm_rules")
+    def create_alarm_rule(req: AlarmRuleRequest, authorization: str = Header(None)):
+        u = current_user(authorization)
+        student = (u["username"] if u else None) or req.student or "anon"
+        res = alarm_rules.add({**req.model_dump(), "student": student})
+        if not res.get("ok"):
+            raise HTTPException(400, res.get("error", "規則建立失敗"))
+        return res
+
+    @app.get("/api/alarm_rules")
+    def list_alarm_rules(student: Optional[str] = None):
+        return {"rules": alarm_rules.list(student=student),
+                "alerts": alarm_rules.list_alerts(student=student)}
+
+    @app.delete("/api/alarm_rules/{rule_id}")
+    def delete_alarm_rule(rule_id: str, authorization: str = Header(None)):
+        u = current_user(authorization)
+        owner = None if (u and u["role"] == "teacher") else (u["username"] if u else None)
+        res = alarm_rules.delete(rule_id, student=owner)
+        if not res.get("ok"):
+            raise HTTPException(400, res.get("error", "刪除失敗"))
+        return res
+
+    @app.get("/api/alarm_rules/scores")
+    def alarm_rule_scores():
+        return alarm_rules.scores()
+
+    # ── 資料的一生九關 ─────────────────────────────────────
+    @app.get("/api/levels")
+    def level_defs():
+        """關卡定義(公開):九關 + 支線徽章,含每關的提示與判定方式。"""
+        return {"levels": levels.levels, "badges": levels.badges}
+
+    @app.get("/api/levels/{student}")
+    def level_status(student: str):
+        """某學生的過關狀態:每關 done + 佐證一句話 + 下一關提示。全部現查,不快取。"""
+        return levels.status(student)
+
+    @app.get("/api/levels/board/all", dependencies=[Depends(require_teacher)])
+    def level_board():
+        """全班進度熱力圖:N×9 矩陣 + 每關卡關人數 + 瓶頸關。"""
+        return levels.board()
+
+    @app.post("/api/levels/mark", dependencies=[Depends(require_teacher)])
+    def level_mark(req: LevelMarkRequest, authorization: str = Header(None)):
+        """教師勾選人工判定的關卡(視覺化 demo / 期末報告)。"""
+        u = current_user(authorization)
+        res = levels.mark(req.student, req.level, req.done, by=(u or {}).get("username", "teacher"))
+        if not res.get("ok"):
+            raise HTTPException(400, res.get("error", "勾選失敗"))
+        return res
+
+    @app.get("/api/access_log")
+    def get_access_log(device: Optional[str] = None):
+        """協定端存取軌跡:哪台設備被讀了幾次、平均多久打一次。
+        教 W2 接取 / W10 輪詢vs訂閱時可直接把學生自己的請求量投影出來。"""
+        if access_log is None:
+            return {"rows": [], "note": "未啟用協定存取軌跡"}
+        return access_log.view(device)
 
     # ── MES 工單(學生面公開唯讀;Phase 1)──────────────────
+    # ── 跨公司供應鏈(engine/supply.py;學生面公開唯讀)──────
+    @app.get("/api/supply")
+    def get_supply():
+        """所有供應關係的進料倉狀態 + 目前正在餓料 / 阻塞的連鎖反應。
+        全部現讀引擎(鐵則一:庫存真值在 engine/supply.py)。"""
+        return {"links": world.supply.view(), "impact": world.supply.impact(),
+                "synthetic": True}
+
+    @app.get("/api/supply/{company_id}")
+    def get_company_supply(company_id: str):
+        """我等誰的料、誰在等我 —— 學生面的上下游視圖。"""
+        if not any(c.get("id") == company_id for c in world.park.get("companies", [])):
+            raise HTTPException(404, f"無此公司:{company_id}")
+        return world.supply.for_company(company_id)
+
     @app.get("/api/orders")
     def list_orders(company: Optional[str] = None, device: Optional[str] = None,
                     status: Optional[str] = None):
@@ -527,13 +725,21 @@ def create_app(
             raise HTTPException(400, str(e))
 
     @app.post("/api/classroom/exercises/{exercise_id}/launch", dependencies=[Depends(require_teacher)])
-    def classroom_launch(exercise_id: str):
+    def classroom_launch(exercise_id: str, req: ClassroomLaunchRequest = ClassroomLaunchRequest()):
         try:
-            return classroom.launch(exercise_id)
+            return classroom.launch(exercise_id, duration_s=req.duration_s)
         except KeyError as e:
             raise HTTPException(404, str(e))
         except ValueError as e:
             raise HTTPException(400, str(e))
+
+    @app.post("/api/classroom/extend", dependencies=[Depends(require_teacher)])
+    def classroom_extend(req: ClassroomExtendRequest):
+        """延長 / 提早收倒數(學生喊「再兩分鐘」時按一下)。"""
+        res = classroom.extend(req.seconds)
+        if not res.get("ok"):
+            raise HTTPException(400, res.get("error", "沒有進行中的練習"))
+        return res
 
     @app.post("/api/classroom/stop", dependencies=[Depends(require_teacher)])
     def classroom_stop(req: ClassroomStopRequest):
@@ -546,6 +752,51 @@ def create_app(
     @app.get("/api/classroom/gradebook", dependencies=[Depends(require_teacher)])
     def classroom_gradebook():
         return {"gradebook": classroom.gradebook()}
+
+    # ── 全班投票(沒有正解的取捨題;收票後平台真的照多數決去動引擎)──
+    @app.get("/api/polls")
+    def list_polls():
+        return {"polls": polls.list_polls()}
+
+    @app.get("/api/polls/active")
+    def poll_active():
+        """學生手機 / 投影幕輪詢:題面 + 即時票數。票數公開 —— 投票不是考試,
+        看得到風向才有討論。"""
+        return polls.view()
+
+    @app.post("/api/polls/{poll_id}/open", dependencies=[Depends(require_teacher)])
+    def poll_open(poll_id: str, req: PollOpenRequest = PollOpenRequest()):
+        res = polls.open(poll_id, duration_s=req.duration_s, device=req.device)
+        if not res.get("ok"):
+            raise HTTPException(400, res.get("error", "開票失敗"))
+        return res
+
+    @app.post("/api/polls/vote")
+    def poll_vote(req: PollVoteRequest, authorization: str = Header(None)):
+        u = current_user(authorization)
+        student = (u["username"] if u else None) or req.student
+        res = polls.vote(req.poll, req.option, student)
+        if not res.get("ok"):
+            raise HTTPException(400, res.get("error", "投票失敗"))
+        return res
+
+    @app.post("/api/polls/close", dependencies=[Depends(require_teacher)])
+    async def poll_close(req: PollCloseRequest = PollCloseRequest()):
+        res = polls.close(execute=req.execute)
+        if not res.get("ok"):
+            raise HTTPException(400, res.get("error", "收票失敗"))
+        await events_mgr.broadcast({          # 投票結果進事件列,世界頁 / 投影幕看得到
+            "type": "class_vote", "poll": res["closed"]["poll"],
+            "winner": res["closed"]["winner_label"], "device": res["closed"]["device"],
+            "detail": (res["closed"]["result"] or {}).get("detail"),
+            "sim_t": world.clock.now(),
+        })
+        return res
+
+    @app.get("/api/polls/history")
+    def poll_history():
+        """歷次全班決定與後果 —— 下一節課回來對照 OEE 用。"""
+        return {"history": list(reversed(polls.history))}
 
     @app.get("/api/scores")
     def get_scores():
@@ -750,9 +1001,20 @@ def create_app(
             if state is not None:
                 state.save("oee", world.oee_snapshot())
             cleared["oee_reset"] = len(world.devices)
+        if body.maintenance:
+            cleared["maintenance"] = maintenance.clear()
+        if body.alarm_rules:
+            cleared["alarm_rules"] = alarm_rules.clear()
+        if body.polls:
+            cleared["polls"] = polls.clear()
+        if body.levels:
+            cleared["levels"] = levels.clear()
+            if access_log is not None:
+                cleared["access_log"] = access_log.clear()
         if body.devices:
             for d in world.devices.values():
                 d.reset()                       # 清故障 / 感測器故障 / 注入 → 全綠開場
+                d.repair_log.clear()            # 處置紀錄一併歸零(當作這學期沒發生過)
             cleared["devices_reset"] = len(world.devices)
         return {"reset": True, "cleared": cleared, "synthetic": True}
 

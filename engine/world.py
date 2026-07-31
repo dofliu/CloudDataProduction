@@ -18,6 +18,7 @@ import yaml
 from .clock import SimClock
 from .device import Device
 from .line import LineManager
+from .supply import SupplyChainManager
 from .mes import MES
 from .templates import get_builder
 from .templates._common import default_seed
@@ -53,11 +54,18 @@ class World:
         # 產線物料流:公司 YAML 的 line: 宣告(工件在設備間真實傳遞,engine/line.py)。
         self.lines = LineManager(self)
 
+        # 跨公司供應鏈:park 的 supply_chain: 宣告(A 出貨 = B 進料,engine/supply.py)。
+        # 建在 lines 之後 —— 它要知道每間公司有沒有產線,才知道該讀哪個計數器。
+        self.supply = SupplyChainManager(self)
+
         self._subscribers: List[Subscriber] = []
         self._event_subscribers: List[Subscriber] = []
         self._running = False
         self._last_snapshot: dict = {}
         self._prev_states: Dict[str, str] = {}      # 偵測狀態轉換用
+        # 故障事件改看「故障閂鎖的邊緣」而非 state 字串:設備進維修時 state 會變 maintenance,
+        # 若處置選錯,維修結束會再翻回 fault —— 只看字串就會對同一次故障重複開單。
+        self._prev_faulted: Dict[str, bool] = {}
         self._pending_events: List[dict] = []
 
     # ── 建構 ────────────────────────────────────────────────
@@ -128,6 +136,7 @@ class World:
         self.park.setdefault("companies", []).append(company_cfg)
         self.mes.register_company(company_cfg)   # 新公司的 producer 設備即時納入 MES(有工單才跑)
         self.lines.register_company(company_cfg)  # 有 line: 宣告就接上產線物料流
+        self.supply.reload()                      # 新公司可能出現在 supply_chain: 裡,重解析一次
         return {
             "company": cid, "name": company_cfg.get("name"), "devices": built,
             "note": "已即時加入:引擎/2D世界/WS/目錄/工單,以及原生協定"
@@ -150,10 +159,12 @@ class World:
             device.set_sim_t(sim_t)
         self.mes.assign(sim_t)              # 設備 step 前:指派當前工單、設 has_work
         self.lines.gate()                   # 產線閘門:無料 / 滿料 → 該站本拍待機
+        self.supply.gate()                  # 供應鏈閘門:上游沒出貨 → 下游餓料;下游倉滿 → 上游阻塞
         for device in self.devices.values():
             device.step(dt_sim)
         self.mes.advance(dt_sim, sim_t)     # 設備 step 後:依實際運轉累積產量、完工換單、補 backlog
         self.lines.advance(dt_sim)          # 產線記帳:完工進緩衝、授予手臂搬運、工件落下游
+        self.supply.advance(dt_sim)         # 供應鏈記帳:上游出貨進倉、下游完工吃料、缺料計時
         self._pending_events = self._detect_events(sim_t)
         snapshot = self._make_snapshot()
         self._last_snapshot = snapshot
@@ -165,24 +176,26 @@ class World:
         for device in self.devices.values():
             cur = device.state
             prev = self._prev_states.get(device.id)
-            if prev is not None and cur != prev:
-                if cur == "fault":
-                    # 找出造成故障的元件(本體退化),附上型態供評分 / 顯示
-                    failed = next(
-                        (c.name for c in device.components.values()
-                         if c.failed and c.causes_device_fault),
-                        None,
-                    )
-                    events.append({
-                        "type": "fault", "device": device.id, "company": device.company_id,
-                        "component": failed, "fault_type": "gradual", "sim_t": sim_t,
-                    })
-                else:
-                    events.append({
-                        "type": "state_change", "device": device.id, "company": device.company_id,
-                        "from": prev, "to": cur, "sim_t": sim_t,
-                    })
+            was_faulted = self._prev_faulted.get(device.id, False)
+            now_faulted = device.faulted
+            if now_faulted and not was_faulted:
+                # 故障閂鎖的上升緣 = 一次新故障(一次故障只開一張單,不管中途進出維修)
+                failed = next(
+                    (c.name for c in device.components.values()
+                     if c.failed and c.causes_device_fault),
+                    None,
+                )
+                events.append({
+                    "type": "fault", "device": device.id, "company": device.company_id,
+                    "component": failed, "fault_type": "gradual", "sim_t": sim_t,
+                })
+            elif prev is not None and cur != prev:
+                events.append({
+                    "type": "state_change", "device": device.id, "company": device.company_id,
+                    "from": prev, "to": cur, "sim_t": sim_t,
+                })
             self._prev_states[device.id] = cur
+            self._prev_faulted[device.id] = now_faulted
         return events
 
     def _make_snapshot(self) -> dict:
@@ -192,6 +205,7 @@ class World:
             "multiplier": self.clock.time_multiplier,
             "devices": {d.id: d.public_snapshot() for d in self.devices.values()},
             "lines": self.lines.view(),     # 產線物料流(緩衝 / 在手 / 出貨),學生面公開
+            "supply": self.supply.view(),   # 跨公司供應鏈(進料倉 / 缺料 / 阻塞),學生面公開
         }
 
     async def run(self) -> None:

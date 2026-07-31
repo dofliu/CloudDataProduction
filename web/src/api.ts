@@ -212,20 +212,127 @@ export async function getHealth(id: string): Promise<HealthGT> {
 }
 
 // ── 工單 / 評分(學生面公開)─────────────────────────────
+// component / fault_type 只有教師身分拿得到 —— 那是根因(等於答案),學生面被後端遮掉。
 export interface Ticket {
   id: string; device: string; company: string; owner: string | null;
-  component: string | null; fault_type: string | null; onset_sim_t: number;
+  component?: string | null; fault_type?: string | null; onset_sim_t: number;
   status: string; ack_sim_t: number | null; resolve_sim_t: number | null;
   detection_latency_sim_s: number | null; mttr_sim_s: number | null;
+  symptom?: string;                                  // 學生看得到的症狀(不含根因)
+  attempts?: { action: string; success: boolean; sim_t: number; actor: string | null }[];
+  wrong_attempts?: number;                           // 誤修次數
+  repair_downtime_h?: number;                        // 這張單累計花掉的維修工時(含白花的)
 }
 export const getTickets = (owner?: string) =>
   getJSON<{ tickets: Ticket[] }>(`/api/tickets${owner ? `?owner=${encodeURIComponent(owner)}` : ""}`);
 export const ackTicket = (id: string) => post(`/api/tickets/${id}/ack`);
-export const resolveTicket = (id: string) => post(`/api/tickets/${id}/resolve`);
+
+/** 結案要帶處置動作:選對才修得好,選錯扣工時且工單退回處理中。 */
+export interface RepairResult {
+  action: string; success: boolean; still_faulted: boolean; downtime_h: number;
+}
+export const resolveTicket = (id: string, action: string, student?: string) =>
+  post(`/api/tickets/${id}/resolve`, { action, student }) as
+    Promise<{ ok: boolean; ticket: Ticket; repair: RepairResult | null; note?: string }>;
+
+/** 維修手冊:有哪些處置動作、各要多少工時、在數據上長什麼樣(公開,不含哪台該用哪個)。 */
+export interface RepairAction {
+  action: string; label: string; duration_h: number; signature: string;
+}
+export const getRepairActions = () =>
+  getJSON<{ actions: RepairAction[]; note: string }>("/api/repair/actions");
+
+// ── 預防保養(需認領授權)────────────────────────────────
+export interface MaintenanceRec {
+  id: string; device: string; company: string | null; actor: string | null;
+  action: string; sim_t: number; downtime_h: number; health_gain: number; effective: boolean;
+}
+export const doMaintenance = (device: string, action: string, student?: string) =>
+  post("/api/maintenance", { device, action, student }) as
+    Promise<{ ok: boolean; maintenance: MaintenanceRec; hint: string | null }>;
+export const getMaintenance = (actor?: string) =>
+  getJSON<{ maintenance: MaintenanceRec[]; summary: { rows: any[]; total: number } }>(
+    `/api/maintenance${actor ? `?actor=${encodeURIComponent(actor)}` : ""}`);
+
+// ── 學生託管告警規則(平台代跑,對 ground-truth 算 F1 / lead time)──
+export interface AlarmRule {
+  id: string; student: string; device: string; tag: string;
+  agg: "raw" | "ema"; window_s: number; op: string; threshold: number;
+  for_s: number; enabled: boolean; created_sim_t: number;
+}
+export interface AlarmAlert {
+  id: string; rule: string; student: string; device: string; tag: string;
+  value: number; sim_t: number;
+}
+export interface AlarmScoreRow {
+  student: string; rules: number; alerts: number; hits: number;
+  false_alarms: number; misses: number; duplicates: number;
+  precision: number; recall: number; f1: number;
+  avg_lead_time_h: number | null; score: number;
+}
+export const createAlarmRule = (r: Partial<AlarmRule> & { device: string; tag: string; threshold: number }) =>
+  post("/api/alarm_rules", r) as Promise<{ ok: boolean; rule: AlarmRule; note: string }>;
+export const getAlarmRules = (student?: string) =>
+  getJSON<{ rules: AlarmRule[]; alerts: AlarmAlert[] }>(
+    `/api/alarm_rules${student ? `?student=${encodeURIComponent(student)}` : ""}`);
+export const getAlarmScores = () =>
+  getJSON<{ horizon_h: number; ranking: AlarmScoreRow[] }>("/api/alarm_rules/scores");
+export async function deleteAlarmRule(id: string) {
+  const r = await fetch(`/api/alarm_rules/${id}`, { method: "DELETE", headers: authHeaders() });
+  if (!r.ok) throw new Error(`delete rule ${id} -> ${r.status}`);
+  return r.json();
+}
+
+// ── 跨公司供應鏈(engine/supply.py)────────────────────────
+export interface SupplyLinkView {
+  from: string; to: string; part: string;
+  stock: number; cap: number;
+  delivered: number; purchased: number; consumed: number;
+  starved_h: number; blocked_h: number;
+  starving: boolean; blocking: boolean;
+  self_sufficiency: number | null;      // 進料有多少比例真的來自上游同學
+  external_backup_h: number | null;
+}
+export interface SupplyImpactRow {
+  kind: "starving" | "blocking"; from: string; to: string; part: string; detail: string;
+}
+export const getSupply = () =>
+  getJSON<{ links: SupplyLinkView[]; impact: SupplyImpactRow[] }>("/api/supply");
+export const getCompanySupply = (companyId: string) =>
+  getJSON<{ company: string; inbound: SupplyLinkView[]; outbound: SupplyLinkView[] }>(
+    `/api/supply/${encodeURIComponent(companyId)}`);
+
+// ── 資料的一生九關(api/levels.py)──────────────────────────
+export interface LevelState {
+  id: string; name: string; title: string; week: number | null;
+  hint: string; manual: boolean; done: boolean; evidence: string;
+}
+export interface AccessRow {
+  device: string; protocol: string; reads: number;
+  last_wall_t: number | null; avg_interval_s: number | null;
+}
+export interface LevelStatus {
+  student: string; levels: LevelState[]; badges: LevelState[];
+  done: number; total: number; next: LevelState | null; access: AccessRow[];
+}
+export interface LevelBoard {
+  students: LevelStatus[];
+  levels: { id: string; name: string; week: number | null; manual: boolean; done: number; stuck: number }[];
+  bottleneck: { id: string; name: string; count: number } | null;
+  count: number;
+}
+export const getLevelStatus = (student: string) =>
+  getJSON<LevelStatus>(`/api/levels/${encodeURIComponent(student)}`);
+export const getLevelBoard = () => getJSON<LevelBoard>("/api/levels/board/all");
+export const markLevel = (student: string, level: string, done: boolean) =>
+  post("/api/levels/mark", { student, level, done });
+export const getAccessLog = () =>
+  getJSON<{ rows: AccessRow[]; note: string }>("/api/access_log");
 
 export interface ScoreRow {
   company: string; name: string; owner: string | null;
   faults: number; detected: number; resolved: number; missed: number;
+  wrong_repairs?: number;
   avg_detection_h: number | null; avg_mttr_h: number | null; score: number;
 }
 export const getScores = () => getJSON<{ ranking: ScoreRow[] }>("/api/scores");
@@ -283,26 +390,60 @@ export interface ClassroomExercise {
 export interface ClassroomActive {
   exercise: string; title: string; brief?: string; difficulty?: string;
   target: string; launched_wall: number; questions: ClassroomQuestion[];
+  // 倒數用 wall clock(學生盯的是教室裡的鐘,不是模擬時鐘)
+  deadline_wall?: number | null; remain_s?: number | null; closed?: boolean;
 }
 export interface ClassroomAnswerResult {
   correct: boolean; passed: boolean; score: number; feedback: string; explain?: string;
+  first?: boolean; elapsed_s?: number | null;      // 全班第一個答對的人留名
 }
 export interface ClassroomBoardRow {
   question: string; prompt: string; tier: string; students: number;
   correct: number; rate: number | null; avg: number | null; dist: Record<string, number>;
+  first_solver?: string | null; first_elapsed_s?: number | null;
 }
 export const getClassroomExercises = () =>
   getJSON<{ name: string; exercises: ClassroomExercise[] }>("/api/classroom/exercises");
 export const getClassroomActive = () => getJSON<{ active: ClassroomActive | null }>("/api/classroom/active");
 export const answerClassroom = (exercise: string, question: string, student: string, answer: any) =>
   post("/api/classroom/answer", { exercise, question, student, answer }) as Promise<ClassroomAnswerResult>;
-export const launchClassroom = (exerciseId: string) =>
-  post(`/api/classroom/exercises/${exerciseId}/launch`, undefined, true) as Promise<{ target: string; applied: Record<string, any> }>;
+export const launchClassroom = (exerciseId: string, duration_s?: number | null) =>
+  post(`/api/classroom/exercises/${exerciseId}/launch`, { duration_s: duration_s ?? null }, true) as
+    Promise<{ target: string; applied: Record<string, any>; deadline_wall: number | null }>;
+export const extendClassroom = (seconds: number) =>
+  post("/api/classroom/extend", { seconds }, true) as Promise<{ ok: boolean; deadline_wall: number }>;
 export const stopClassroom = (reset = true) =>
   post("/api/classroom/stop", { reset }, true) as Promise<{ stopped: boolean; target: string | null; reset: boolean }>;
 export const getClassroomBoard = (exercise?: string) =>
-  getJSON<{ exercise: string; title: string; questions: ClassroomBoardRow[] }>(
+  getJSON<{ exercise: string; title: string; questions: ClassroomBoardRow[];
+            remain_s: number | null; closed: boolean; target: string | null }>(
     `/api/classroom/board${exercise ? `?exercise=${encodeURIComponent(exercise)}` : ""}`);
+
+// ── 全班投票(沒有正解的取捨題;收票後平台照多數決真的去動引擎)──
+export interface PollOption { id: string; label: string; detail?: string; }
+export interface PollDef { id: string; question: string; brief?: string; options: PollOption[]; }
+export interface PollActive {
+  poll: string; question: string; brief?: string; device: string | null;
+  options: PollOption[]; tally: Record<string, number>; votes: number;
+  remain_s: number | null; closed: boolean;
+}
+export interface PollRecord {
+  poll: string; question: string; device: string | null; closed_wall: number;
+  sim_t: number; votes: number; tally: Record<string, number>;
+  winner: string | null; winner_label: string | null;
+  result: { kind: string; detail: string; ok?: boolean };
+}
+export const getPolls = () => getJSON<{ polls: PollDef[] }>("/api/polls");
+export const getActivePoll = () =>
+  getJSON<{ active: PollActive | null; history: PollRecord[] }>("/api/polls/active");
+export const openPoll = (id: string, duration_s: number | null = 120, device?: string) =>
+  post(`/api/polls/${id}/open`, { duration_s, device }, true) as Promise<{ ok: boolean; active: PollActive }>;
+export const votePoll = (poll: string, option: string, student: string) =>
+  post("/api/polls/vote", { poll, option, student }) as
+    Promise<{ ok: boolean; voted: string; tally: Record<string, number> }>;
+export const closePoll = (execute = true) =>
+  post("/api/polls/close", { execute }, true) as Promise<{ ok: boolean; closed: PollRecord }>;
+export const getPollHistory = () => getJSON<{ history: PollRecord[] }>("/api/polls/history");
 export const getClassroomGradebook = () =>
   getJSON<{ gradebook: { student: string; answered: number; avg: number }[] }>("/api/classroom/gradebook");
 

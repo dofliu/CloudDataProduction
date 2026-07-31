@@ -36,13 +36,18 @@ class ScoringEngine:
             avg_det_h = _avg_h([t["detection_latency_sim_s"] for t in acked])
             avg_mttr_h = _avg_h([t["mttr_sim_s"] for t in resolved])
 
-            # 分數:每解一單給基礎分,偵測 / 修復越慢扣越多;漏報重扣
+            # 誤修:處置動作選錯的次數。它已經透過「維修工時 → MTTR / 可用率」被罰過一次,
+            # 這裡再明列出來,是為了讓學生看得到「亂猜動作」跟「先看資料再修」的差別。
+            wrong = sum(t.get("wrong_attempts", 0) for t in ts)
+
+            # 分數:每解一單給基礎分,偵測 / 修復越慢扣越多;漏報重扣;誤修小扣
             score = 0.0
             for t in resolved:
                 det_h = (t["detection_latency_sim_s"] or 0) / 3600.0
                 mttr_h = (t["mttr_sim_s"] or 0) / 3600.0
                 score += max(0.0, 100.0 - det_h * 10.0 - mttr_h * 5.0)
             score -= 30.0 * len(missed)
+            score -= 10.0 * wrong
 
             rows.append({
                 "company": cid,
@@ -52,6 +57,7 @@ class ScoringEngine:
                 "detected": len(acked),
                 "resolved": len(resolved),
                 "missed": len(missed),
+                "wrong_repairs": wrong,
                 "avg_detection_h": avg_det_h,
                 "avg_mttr_h": avg_mttr_h,
                 "score": round(score, 1),

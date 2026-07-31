@@ -104,7 +104,9 @@ class ClassroomManager:
             applied["order_density"] = dens
         return applied
 
-    def launch(self, exercise_id: str) -> dict:
+    def launch(self, exercise_id: str, duration_s: Optional[float] = None) -> dict:
+        """佈題。duration_s 有給 → 設一個 wall-clock 倒數(課堂節奏用真實秒,不是模擬秒:
+        學生盯的是教室裡的鐘)。時間到之後不再收答案。"""
         spec = self.exercises.get(exercise_id)
         if spec is None:
             raise KeyError(f"未定義練習:{exercise_id}")
@@ -112,16 +114,35 @@ class ClassroomManager:
         if dev is None:
             raise ValueError("找不到可用的設備可佈題")
         applied = self._apply(dev, spec.get("setup", {}) or {})
+        now = time.time()
         self.active = {
             "exercise": exercise_id,
             "title": spec.get("title"),
             "target": dev.id,
             "launched_sim_t": float(self.world.clock.now()),
-            "launched_wall": time.time(),
+            "launched_wall": now,
+            "deadline_wall": (now + float(duration_s)) if duration_s else None,
             "applied": applied,
         }
         self._save()
         return dict(self.active)
+
+    def extend(self, seconds: float) -> dict:
+        """延長 / 縮短倒數(學生喊「再給我兩分鐘」時教師按一下)。"""
+        if not self.active:
+            return {"ok": False, "error": "目前沒有進行中的練習"}
+        base = self.active.get("deadline_wall") or time.time()
+        self.active["deadline_wall"] = max(time.time(), base + float(seconds))
+        self._save()
+        return {"ok": True, "deadline_wall": self.active["deadline_wall"]}
+
+    def _remain_s(self) -> Optional[float]:
+        dl = (self.active or {}).get("deadline_wall")
+        return None if not dl else round(max(0.0, dl - time.time()), 1)
+
+    def _expired(self) -> bool:
+        r = self._remain_s()
+        return r is not None and r <= 0.0
 
     def stop(self, reset: bool = True) -> dict:
         tgt = self.active.get("target") if self.active else None
@@ -142,6 +163,8 @@ class ClassroomManager:
             raise ValueError("缺少座號/學號")
         if not self.active or self.active.get("exercise") != exercise_id:
             raise ValueError("此練習目前未在進行中(請教師先佈題)")
+        if self._expired():
+            raise ValueError("這題已經截止了")
         spec = self.exercises.get(exercise_id)
         q = next((x for x in (spec.get("questions") or []) if x.get("id") == question_id), None)
         if q is None:
@@ -178,6 +201,16 @@ class ClassroomManager:
         else:
             raise ValueError(f"未知的批改方式:{kind}")
 
+        # 首答:這一輪佈題裡第一個答對的人留名。只認「本次佈題之後」的作答
+        # (launched_wall 之前的是上一輪的紀錄),所以重佈同一題會重新開放首殺。
+        launched = float(self.active.get("launched_wall") or 0.0)
+        earlier_correct = any(
+            a["exercise"] == exercise_id and a["question"] == question_id
+            and a["correct"] and a.get("answered_wall", 0) >= launched
+            for a in self.answers
+        )
+        first = bool(correct) and not earlier_correct
+
         self._seq += 1
         rec = {
             "id": f"CA-{self._seq:05d}",
@@ -188,6 +221,8 @@ class ClassroomManager:
             "score": round(score, 1),
             "passed": bool(score >= 60),
             "correct": bool(correct),
+            "first": first,
+            "elapsed_s": round(time.time() - launched, 1) if launched else None,
             "sim_t": round(self.world.clock.now(), 1),
             "answered_wall": time.time(),
         }
@@ -196,7 +231,9 @@ class ClassroomManager:
         self._save()
         return {
             "correct": rec["correct"], "passed": rec["passed"], "score": rec["score"],
-            "feedback": feedback, "explain": q.get("explain"),
+            "first": first, "elapsed_s": rec["elapsed_s"],
+            "feedback": ("🥇 全班第一個答對!" + feedback) if first else feedback,
+            "explain": q.get("explain"),
         }
 
     # ── 視圖 ────────────────────────────────────────────────
@@ -232,6 +269,8 @@ class ClassroomManager:
             "exercise": self.active["exercise"], "title": self.active.get("title"),
             "brief": spec.get("brief"), "difficulty": spec.get("difficulty"),
             "target": self.active.get("target"), "launched_wall": self.active.get("launched_wall"),
+            "deadline_wall": self.active.get("deadline_wall"),
+            "remain_s": self._remain_s(), "closed": self._expired(),
             "questions": [self._public_q(q) for q in spec.get("questions") or []],
         }}
 
@@ -255,14 +294,25 @@ class ClassroomManager:
             if q.get("type") == "choice":
                 for a in best.values():
                     dist[str(a["answer"])] = dist.get(str(a["answer"]), 0) + 1
+            # 首答:本輪佈題之後第一個答對的人(重佈會重新開放)
+            launched = float((self.active or {}).get("launched_wall") or 0.0)
+            solved = sorted(
+                (a for a in self.answers
+                 if a["exercise"] == exercise_id and a["question"] == q["id"]
+                 and a["correct"] and a.get("answered_wall", 0) >= launched),
+                key=lambda a: a.get("answered_wall", 0))
             rows.append({
                 "question": q["id"], "prompt": q["prompt"], "tier": q.get("tier"),
                 "students": n, "correct": correct,
                 "rate": round(correct / n, 2) if n else None,
                 "avg": round(sum(a["score"] for a in best.values()) / n, 1) if n else None,
                 "dist": dist,
+                "first_solver": solved[0]["student"] if solved else None,
+                "first_elapsed_s": solved[0].get("elapsed_s") if solved else None,
             })
-        return {"exercise": exercise_id, "title": spec.get("title"), "questions": rows}
+        return {"exercise": exercise_id, "title": spec.get("title"), "questions": rows,
+                "remain_s": self._remain_s(), "closed": self._expired(),
+                "target": (self.active or {}).get("target")}
 
     def gradebook(self) -> List[dict]:
         """平時成績:每位學生每題取最佳分,彙整平均。"""

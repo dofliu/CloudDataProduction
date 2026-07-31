@@ -49,14 +49,17 @@ cloud-production-data/
 ├── engine/                    # ★ 心臟:純模擬,無協定無畫面
 │   ├── clock.py               # 全域 sim_clock 與時間加速
 │   ├── health.py              # 隱藏健康狀態 + 退化過程
+│   ├── repair.py              # 處置 / 保養動作字典(維修手冊:每種故障在數據上長什麼樣)
 │   ├── signals.py             # 訊號模型(health→觀測,含熱滯後/雜訊)
 │   ├── sensor_faults.py       # 感測器故障層(stuck/drift/bias/dropout)
 │   ├── device.py              # Device = tags + drivers + health components
 │   ├── templates/             # 產業型別庫(見 docs/03;_stroke_font.py = CNC 刻字筆畫字型)
 │   ├── line.py                # 產線物料流:line: 宣告的公司,工件在站間真實傳遞
 │   ├── mes.py                 # MES:工單驅動設備運轉
+│   ├── supply.py              # 跨公司供應鏈:A 出貨 = B 進料;上游停→下游餓料、下游滿→上游阻塞
 │   └── world.py               # 載入場景、推進所有設備、廣播狀態
 ├── adapters/                  # 協定轉接層(讀 engine 狀態)
+│   ├── access_log.py          # 協定端存取軌跡(哪台被讀幾次 / 多久打一次;拿不到身分)
 │   ├── modbus_server.py
 │   ├── opcua_server.py
 │   └── mqtt_publisher.py
@@ -64,7 +67,11 @@ cloud-production-data/
 │   ├── rest.py
 │   ├── ws.py
 │   ├── catalog.py             # 公開設備目錄(學生規格書)
-│   ├── tickets.py
+│   ├── tickets.py             # 工單:結案要選對處置動作,選錯扣工時且不會修好
+│   ├── maintenance.py         # 預防保養:停機換壽命(停機計入可用率損失)
+│   ├── alarm_rules.py         # 學生託管告警規則:平台代跑,對 ground-truth 算 F1 / lead time
+│   ├── levels.py              # 資料的一生九關 + 全班進度看板(判定現查,不快取)
+│   ├── polls.py               # 全班投票:收票後照多數決真的去動引擎
 │   ├── scoring.py             # 用 ground-truth 自動評分
 │   └── predictions.py         # 階段二:接收學生模型預測
 ├── ai/                        # 自然語言建廠(LLM)
@@ -74,6 +81,8 @@ cloud-production-data/
 ├── mcp/                       # MCP server(打 REST API)
 │   └── server.py
 ├── scenarios/                 # 場景 YAML(見 docs/04)
+│   ├── levels.yaml            # 九關與支線徽章定義(改關卡改這裡,api/levels.py 不寫死)
+│   ├── classroom_polls.yaml   # 全班投票題庫
 │   └── default_park.yaml
 ├── web/                       # React + PixiJS + three.js 前端
 │   ├── src/world/             # 俯瞰(PixiJS)+ 廠內產線(three.js)+ 11 種機型 3D
@@ -86,6 +95,11 @@ cloud-production-data/
 ├── tests/animation/           # 動畫 ↔ 模擬資料一致性驗證(見該目錄 README)
 ├── tests/test_input_control.py  # CNC 刻字 / 手臂取放:寫 setpoint 後輸出真的跟著變(CI)
 ├── tests/test_line_flow.py      # 產線物料流:守恆 / 餓料滿料誠實停機 / 輸送帶終站(CI)
+├── tests/test_repair_actions.py # 處置選錯不會修好 / 保養真的扣可用率 / 一次故障一張單(CI)
+├── tests/test_alarm_rules.py    # 告警規則:持續與重新武裝 / F1 與 lead time(CI)
+├── tests/test_levels.py         # 九關:自動判定查平台事實 / 人工勾選不能濫用 / 瓶頸關(CI)
+├── tests/test_classroom_live.py # 倒數截止 / 首答留名 / 全班投票真的動到引擎(CI)
+├── tests/test_supply_chain.py   # 上游停→下游餓料 / 下游停→上游阻塞 / 守恆(CI)
 ├── .github/workflows/verify.yml   # CI:場景健全性 / 前端建置 / 動畫一致性
 └── student_kit/               # 給學生的範例:連線骨架、目錄查詢、預測上傳範例
 ```
@@ -102,6 +116,9 @@ cloud-production-data/
 - prose / 註解用繁體中文,識別碼 / API / schema 用英文。
 - 每個設備 tag 都要有:`name`、`unit`、`datatype`、`modbus_register`、`opcua_node`、`mqtt_field`。
 - 故障注入、健康狀態 ground-truth 屬「老師面」,API 需 auth;設備目錄與遙測屬「學生面」,公開唯讀。
+  **工單的 component / fault_type 也是 ground-truth**(等於寫著答案),學生視圖只給症狀。
+- 學生的操作要**有代價**:處置選錯照扣工時、保養停機計入可用率、告警太敏感就誤報。
+  做對做錯的差別由引擎誠實反映,不是改分數改出來的(見 docs/決策與後果.md)。
 - 預設協定模式為 **channel-mux**(共用 3 個埠,unit_id / folder / topic 分設備),多埠模式為進階選項。
 
 ## 怎麼跑(目標狀態)

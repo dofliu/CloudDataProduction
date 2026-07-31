@@ -11,6 +11,13 @@ from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
 
 from .health import DegradationComponent
+from .repair import (
+    REPAIR_ACTIONS,
+    SENSOR_ACTION,
+    UNIVERSAL_ACTION,
+    action_for_component,
+    duration_h as repair_duration_h,
+)
 from .sensor_faults import SensorFault
 
 # 設備狀態 → Modbus 整數碼(adapter 用)。狀態本身在引擎以字串表示,人讀友善。
@@ -221,6 +228,12 @@ class Device:
         self._pending_injections: List[dict] = []
         self._fault_onset_sim_t: Optional[float] = None
         self._injected: List[dict] = []   # 已生效的注入紀錄(供 ground-truth 顯示)
+        # 維修 / 保養停機(engine/repair.py):期間機構停止、且**計入可用率損失**。
+        # 這一點是刻意的 —— 保養不是免費的,不然「每天保養」就沒有取捨可教。
+        self._maint_until_sim_t: float = 0.0
+        self._maint_action: Optional[str] = None
+        self._maint_kind: Optional[str] = None    # repair(故障處置)/ maintenance(預防保養)
+        self.repair_log: List[dict] = []          # 這台被做過哪些處置(含失敗嘗試),供評分與回顧
 
         # 唯讀衍生點位:離散輸入(狀態 bit,FC02)+ 輸入暫存器(狀態碼 / 量測鏡像,FC04)
         # + 命令線圈(FC01/05,教師可寫)。自 tags + state 自動產生,模板無需逐一宣告。
@@ -369,6 +382,10 @@ class Device:
         # (_accumulate_oee 是先看 _fault_latched 才看 op["running"]),帳不受影響。
         if self._fault_latched:
             op = idle_op
+        # 維修 / 保養中 → 機構停止(師傅在拆機,機器不會同時在加工)。
+        # 放在 scheduled 之後、與故障同一層:排程內的維修停機一律算可用率損失(見 _accumulate_oee)。
+        if self.in_maintenance:
+            op = idle_op
         # 有狀態物理先跑一次(tag drivers 之後才讀其結果)
         if self.pre_step_fn is not None:
             self.pre_step_fn(dt_sim, op)
@@ -410,7 +427,10 @@ class Device:
         故障只在排程內才算停機(先前不論班內外一律算停機,會低估夜間 / 週末壞掉設備的可用率)。"""
         if dt_sim <= 0.0 or not scheduled:   # 無排程(no-demand / 班外 / 空檔)→ 不計入
             return
-        if self._fault_latched:              # 排程內故障停線 → 可用率損失(不管 run_enable)
+        # 排程內故障停線 或 維修 / 保養停機 → 可用率損失(不管 run_enable)。
+        # 保養也算損失是刻意的:保養買的是「以後少壞」,當下就是少產出。學生要自己權衡
+        # 「現在停 3 小時換刀」與「等它壞掉停 6 小時 + 良率損失」哪個划算。
+        if self._fault_latched or self.in_maintenance:
             self._oee_down += dt_sim
         elif op["running"]:                  # 排程內正常產出
             self._oee_run += dt_sim
@@ -460,7 +480,11 @@ class Device:
         if device_failed and not self._fault_latched:
             self._fault_latched = True
             self._fault_onset_sim_t = self._sim_t   # 記真正故障起始時刻(算 lead time / 偵測延遲)
-        if self._fault_latched:
+        # 維修中優先顯示 maintenance:選錯動作的機器仍是壞的(_fault_latched 還在),
+        # 但此刻現場的事實是「有人在拆它」,狀態燈要誠實反映那件事。維修結束就會翻回 fault。
+        if self.in_maintenance:
+            self.state = "maintenance"
+        elif self._fault_latched:
             self.state = "fault"
         elif self.state_fn is not None:
             self.state = self.state_fn(op, self.components)
@@ -514,6 +538,131 @@ class Device:
         self._injected.append({"kind": "equipment", "component": target, "type": ft,
                                "severity": sev, "onset_sim_t": self._sim_t})
 
+    # ── 處置 / 保養(學生面的決策)────────────────────────────
+    @property
+    def faulted(self) -> bool:
+        """故障閂鎖中(維修期間 state 會顯示 maintenance,但這裡仍為 True —— 機器還是壞的)。"""
+        return self._fault_latched
+
+    @property
+    def in_maintenance(self) -> bool:
+        """此刻是否正在維修 / 保養停機中(對 sim 時間判定)。"""
+        return self._sim_t < self._maint_until_sim_t
+
+    def maintenance_view(self) -> Optional[dict]:
+        if not self.in_maintenance:
+            return None
+        return {
+            "kind": self._maint_kind,
+            "action": self._maint_action,
+            "remain_sim_s": round(self._maint_until_sim_t - self._sim_t, 1),
+        }
+
+    def _start_downtime(self, kind: str, action: str, hours: float) -> None:
+        self._maint_kind = kind
+        self._maint_action = action
+        self._maint_until_sim_t = self._sim_t + hours * 3600.0
+
+    def _restore_component(self, comp: DegradationComponent, to_health: float) -> float:
+        """把元件修復到指定健康度(只往好的方向改),回傳實際回復了多少 health。"""
+        before = comp.health
+        target_D = (1.0 - to_health) * comp.D_fail
+        if target_D < comp.D:
+            comp.D = target_D
+        comp.reset_injection()      # 一併解除 gradual 注入放大的退化率
+        return round(comp.health - before, 4)
+
+    def _failed_components(self) -> List[DegradationComponent]:
+        return [c for c in self.components.values() if c.failed and c.causes_device_fault]
+
+    def repair(self, action: str, actor: Optional[str] = None, ticket: Optional[str] = None) -> dict:
+        """故障處置:**只有對症的動作會修好**,選錯照樣佔工時(見 engine/repair.py 的理由)。
+
+        回傳含 ground-truth 細節(fixed / still_faulted),API 層負責對學生遮蔽 —— 引擎不做
+        權限判斷,只誠實回報發生了什麼。
+        """
+        if action not in REPAIR_ACTIONS:
+            return {"ok": False, "error": f"未知的處置動作:{action}(可用:{sorted(REPAIR_ACTIONS)})"}
+        if self.in_maintenance:
+            return {"ok": False, "error": "這台正在維修中,等這次工時結束再處置",
+                    "remain_sim_s": round(self._maint_until_sim_t - self._sim_t, 1)}
+
+        fixed: List[str] = []
+        if action == UNIVERSAL_ACTION:                     # 整機大修:全修,不需診斷
+            for c in self.components.values():
+                if self._restore_component(c, 0.95) > 0:
+                    fixed.append(c.name)
+            if self.sensor_faults:
+                fixed.append("sensor")
+                self.sensor_faults.clear()
+            self._pending_injections.clear()
+            fixed = fixed or ["overhaul"]                  # 本來就沒壞也算做過(工時照算)
+        elif action == SENSOR_ACTION:                      # 感測器校正:只清感測器層,不動機構
+            if self.sensor_faults:
+                fixed.append("sensor")
+                self.sensor_faults.clear()
+        else:
+            for c in self._failed_components():
+                if action_for_component(c.name) == action:
+                    self._restore_component(c, 0.95)
+                    fixed.append(c.name)
+
+        success = bool(fixed)
+        # 工時:成功照標定;失敗仍收 60% —— 拆開才發現不是這裡,時間一樣花掉了。
+        hours = repair_duration_h(action) * (1.0 if success else 0.6)
+        self._start_downtime("repair", action, hours)
+
+        still_failed = [c.name for c in self._failed_components()]
+        if not still_failed:
+            self._fault_latched = False
+            self._fault_onset_sim_t = None
+        rec = {"kind": "repair", "action": action, "sim_t": self._sim_t, "actor": actor,
+               "ticket": ticket, "success": success, "fixed": fixed,
+               "downtime_h": round(hours, 2), "still_faulted": bool(still_failed)}
+        self.repair_log.append(rec)
+        return {"ok": True, "device": self.id, **rec, "still_failed": still_failed}
+
+    def maintain(self, action: str, actor: Optional[str] = None) -> dict:
+        """預防保養:在還沒壞之前做。對症的動作把該元件修回 health≈0.98,
+        但**一律**佔用維修工時 → 可用率下降。做太勤與完全不做都會扣分,這就是要教的取捨。"""
+        if action not in REPAIR_ACTIONS:
+            return {"ok": False, "error": f"未知的保養動作:{action}(可用:{sorted(REPAIR_ACTIONS)})"}
+        if self.in_maintenance:
+            return {"ok": False, "error": "這台正在維修中,等這次工時結束再保養",
+                    "remain_sim_s": round(self._maint_until_sim_t - self._sim_t, 1)}
+
+        restored: List[dict] = []
+        if action == UNIVERSAL_ACTION:
+            for c in self.components.values():
+                gain = self._restore_component(c, 0.98)
+                if gain > 0:
+                    restored.append({"component": c.name, "health_gain": gain})
+            self.sensor_faults.clear()
+            self._pending_injections.clear()
+        elif action == SENSOR_ACTION:
+            if self.sensor_faults:
+                restored.append({"component": "sensor", "health_gain": 0.0})
+                self.sensor_faults.clear()
+        else:
+            for c in self.components.values():
+                if action_for_component(c.name) == action:
+                    gain = self._restore_component(c, 0.98)
+                    if gain > 0:
+                        restored.append({"component": c.name, "health_gain": gain})
+
+        hours = repair_duration_h(action)
+        self._start_downtime("maintenance", action, hours)
+        if not self._failed_components():          # 保養順手救回已跳機的元件時,一併解閂鎖
+            self._fault_latched = False
+            self._fault_onset_sim_t = None
+        # health_gain 總和 = 這次保養實際買到多少壽命;為 0 代表保養了沒退化的東西(白停機)。
+        gain_total = round(sum(r["health_gain"] for r in restored), 4)
+        rec = {"kind": "maintenance", "action": action, "sim_t": self._sim_t, "actor": actor,
+               "ticket": None, "success": gain_total > 0, "fixed": [r["component"] for r in restored],
+               "downtime_h": round(hours, 2), "health_gain": gain_total}
+        self.repair_log.append(rec)
+        return {"ok": True, "device": self.id, **rec, "restored": restored}
+
     def reset(self) -> dict:
         """reset / 維修:修復故障元件、清除感測器故障與注入,讓設備重新運轉。"""
         for c in self.components.values():
@@ -525,6 +674,9 @@ class Device:
         self._injected.clear()
         self._fault_latched = False
         self._fault_onset_sim_t = None
+        self._maint_until_sim_t = 0.0      # 教師 reset 是「當作沒發生過」,連維修工時也一併取消
+        self._maint_action = None
+        self._maint_kind = None
         self.state = "idle"
         return {"device": self.id, "reset": True}
 
@@ -542,6 +694,8 @@ class Device:
             "coils": {c.name: bool(c.value) for c in self.command_coils},
             "setpoints": {s.name: s.value for s in self.setpoints},
             "order": self.mes_order if self.mes_enabled else None,   # 當前工單(MES;非 producer 為 None)
+            # 維修 / 保養停機中的話帶剩餘工時(不是 ground-truth:現場看得到師傅在拆機)
+            "maintenance": self.maintenance_view(),
         }
 
     def ground_truth(self) -> dict:

@@ -10,6 +10,8 @@ import {
   StudentOverviewRow, getStudentsOverview, StudentDetail, getStudentDetail,
 } from "../api";
 import ClassroomTeacherPanel from "./ClassroomTeacherPanel";
+import LevelBoard from "./LevelBoard";
+import SupplyImpact from "./SupplyImpact";
 
 const FAULT_TYPES = [
   "gradual", "sudden", "intermittent", "cascading",
@@ -227,6 +229,12 @@ export default function TeacherView({
 
           <ClassroomTeacherPanel onMsg={setMsg} />
 
+          {/* 全班關卡進度:一眼看到誰卡住、瓶頸在哪一關 */}
+          <LevelBoard />
+
+          {/* 供應鏈連鎖反應:今天全班產出掉了,是誰停了害到誰 */}
+          <SupplyImpact />
+
           <div className="card">
             <div className="card-title">👥 帳號管理(名冊)</div>
             <div className="hint" style={{ margin: "0 0 8px" }}>
@@ -346,7 +354,9 @@ export default function TeacherView({
                 t.mttr_sim_s !== null ? (t.mttr_sim_s / 3600).toFixed(1) + "h" : "—",
                 <span key="a" style={{ display: "flex", gap: 4 }}>
                   <button className="btn ghost" style={{ padding: "2px 7px", fontSize: 11 }} onClick={() => ackTicket(t.id)}>ack</button>
-                  <button className="btn" style={{ padding: "2px 7px", fontSize: 11, background: "var(--ok)", color: "#fffaf0" }} onClick={() => resolveTicket(t.id)}>fix</button>
+                  {/* 教師的收尾鍵:直接下整機大修(一定修得好)。學生面才需要診斷選動作。 */}
+                  <button className="btn" style={{ padding: "2px 7px", fontSize: 11, background: "var(--ok)", color: "#fffaf0" }}
+                          onClick={() => resolveTicket(t.id, "overhaul")}>大修</button>
                 </span>,
               ])} empty="尚無工單" />
           </div>

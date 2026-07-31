@@ -56,17 +56,34 @@ def _coil_writer(device):
     return on_write
 
 
-def _new_slave(on_coil_write=None) -> "ModbusSlaveContext":
+class _TrackedBlock(ModbusSequentialDataBlock):
+    """會回報 client 讀取的資料區(adapters/access_log.py)。
+
+    引擎每 tick 反射狀態走 setValues,不經過這裡;唯一會誤記的是本 adapter 自己為了偵測
+    FC06 寫入而 getValues 讀回設定點 —— 那條路徑由 sink 內的 internal 旗標擋掉。"""
+
+    def __init__(self, size: int, sink=None):
+        super().__init__(0, [0] * size)
+        self._sink = sink
+
+    def getValues(self, address, count=1):
+        if self._sink is not None:
+            self._sink(count)
+        return super().getValues(address, count)
+
+
+def _new_slave(on_coil_write=None, sink=None) -> "ModbusSlaveContext":
     """一台設備一個 slave context,四種 object type 各一個資料區。
     on_coil_write 有給(教師控制埠)→ coil 用可寫區;否則用一般區(學生埠 FC01 唯讀)。
+    sink 有給 → 量測類資料區(FC02/03/04)記錄 client 讀取次數。
     zero_mode:位址 0 對應 index 0,學生讀 register N 就拿到目錄上標的 N。"""
     co = (_WritableCoilBlock(_DATABLOCK_SIZE, on_coil_write) if on_coil_write is not None
           else ModbusSequentialDataBlock(0, [0] * _DATABLOCK_SIZE))
     return ModbusSlaveContext(
-        di=ModbusSequentialDataBlock(0, [0] * _DATABLOCK_SIZE),   # discrete input(FC02)
+        di=_TrackedBlock(_DATABLOCK_SIZE, sink),                  # discrete input(FC02)
         co=co,                                                    # coil(FC01 讀 / FC05 寫)
-        ir=ModbusSequentialDataBlock(0, [0] * _DATABLOCK_SIZE),   # input register(FC04)
-        hr=ModbusSequentialDataBlock(0, [0] * _DATABLOCK_SIZE),   # holding register(FC03)
+        ir=_TrackedBlock(_DATABLOCK_SIZE, sink),                  # input register(FC04)
+        hr=_TrackedBlock(_DATABLOCK_SIZE, sink),                  # holding register(FC03)
         zero_mode=True,
     )
 
@@ -122,11 +139,13 @@ def apply_device_to_slave(slave, device) -> None:
 
 class ModbusAdapter:
     def __init__(self, world: World, host: str = "0.0.0.0", port: int = 502,
-                 writable_coils: bool = False):
+                 writable_coils: bool = False, access_log=None):
         self.world = world
         self.host = host
         self.port = port
         self.writable_coils = writable_coils   # 教師控制埠 → True(FC05 寫線圈轉引擎命令)
+        self.access_log = access_log           # 協定端存取軌跡(可為 None;見 adapters/access_log.py)
+        self._internal_read = False            # 自己讀回設定點時擋掉記錄,免得把引擎算成 client
 
         # 為每個 unit_id 建一個 slave context(zero_mode:位址 0 對應 index 0,
         # 學生讀 holding register N 就拿到目錄上標的 register N)。
@@ -136,13 +155,24 @@ class ModbusAdapter:
             unit_id = (device.protocols.get("modbus", {}) or {}).get("unit_id", 1)
             if unit_id not in self._slaves:
                 on_write = _coil_writer(device) if writable_coils else None
-                self._slaves[unit_id] = _new_slave(on_coil_write=on_write)
+                self._slaves[unit_id] = _new_slave(on_coil_write=on_write,
+                                                   sink=self._sink_for(device.id))
         if not self._slaves:                      # 沒有任何 Modbus 設備時也給一個預設 slave
             self._slaves[1] = _new_slave()
 
         self.context = ModbusServerContext(slaves=self._slaves, single=False)
         self._server_task: asyncio.Task | None = None
         self._sp_reflected: dict = {}          # (device_id, setpoint) → 上次反射的 raw(偵測 client 寫入用)
+
+    def _sink_for(self, device_id: str):
+        """產生某設備的讀取回報器;沒接存取軌跡就回 None(零額外成本)。"""
+        if self.access_log is None:
+            return None
+
+        def sink(_count: int) -> None:
+            if not self._internal_read:
+                self.access_log.record(device_id, "modbus")
+        return sink
 
     # ── 訂閱者:每 tick 把 snapshot 寫進 registers ──────────
     async def on_snapshot(self, snapshot: dict) -> None:
@@ -161,10 +191,13 @@ class ModbusAdapter:
         與 REST 寫入並存:REST 改 device.value → 這裡把新值反射回暫存器,不會被舊 raw 蓋掉。"""
         for sp in device.setpoints:
             key = (device.id, sp.name)
+            self._internal_read = True       # 這是引擎自己讀回,不是 client 的請求
             try:
                 raw = slave.getValues(3, sp.register, 1)[0]
             except Exception:
                 continue
+            finally:
+                self._internal_read = False
             last = self._sp_reflected.get(key)
             if last is not None and raw != last:            # client 透過 FC06 寫了新值
                 # 允許負值的設定點(如手臂取放座標)走 int16 二補數:raw ≥ 0x8000 即負數
@@ -181,7 +214,7 @@ class ModbusAdapter:
         """執行時新增一台設備的 slave context。self._slaves 與 ModbusServerContext._slaves
         在 single=False 下是同一個 dict(見 pymodbus),塞進去即刻對連線中的 client 生效,不必重啟。"""
         on_write = _coil_writer(device) if self.writable_coils else None
-        slave = _new_slave(on_coil_write=on_write)
+        slave = _new_slave(on_coil_write=on_write, sink=self._sink_for(device.id))
         self._slaves[unit_id] = slave
         print(f"[modbus] 熱加設備 {device.id}(unit_id={unit_id})即時上線,免重啟")
         return slave

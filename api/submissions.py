@@ -125,6 +125,7 @@ class SubmissionStore:
             "root_cause": self._grade_root_cause,
             "slope": self._grade_slope,
             "count_over": self._grade_count,
+            "production": self._grade_production,
         }.get(stype)
         if grader is None:
             raise ValueError(f"未知的作業型別:{stype}(可用:connect/stats/oee/anomaly)")
@@ -338,6 +339,66 @@ class SubmissionStore:
         return {"score": score, "passed": score >= 60,
                 "feedback": f"{tag_a} ~ {tag_b} 相關 r={r:.3f}(你算 {float(value):.3f},差 {err:.3f},容差 ±{tol})"
                             + (" ✓" if score >= 60 else " ✗ 檢查兩序列是否對齊、是否用同一資料窗")}
+
+    async def _grade_production(self, payload: dict) -> dict:
+        """W12 進階:生產管理 KPI(準交率 / WIP),對照 MES 工單紀錄。
+
+        payload:
+          metric : "on_time_rate"(準交率 0..1,自當週資料窗起算的完工單)| "wip"(未完成工單數)
+          device : 單台設備;或 company:整間公司(其受 MES 管的設備加總)
+          value  : 學生算的值
+        真值與 `/api/orders` 公開資料一致(學生本來就能自算),故回饋顯示真值。"""
+        metric = str(payload.get("metric", "on_time_rate")).strip()
+        device = payload.get("device")
+        company = payload.get("company")
+        value = payload.get("value")
+        if value is None or (device is None and company is None):
+            raise ValueError("production 需要 metric(on_time_rate|wip)/ value / device 或 company")
+        mes = getattr(self.world, "mes", None)
+        if mes is None or not getattr(mes, "enabled", False):
+            return {"score": 0.0, "passed": False, "feedback": "MES 未啟用,無工單資料可比對。"}
+        if device is not None:
+            dids = [device]
+            scope_txt = device
+        else:
+            dids = [d for d, c in mes._managed.items() if c == company]
+            scope_txt = f"{company}(共 {len(dids)} 台)"
+        if not dids:
+            return {"score": 0.0, "passed": False, "feedback": f"查無受 MES 管理的設備:{device or company}"}
+
+        if metric == "wip":
+            truth = sum(len(mes.queues.get(d, []) or []) for d in dids)   # queued + running(未完成)
+            try:
+                guess = int(value)
+            except (TypeError, ValueError):
+                raise ValueError("wip 的 value 需為整數(未完成工單數)")
+            diff = abs(guess - truth)
+            if diff == 0:
+                score = 100.0
+            elif diff <= 1:
+                score = 75.0
+            else:
+                score, _ = _score_rel(float(guess), float(truth), max(self._tol(payload), 0.15))
+            return {"score": score, "passed": score >= 60,
+                    "feedback": f"WIP({scope_txt}):你數 {guess},實際未完成 {truth} 張"
+                                + (" ✓" if score >= 60 else " ✗ 對照 /api/orders 的 queued+running")}
+
+        if metric != "on_time_rate":
+            raise ValueError(f"未知 metric:{metric}(可用 on_time_rate / wip)")
+        start_sim = getattr(self.course, "window_start_sim", None) or 0.0
+        done = [o for d in dids for o in (mes.done.get(d, []) or [])
+                if o.done_t is not None and o.done_t >= start_sim]
+        if len(done) < 3:
+            return {"score": 0.0, "passed": False,
+                    "feedback": f"資料窗內完工單不足(n={len(done)} < 3),等產線多跑一陣子再交。"}
+        truth = sum(1 for o in done if o.done_t <= o.due_t) / len(done)
+        tol = float(payload.get("tolerance", 0.10))     # 比率用絕對容差
+        err = abs(float(value) - truth)
+        score = 100.0 if err <= tol else (round(100.0 * (2 * tol - err) / tol, 1) if err <= 2 * tol else 0.0)
+        return {"score": score, "passed": score >= 60,
+                "feedback": f"準交率({scope_txt}):你算 {float(value):.3f},實際 {truth:.3f}"
+                            f"(n={len(done)} 張完工單,差 {err:.3f},容差 ±{tol})"
+                            + (" ✓" if score >= 60 else " ✗ 準交 = done_t ≤ due_t;自當週資料窗起算")}
 
     async def _grade_rul(self, payload: dict) -> dict:
         """挑戰:估計某設備「距離故障還有幾小時」(RUL),對照隱藏 ground-truth。

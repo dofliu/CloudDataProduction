@@ -118,11 +118,46 @@ def check_teaching_props_untouched() -> None:
     check(needed, "count_over 不帶 threshold 必須被拒(學生要用 μ+3σ 自訂 —— W9 第 6 題教學點)")
 
 
+# ── 4. production 作業型別(W12 進階:準交率 / WIP)──────────
+def check_production_grader() -> None:
+    from api.submissions import SubmissionStore
+    from engine.world import World
+
+    world = World.from_yaml(str(ROOT / "scenarios" / "p0_single_cnc.yaml"))
+    # 快轉 12 sim 小時讓 MES 產生數張完工單(dt=60s;白天時段設備會運轉)
+    for _ in range(720):
+        world.clock._sim_t += 60.0
+        world.step(60.0)
+    mes = world.mes
+    did = next(iter(mes._managed))
+    done = [o for o in mes.done.get(did, []) if o.done_t is not None]
+    check(len(done) >= 3, f"觀測窗內有 ≥3 張完工單(實際 {len(done)})")
+
+    store = SubmissionStore.__new__(SubmissionStore)
+    store.world = world
+    store.course = _FakeCourse()
+
+    truth_rate = sum(1 for o in done if o.done_t <= o.due_t) / len(done)
+    res = asyncio.run(store._grade_production(
+        {"metric": "on_time_rate", "device": did, "value": truth_rate}))
+    check(res["score"] == 100.0, f"準交率交正解得滿分(真值 {truth_rate:.3f})")
+    res_bad = asyncio.run(store._grade_production(
+        {"metric": "on_time_rate", "device": did, "value": max(0.0, truth_rate - 0.5)}))
+    check(res_bad["score"] < 60.0, "準交率差 0.5 不及格")
+
+    truth_wip = len(mes.queues.get(did, []))
+    res_w = asyncio.run(store._grade_production({"metric": "wip", "device": did, "value": truth_wip}))
+    check(res_w["score"] == 100.0, f"WIP 交正解得滿分(真值 {truth_wip})")
+    res_w2 = asyncio.run(store._grade_production({"metric": "wip", "device": did, "value": truth_wip + 1}))
+    check(res_w2["score"] == 75.0, "WIP 差 1 張得 75(與 events 同曲線)")
+
+
 def main() -> None:
     print("課程教材端契約驗證")
     check_course_weeks()
     check_correlation_alignment()
     check_teaching_props_untouched()
+    check_production_grader()
     print(f"\n失敗 {len(FAIL)} 項")
     for f in FAIL:
         print(f"  - {f}")

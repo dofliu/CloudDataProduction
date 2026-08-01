@@ -107,8 +107,9 @@ Cloudflare Tunnel(HTTP)+ Tailscale(原生協定),ACL 限校內 / 學生群組。
 
 ### 5. 其他
 
-- **生產管理 KPI 自動批改** —— 準交率 / WIP / 前置時間都能從 `/api/orders` 自算,但尚未像其他作業
-  一樣自動批改。見 [雲端生產_概念與議題](雲端生產_概念與議題.md) §7。
+- ✅ **生產管理 KPI 自動批改**(2026-08-01)—— `production` 作業型別已上線:
+  `metric: on_time_rate`(準交率,自當週資料窗起算的完工單)與 `wip`(未完成工單數),
+  支援 device / company 兩種範圍,真值與 `/api/orders` 公開資料一致。前置時間(lead time)未做,需要再提。
 - **字體離線化** —— HTML 以 Google Fonts 載入 Lora / Noto Sans TC / JetBrains Mono,LAN 無外網會回退
   系統字體(版面 / 顏色不受影響)。**3D 層已完全不依賴外網**,此項只剩 HTML 字體。
 - **動畫綁定契約落實到俯瞰層** —— [animation_binding.md](animation_binding.md) 目前規範廠內 3D;

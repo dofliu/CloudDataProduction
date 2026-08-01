@@ -49,6 +49,9 @@ jobs:
       # 課程教材端契約:週次對齊大綱 v2.1、correlation 時間戳對齊、教具不可修好
       - name: verify_course_grading
         run: python3 tests/test_course_grading.py
+      # 每週凍結資料包:產得出來、驗證擋得住、學生包不洩 ground-truth
+      - name: verify_week_packs
+        run: python3 tests/test_week_packs.py
       # 處置動作 / 預防保養:選錯不會修好、保養停機真的扣可用率、一次故障只開一張單
       - name: verify_repair_actions
         run: python3 tests/test_repair_actions.py

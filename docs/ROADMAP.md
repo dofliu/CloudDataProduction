@@ -57,14 +57,19 @@
 18 週的課不現實(斷電、重啟、學期中改程式都會影響)。
 
 **方向**:把「每週情境」離線**預先產成凍結的資料包**,平台在不在線都不影響已發教材。
-零件其實都有了,缺的是把它們串起來的那一段:
+
+> **主要缺口已補(2026-08-01)**:`tools/make_week_packs.py` —— 讀 `course_weeks.yaml`
+> (週次已對齊大綱 v2.1)逐週產凍結包:clear 週乾淨基線、注入週照 spec 半數注入半數對照、
+> `keep` 週自動沿用前一定義週;**產後驗證**(退化可偵測 / 漂移趨勢 t≥6 / clear 週零故障,
+> 驗不過拒產);學生包不含 ground-truth,教師答案卷分開存;manifest 記 seed + engine commit。
+> 每學號批次 = 以學號當 `--seed` 迴圈。smoke 掛 CI(tests/test_week_packs.py)。
+
+還剩(屬教材端 / 選配):
 
 | 已有 | 缺 |
 |------|-----|
-| `tools/generate_dataset.py`(`--inject` / `--seed` / `--degradation-scale` / `--devices`) | 讀 `course_weeks.yaml` 的 glue —— 產生器目前只吃手打的 `--inject` |
-| `manifest.json` 記 seed + engine commit(可溯源、可重現) | 每週 × 每學號的批次產出與打包 |
-| `tools/make_assignment.py` / `grade_assignment.py`(每學號私有測試集 + 自動評分) | 週次 ↔ 作業 ↔ 練習題的綁定 |
-| `scenarios/classroom_exercises.yaml`(課堂即時練習題庫) | 練習題與「當週資料包」對應(目前練習是對線上活廠出的) |
+| `tools/make_week_packs.py`(逐週凍結包 + 產後驗證 + 答案卷) | 週次 ↔ 作業 ↔ 練習題的綁定(教材端決定) |
+| `tools/make_assignment.py` / `grade_assignment.py`(每學號私有測試集 + 自動評分) | 練習題與「當週資料包」對應(目前練習是對線上活廠出的) |
 
 **另外兩個缺口**:
 - `course_weeks.yaml` 只定義了 **8 週**(W4、W6–W8、W10–W12、W14,已對齊《18週教學大綱 v2.1》,2026-08-01),18 週規劃裡其餘上課週沒有條件。

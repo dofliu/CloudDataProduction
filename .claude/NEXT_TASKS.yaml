@@ -1,0 +1,205 @@
+# 工作佇列 —— 給排程(routine)醒來時看的「接下來做什麼」
+#
+# 這份檔案是**可執行的待辦佇列**;docs/ROADMAP.md 是敘事版的現況與理由。
+# 兩邊有出入時以 ROADMAP 為準,並**回頭把本檔修對**。
+#
+# 人要調整優先序,直接改 tasks: 的順序或 status 即可 —— 排程 session 一律照本檔做事。
+
+version: 1
+updated: "2026-08-01"
+maintainer_note: "任務做完 / 開了 PR,務必在同一個 PR 裡把本檔的 status 與 pr 欄位一起更新,否則下次醒來會重做。"
+
+# ── 排程 session 的行為準則 ──────────────────────────────
+routine_protocol:
+  autonomy: small_changes_self   # 小改動自己做完開 draft PR;架構性的先問
+
+  on_wake:
+    - "同步:git fetch origin main && git checkout main && git pull origin main"
+    - "讀本檔,挑**第一個** status: todo 且 blocked_by 為空、且 autonomy: self 的 task"
+    - "若第一個可做的 task 是 autonomy: ask_first —— 不要動手,用 AskUserQuestion 問清楚再繼續;
+       問完沒得到回覆就改做 routine_chores(巡檢),不要擅自開始"
+    - "開分支:claude/<task-id>(例:claude/T1-consistency-sweep);絕不在 main 上直接改"
+    - "實作 → 跑該 task 的 verify 指令 → 全過才 commit"
+    - "push -u origin <branch> → 開 **draft** PR,標題與內文寫清楚對應哪個 task id"
+    - "在同一個 PR 裡把本檔該 task 的 status 改 in_review、填上 pr 連結"
+    - "PR 開完就結束這一輪,不要接著做下一個 task(一次一件事,人才看得懂在改什麼)"
+
+  ask_first_when:
+    - "會改到引擎的語意 / 資料契約(tag 意義、單位、狀態機、ground-truth 定義)"
+    - "會改到學生已經在用的 API 形狀或 Modbus 位址配置"
+    - "教學內容的決定(哪一週教什麼、作業怎麼配分、題目難度)"
+    - "前端架構性重構,或任何會動到 docs/animation_binding.md 契約的改動"
+    - "任務描述與實際程式碼對不上(代表本檔過期了)—— 先回報,不要自己臆測"
+
+  never:
+    - "不要手改 scenarios/*.yaml —— 那是 scenarios/scripts/gen_*.py 產生的,改產生器再重跑"
+    - "不要在協定層 / 前端 / API 自存設備狀態(鐵則一:狀態只在引擎)"
+    - "不要為了讓測試過而放寬斷言或改分數;差別要由引擎誠實反映"
+    - "不要把 ground-truth 放進學生看得到的視圖或凍結包"
+    - "不要在已合併的分支上疊新 commit —— 從最新的 main 重開"
+    - "不要引入 CDN 資源(校內 LAN 無外網,3D 層會整個崩)"
+
+# ── 每次都適用的驗證 ────────────────────────────────────
+verify:
+  quick:            # 改引擎 / 場景 / API 一定要跑
+    - "python3 tests/animation/verify_scenario.py"
+    - "python3 tests/test_input_control.py"
+    - "python3 tests/test_line_flow.py"
+  contracts:        # 改到對應領域才需要,但便宜,可全跑
+    - "python3 tests/test_course_grading.py"
+    - "python3 tests/test_week_packs.py"
+    - "python3 tests/test_repair_actions.py"
+    - "python3 tests/test_alarm_rules.py"
+    - "python3 tests/test_levels.py"
+    - "python3 tests/test_classroom_live.py"
+    - "python3 tests/test_supply_chain.py"
+  web:
+    - "cd web && npm ci && npm run build"
+  animation:        # 改 3D / 動畫綁定才需要(要瀏覽器,約十分鐘)
+    - "python3 tests/animation/capture_frames.py web/preview"
+    - "cd web && npx vite --port 5173 &  然後 node tests/animation/verify_animation.mjs"
+  deps: "pip install numpy PyYAML(引擎跑場景只需要這兩個;協定層才需要整份 requirements.txt)"
+
+# ── 佇列本體(由上而下就是優先序)──────────────────────
+tasks:
+
+  - id: T1-consistency-sweep
+    title: "其餘 template 的跨 tag 資料自洽性掃描"
+    status: todo
+    autonomy: self
+    size: M
+    why: >
+      手臂 tcp 與六軸角度互相矛盾(相關係數 −0.82)是靠一個物理不變量抓到的。
+      同一份 snapshot 裡出現兩套互相矛盾的資料,會**直接教錯學生** ——
+      優先度高於任何視覺或功能改善。已掃過:手臂運動學、故障語意統一。
+    approach:
+      - "在 tests/animation/verify_scenario.py 依 check_kinematics 的作法新增 check_tag_invariants()"
+      - "每種 template 一組不變量,誤差超出容忍就 fail(容忍值要寫理由,不要湊)"
+      - "掛進 CI 的『場景健全性』job(該檔已在跑,不必改 workflow)"
+    invariants_to_check:
+      energy_meter: "active_power ≈ √3 × V_avg × I_avg × power_factor(三相 voltage_l1..l3 / current_l1..l3);energy_total 的增速 ≈ active_power × Δt"
+      air_compressor: "flow 與 motor_current 在健康時應正相關;濾網阻塞退化時**應該脫鉤**(這正是要教的,所以驗『健康時相關』而不是恆相關)"
+      cnc_machining_center: "part_count 的增速 ≈ 1 / cycle_time;spindle_current 與 spindle_load 同向"
+      heat_treat_furnace: "heating_power 與 (setpoint − furnace_temp) 的追隨關係;energy_kwh 增速 ≈ heating_power × Δt"
+      stamping_press: "stroke_count 增速 ≈ stroke_rate;ram_position 的週期 ≈ 1 / stroke_rate;tonnage 尖峰要對到 ram 下死點"
+      wind_turbine: "power_output 對 wind_speed 的功率曲線單調段;rotor_rpm 與 wind_speed 在額定風速前同向;total_energy 增速 ≈ power_output × Δt"
+      agv_mobile_robot: "speed 對 (pos_x, pos_y) 位移的一致性;battery_soc 只在放電時降、充電時升;motor_current_l/r 與 speed 同向"
+      semi_process_chamber: "wafer_count 增速 ≈ throughput;vacuum_pump_current 與 chamber_pressure 的關係;particle_count 對製程漂移單調"
+      injection_molding: "累積件數增速 ≈ 1 / 週期時間(此 template 的 tag 命名需先讀檔確認,沒有 _TAG_SPEC)"
+      conveyor: "帶速為 0 時帳上件數不得前進(此 template 沒有 _TAG_SPEC,需先讀檔確認 tag 命名)"
+    done_when:
+      - "11 種 template 每種至少一條不變量進 CI,且**全過**"
+      - "若掃出真缺陷:修引擎(不是放寬斷言),並在 docs/ROADMAP.md 的 Done 表寫下抓到什麼"
+    verify: ["python3 tests/animation/verify_scenario.py"]
+    files: ["tests/animation/verify_scenario.py", "engine/templates/*.py"]
+
+  - id: T2-course-weeks-fill
+    title: "course_weeks.yaml 補滿 18 週 + 週次 ↔ 作業 ↔ 練習題綁定"
+    status: todo
+    autonomy: ask_first        # 哪一週教什麼是教學決定,不是程式決定
+    size: M
+    why: >
+      目前只定義 8 週(W4 / W6–W8 / W10–W12 / W14),其餘上課週沒有條件,
+      整學期沒辦法一次把凍結包產完。工具面(make_week_packs.py)已經好了,缺的是內容。
+    approach:
+      - "先讀 docs/課程規劃_18週.md,把每週主題對到需要什麼資料條件"
+      - "**先產一份提案**(哪一週注入什麼 / 為什麼)問過人,再寫進 course_weeks.yaml"
+      - "接著補『週次 ↔ 作業 ↔ 練習題』對應表:課堂即時練習目前是對線上活廠出的,尚未對應到當週凍結包"
+      - "作業出題(make_assignment.py)與週包目前各走各的 seed,可統一成同一份學號種子表"
+    done_when:
+      - "18 週裡所有上課週都有條件(或明確標為 keep / 不需要資料)"
+      - "python tools/make_week_packs.py 能一次產完整學期且**產後驗證全過**(驗不過會拒產)"
+      - "tests/test_course_grading.py 的週次對齊斷言仍過"
+    verify: ["python3 tests/test_course_grading.py", "python3 tests/test_week_packs.py"]
+    files: ["scenarios/course_weeks.yaml", "docs/課程規劃_18週.md", "tools/make_week_packs.py"]
+
+  - id: T3-line-flow-kpi
+    title: "產線層 KPI(線平衡率 / 瓶頸站利用率 / WIP 曲線)"
+    status: todo
+    autonomy: self
+    size: S
+    why: >
+      產線帳(緩衝 / 出貨 / 搬運)都已經在 snapshot.lines 裡,KPI 純粹是從帳上自算,
+      不動引擎語意,風險低而教學價值高(瓶頸分析、Little's Law)。
+    approach:
+      - "在 api/oee.py 旁或新檔算線層 KPI,資料來源一律是 snapshot.lines(不另存狀態)"
+      - "前端產線統計列加上這幾個數字"
+    done_when: ["KPI 可由 API 讀到,且與 lines 帳自洽(加總對得起來)", "新增測試涵蓋一條會塞住的線"]
+    verify: ["python3 tests/test_line_flow.py"]
+    files: ["api/oee.py", "engine/line.py", "web/src/world/"]
+
+  - id: T4-bottleneck-exercises
+    title: "餓料 / 堵料的課堂情境與自動批改(找出瓶頸站、算節拍不匹配損失)"
+    status: todo
+    autonomy: ask_first        # 出題與配分是教學決定
+    size: M
+    blocked_by: ["T3-line-flow-kpi"]
+    why: "有了線層 KPI,就能出『找出瓶頸站』『算節拍不匹配損失』這類題並自動批改。"
+    files: ["scenarios/classroom_exercises.yaml", "api/submissions.py", "api/classroom.py"]
+
+  - id: T5-agv-as-line-handler
+    title: "AGV 也能當產線搬運者(廠內 vs 廠間物流)"
+    status: todo
+    autonomy: ask_first        # 會動到 engine/line.py 的 handler 契約
+    size: M
+    why: "目前 line handler 只支援六軸手臂;AGV 入線可教『廠內 vs 廠間物流』。"
+    files: ["engine/line.py", "engine/templates/agv_mobile_robot.py"]
+
+  - id: T6-mes-multi-station-routing
+    title: "MES 多站路由(一張工單沿產線走、每站報工)"
+    status: todo
+    autonomy: ask_first        # 會改工單資料模型,學生已經在用
+    size: L
+    why: "工單目前一張綁一台;與 line: 串起來即可做 ISA-95 的 production routing。"
+    files: ["engine/mes.py", "engine/line.py", "api/tickets.py"]
+
+  - id: T7-offline-fonts
+    title: "字體離線化(HTML 層)"
+    status: todo
+    autonomy: self
+    size: S
+    why: >
+      HTML 以 Google Fonts 載入 Lora / Noto Sans TC / JetBrains Mono,校內 LAN 無外網會回退系統字體。
+      3D 層已經完全不依賴外網,只剩這一項。
+    approach: ["把字體檔放進 web 專案自行 serve,或改用系統字體堆疊;注意授權"]
+    done_when: ["斷網開站,版面與字體與有網時一致", "npm run build 過"]
+    verify: ["cd web && npm run build"]
+    files: ["web/index.html", "web/src/"]
+
+  - id: T8-overview-animation-contract
+    title: "把動畫綁定契約落實到 PixiJS 俯瞰層"
+    status: todo
+    autonomy: ask_first        # 動到 animation_binding.md 契約範圍
+    size: M
+    why: "animation_binding.md 目前只規範廠內 3D;俯瞰層(公司量體 / 燈號 / 煙囪)仍是純裝飾動畫。"
+    files: ["docs/animation_binding.md", "web/src/world/"]
+
+  - id: T9-external-access
+    title: "對外接入:Cloudflare Tunnel(HTTP)+ Tailscale(原生協定)"
+    status: blocked
+    autonomy: ask_first
+    blocked_by: ["需要能存取校內 5090 主機 —— 環境不到位,程式面先不要動"]
+    why: "校外學生要能看世界、抓協定;ACL 限校內 / 學生群組。"
+    files: ["deploy/cloudflared/", "docs/部署_對外連線.md"]
+
+  - id: T10-misc-backlog
+    title: "雜項待辦(想做再挑,不必照順序)"
+    status: todo
+    autonomy: ask_first
+    items:
+      - "作業的前置時間(lead time)KPI —— production 型別目前只有 on_time_rate 與 wip"
+      - "OPC-UA multi_port(per-device endpoint,較重,屬進階選項)"
+      - "更多產業 template:廢水 / 環控、鑄造、噴塗"
+      - "per-device protocol capability:讓不同設備只暴露部分協定(更貼近真實場域)"
+      - "美術升級:導入 Kenney.nl CC0 等距素材取代 Graphics 幾何"
+
+# ── 沒有可做任務時的例行巡檢 ────────────────────────────
+routine_chores:
+  when: "佇列頂端是 ask_first 而人還沒回覆,或所有 todo 都在等別人時"
+  do:
+    - "跑 verify.quick + verify.contracts,有紅的就當成最高優先修掉(這是真缺陷)"
+    - "跑 tests/daily/(每日模擬測試,情境輪替 + 圖文報告)—— 過去它在排程之前就抓到過真缺陷"
+    - "檢查文件落差:git log 最近合併的 PR vs docs/ROADMAP.md Done 表 / STATUS.yaml / README 進度段,
+       落後就補(這件事一直有價值,而且不會踩到別人)"
+    - "檢查自己開過的 draft PR:CI 綠了沒、有沒有 review 意見沒回"
+  do_not: ["不要為了『有事做』而重構或改視覺;沒事做就回報現況即可"]

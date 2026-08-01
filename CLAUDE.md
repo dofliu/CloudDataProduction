@@ -2,6 +2,11 @@
 
 這是 Claude Code 在本 repo 工作時的進場說明。先讀本檔,再依任務讀 `docs/` 對應章節。
 
+**沒有指定任務時(例如排程 routine 醒來),讀 `.claude/NEXT_TASKS.yaml`** —— 那是可執行的工作
+佇列:由上而下就是優先序,每項標了自主程度(`self` 自己做完開 draft PR / `ask_first` 先問)、
+完成定義與驗證指令。做完要在同一個 PR 裡回填該項的 `status` 與 `pr`。
+敘事版的現況與理由在 `docs/ROADMAP.md`,兩邊衝突以 ROADMAP 為準並回頭修佇列。
+
 ## 專案一句話
 
 虛擬 2D 工業園區教學平台:模擬引擎產生擬真設備數據,經 Modbus / OPC-UA / MQTT 暴露;

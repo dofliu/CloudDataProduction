@@ -46,7 +46,7 @@
 | `docs/04-scenario-and-api.md` | 場景 YAML schema、REST + WebSocket API、協定轉接綁定 |
 | `docs/05-world-and-teaching.md` | 2D 等距世界前端、公司認領、工單、兩階段教學、自動評分、閉環推論 |
 | `docs/06-mcp.md` | MCP server 工具定義(自然語言建廠 / 注入故障) |
-| `docs/07-roadmap.md` | P0–P4 建置順序與具體任務拆解(原始規劃) |
+| `docs/07-roadmap.md` | P0–P4 建置順序與任務拆解(**原始規劃,已全數完成** —— 保留當初的順序與判斷理由) |
 | **`docs/animation_binding.md`** | **動畫綁定契約**:每個會動的部位對應哪支 tag、三條鐵則、逐機種綁定表、產線佈局、自動驗收結果。**要改動畫先讀這份** |
 | **`tests/animation/README.md`** | 動畫 ↔ 模擬資料一致性驗證:怎麼跑、為什麼用線性回歸、探針一覽、已知的物理限制 |
 | **`README.en.md`** | English project overview |
@@ -67,6 +67,9 @@
 | `docs/ML基準實證.md` | **資料可訓練性實證**:用合成資料訓 RUL 迴歸 + 故障分類,held-out 機台 F1 0.95 / R² 0.94 |
 | `docs/資料集與作業.md` | **資料一致性 / 出題**:確定性種子、每學號不同資料、指定故障作業集、凍結釋出與版本溯源 |
 | `docs/作業範本_預測性維護.md` | **完整作業範本**:出題腳本 + 每學號私有測試集 + 自動評分 rubric + 線上活廠驗收(防 AI 代寫) |
+| `docs/作業範本_製程漂移.md` | 半導體腔體 **subtle fault** 作業:製程漂移 → particle → 良率,`grade_chamber_assignment.py` 自動評分 |
+| `docs/學生快速上手.docx` / `docs/作業_預測馬達故障.docx` | 發給學生的講義與作業(Word) |
+| `docs/開發現況報告_2026秋.docx` | 開發現況報告(Word,對外簡報用) |
 
 ## 一句話的建議起手式
 
@@ -338,7 +341,7 @@ engine.World.step()  真實模擬 → 錄下 telemetry
 換算比例錯(slope 不對)、符號反了(slope 為負)。
 
 ```bash
-python3 tests/animation/verify_scenario.py     # 逐廠逐台,不抽樣(102 廠 / 205 台)
+python3 tests/animation/verify_scenario.py     # 逐廠逐台,不抽樣(102 廠 / 239 台)
 python3 tests/animation/capture_frames.py web/preview
 cd web && npx vite &
 node preview/shot3d.mjs /tmp/shots             # 24 組情境渲染 + 無 CDN / 無 console error
@@ -415,8 +418,8 @@ node tests/animation/verify_animation.mjs      # 35 項,失敗回傳 exit 1
 
 | 場景 | 產生器 | 規模 | 廠名 |
 |------|--------|------|------|
-| `scenarios/class_park.yaml` | `scenarios/scripts/gen_class_park.py` | 65 廠 / 133 設備 / 46 種設備組合 | **虛構**的台灣精密製造業者 |
-| `scenarios/default_park.yaml` | `scenarios/scripts/gen_default_park.py` | 37 廠 / 72 設備 / 32 種設備組合 | 「{產品線}廠({老師}負責)」 |
+| `scenarios/class_park.yaml` | `scenarios/scripts/gen_class_park.py` | 65 廠 / 154 設備 / 42 種設備組合(12 條產線 / 32 條供應鏈) | **虛構**的台灣精密製造業者 |
+| `scenarios/default_park.yaml` | `scenarios/scripts/gen_default_park.py` | 37 廠 / 85 設備 / 29 種設備組合(6 條產線) | 「{產品線}廠({老師}負責)」 |
 
 > ⚠ **不使用真實公司名**。這些廠會「故障」、資料全是合成的,掛真實廠商名字等於對真實企業的
 > 不實陳述(CLAUDE.md 鐵則二)。示範版保留系上老師姓名作為負責人標示,那是刻意的。
@@ -453,6 +456,26 @@ node tests/animation/verify_animation.mjs      # 35 項,失敗回傳 exit 1
 - **平靜更新**:資料每 5 秒一拍 = 10 模擬分鐘(畫面不亂跳),動畫走前端 ticker 仍滑順。
 - **2D 視覺**:寬路 + 多樣立面(窗格紋路、高低差)+ 廠內人員走動/作業 + 產線編排(機台出件→手臂夾取→輸送帶送出)。
 
+## 教材資料包(平台不在線也能上課)
+
+課堂教材有兩條路,**不要混用同一份題目**:活廠(平台開著,教師套當週情境、學生連線)與
+**凍結資料包**(離線預產,發下去之後斷電 / 重啟 / 學期中改程式都不影響)。
+
+```bash
+python tools/make_offline_pack.py --zip                    # W4 Plan B:11 種產業各一台、7 sim 天乾淨基線
+python tools/make_week_packs.py --zip                      # 每週凍結包(W4/W6-W8/W10-W12/W14)
+python tools/make_week_packs.py --weeks 8 --seed 41143209  # 單週 × 學號種子(每人資料不同)
+```
+
+- 讀 `scenarios/course_weeks.yaml`(週次已對齊《18 週教學大綱 v2.1》):clear 週=乾淨基線;
+  注入週對**半數 producer 注入、半數留乾淨對照**;`keep` 週沿用前一個有定義的週。
+- **產後驗證,驗不過就拒產** —— 設備注入要健康度顯著下降、感測器注入要有可偵測趨勢、
+  clear 週不得有故障。沒驗就發下去,可能整週的題目是無解的。
+- 學生包**不含 ground-truth**;教師答案卷(誰被注入 / 哪個元件 / onset)另存 `packs/answers/`,
+  發包時不要一起發。manifest 記 seed + engine commit,可重現、可溯源。
+
+完整操作見 [docs/使用說明.md §5.3](docs/使用說明.md)。
+
 ## 進度
 
 P0~P4 完成 + 上線硬化(~100% 功能面):**階段一+二可開課**、四 object type + 教師線圈控制、
@@ -462,11 +485,26 @@ SQLite 持久化(telemetry + 工單/預測/OEE)、6xxx 埠、venv 啟動 + 看�
 課堂即時練習、學生自建監控台(Streamlit + 純 Python)、18 週課程規劃 + 「雲端生產」概念文件、
 4D 暖色 UI 全面重設計。
 
-**近期(3D 動畫精準化)**:建立[動畫綁定契約](docs/animation_binding.md)並依此重寫全部 11 種機型 3D、
+**3D 動畫精準化**:建立[動畫綁定契約](docs/animation_binding.md)並依此重寫全部 11 種機型 3D、
 [35 項自動驗證](tests/animation/README.md)接上 CI、廠內視圖改成依製程角色排列的產線。
 過程中修掉的真缺陷:4 支讀到 undefined 的 tag、手臂 `tcp` 與六軸角度互相矛盾、
 CNC 相位鎖定漏比 z 軸與非 delta-based 增益、故障柱燈讀起來像警告、CNC 刻字上下鏡像、
 3D 層對 CDN 的相依(校內 LAN 無外網會讓整個 Canvas 崩掉)。
+
+**引擎產線物料流 + 學生可寫控制**:工件真的在 CNC → 手臂 → 輸送帶之間傳遞(餓料 / 滿料誠實停機、
+帳目守恆);CNC 可由 setpoint 刻任意文字、手臂可指定 A 取 B 放。
+
+**學生決策層 / 課堂經營 / 供應鏈**:工單結案要診斷後[選對處置動作](docs/決策與後果.md)(選錯不會修好)、
+預防保養停機換壽命、託管告警規則對 ground-truth 算 F1;[資料的一生九關](docs/關卡與進度.md) +
+全班 N×9 進度熱力圖 + 協定端存取軌跡;[課堂即時互動](docs/課堂即時練習.md)(倒數 / 首答留名 /
+全班投票**真的動到引擎**);[跨公司供應鏈](docs/供應鏈連動.md)(上游停→下游餓料、下游滿→上游阻塞)。
+
+**最新(2026-08-01)**:課程週次對齊《18 週教學大綱 v2.1》、correlation 批改改**時間戳對齊**
+(取樣率不同不會再算出假的相關係數)、`production` 生產管理 KPI 自動批改(準交率 / WIP);
+**離線教材資料包**(見上一節)——平台在不在線都不影響已發教材。
+
+**驗證現況**:CI(`.github/workflows/verify.yml`)每個 PR 跑 場景健全性(102 廠 / 239 台逐廠逐台,
+不抽樣)+ 9 支 Python 契約測試 + 前端 tsc/build + 動畫一致性 35 項,目前全綠。
 
 **後續接續工作**見 [docs/ROADMAP.md](docs/ROADMAP.md)。
 

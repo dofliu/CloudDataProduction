@@ -1,7 +1,10 @@
 # Roadmap · TODO · Known Issues(路線圖 · 待辦 · 已知限制)
 
-> 進度 Progress: **~100%**(P0–P4 + 上線硬化 + 產業庫擴充 + 課堂即時練習 + 學生監控台 + 4D 暖色 UI 重設計 + 3D 動畫精準化與自動驗證 + 學生可寫輸入控制 + **引擎產線物料流**)· 更新 Updated: 2026-07-30
-> 建置順序原始規劃見 [07-roadmap.md](07-roadmap.md);本檔為現況與後續。
+> 進度 Progress: **~100%**(P0–P4 + 上線硬化 + 產業庫擴充 + 課堂即時練習 + 學生監控台 + 4D 暖色 UI 重設計 + 3D 動畫精準化與自動驗證 + 學生可寫輸入控制 + 引擎產線物料流 + 學生決策層 / 九關 / 課堂即時互動 / 跨公司供應鏈 + **離線教材資料包**)· 更新 Updated: 2026-08-01
+> 建置順序原始規劃見 [07-roadmap.md](07-roadmap.md)(P0–P4 已全數完成);本檔為現況與後續。
+>
+> **現況一句話**:兩個教學階段都可開課;平台在線(活廠)與離線(凍結資料包)兩條教材路徑都通了。
+> CI 綠燈涵蓋 場景健全性(102 廠 / 239 台逐廠逐台)+ 9 支 Python 契約測試 + 前端建置 + 動畫一致性 35 項。
 
 ---
 
@@ -32,17 +35,24 @@
 
 | **3D 設備動畫精準化** | 建立**動畫綁定契約**([docs/animation_binding.md](animation_binding.md)):每個會動的部位都必須對應一支具體 tag / setpoint / coil,前端不得重算引擎已算過的物理,做了時間換算就必須在畫面標示倍率。依此重寫全部機種 3D:① 修好 4 支**抓不到的 tag**(空壓機 `tank_pressure`→`outlet_pressure`、風機 `yaw_angle`→`pitch_angle`、電表 `voltage`/`current`→三相 `*_l1/l2/l3`、CNC `machining_pattern` 改讀 setpoint);② CNC 改吃引擎的 `pos_x/y/z` + 真 `cycle_time`(含相位鎖定),手臂改吃完整六軸 `joint_angle_1..6`(取放站由正運動學定位),沖壓改吃 `ram_position`;③ 新增 **`deviceMotion.ts` 資料橋**(狀態正規化 / 退化度 / delta-based 補間 / L3 時間換算)與 **`MachineFx`** 共用視覺語彙(柱燈 / 故障冒煙 / 依 `vibration_rms` 抖動 / 過熱輝光);④ 補上**製程腔體**與**熱處理爐** 3D(11 種 template 全覆蓋);⑤ 燈光 / 環境 / 陰影上移到 Canvas 層級(WebGL context lost 根因);⑥ **全面移除 CDN 相依**(drei `<Environment preset>` 抓 .hdr、`<Text>` 抓字型資料,LAN 無外網會整個 Canvas 崩掉)—— 改本地程序化環境貼圖 + CanvasTexture 文字牌;⑦ dev 預覽頁 `web/preview/models3d.html` + `shot3d.mjs` 自動截圖與 console 錯誤檢查 |
 
-| **動畫正確性自動驗證** | [tests/animation](../tests/animation/README.md):把 `engine.World.step()` 錄下的**真實 telemetry** 逐幀餵進瀏覽器裡真正的 3D 元件,讀回 three.js 場景中機構的**實際世界座標**,與引擎 tag 做線性回歸 + 還原誤差比對(一次抓出接錯 tag / 軸向對調 / 換算比例錯 / 符號反了)。**35 項全數通過,11 種機型全覆蓋**;另有 `verify_scenario.py` 逐廠逐台不抽樣(102 廠 / 205 台)與 `shot3d` / `shotline` 的無 CDN + 無 console error 檢查。三套都接上 CI(`.github/workflows/verify.yml`)。**驗證抓到並修好的真缺陷**:① 手臂 `tcp_x/y/z` 與六軸角度**互相矛盾**(tcp 原本是一條與角度無關的參數式擺動,方位角與 J1 的相關係數 **−0.82** —— 手臂往左轉、回報的末端往右跑;改由 `forward_kinematics()` 算出後為 **+0.999993**);② CNC 相位鎖定漏比 z 軸(刀路自交處會鎖到相反的抬刀 / 下刀相位);③ 鎖定增益非 delta-based(低 fps 機器刀尖固定落後);④ 故障時柱燈**有一半的瞬間讀起來像警告**(severity 拉滿使黃燈恆亮,而紅燈在閃);⑤ CNC 刻字上下鏡像(`pos_y`→世界 Z,而世界 +Z 在畫面上是往下);⑥ 刻痕補點是 frame-rate 相依的(低幀率下字變成散落的點)。另修正 `visualPeriod` 原本會**加速**播放過慢循環的設計錯誤(加速會直接破壞畫面與 `pos_*` 的座標對應) |
+| **動畫正確性自動驗證** | [tests/animation](../tests/animation/README.md):把 `engine.World.step()` 錄下的**真實 telemetry** 逐幀餵進瀏覽器裡真正的 3D 元件,讀回 three.js 場景中機構的**實際世界座標**,與引擎 tag 做線性回歸 + 還原誤差比對(一次抓出接錯 tag / 軸向對調 / 換算比例錯 / 符號反了)。**35 項全數通過,11 種機型全覆蓋**;另有 `verify_scenario.py` 逐廠逐台不抽樣(102 廠 / 239 台)與 `shot3d` / `shotline` 的無 CDN + 無 console error 檢查。三套都接上 CI(`.github/workflows/verify.yml`)。**驗證抓到並修好的真缺陷**:① 手臂 `tcp_x/y/z` 與六軸角度**互相矛盾**(tcp 原本是一條與角度無關的參數式擺動,方位角與 J1 的相關係數 **−0.82** —— 手臂往左轉、回報的末端往右跑;改由 `forward_kinematics()` 算出後為 **+0.999993**);② CNC 相位鎖定漏比 z 軸(刀路自交處會鎖到相反的抬刀 / 下刀相位);③ 鎖定增益非 delta-based(低 fps 機器刀尖固定落後);④ 故障時柱燈**有一半的瞬間讀起來像警告**(severity 拉滿使黃燈恆亮,而紅燈在閃);⑤ CNC 刻字上下鏡像(`pos_y`→世界 Z,而世界 +Z 在畫面上是往下);⑥ 刻痕補點是 frame-rate 相依的(低幀率下字變成散落的點)。另修正 `visualPeriod` 原本會**加速**播放過慢循環的設計錯誤(加速會直接破壞畫面與 `pos_*` 的座標對應) |
 
 | **故障語意統一(引擎)** | 設備進入 `state=fault` 之後**仍持續回報運轉** —— CNC 的 `spindle_speed` 還是 8000 rpm、`pos_x` 繼續走刀路、`part_count` 繼續增加。學生用 Modbus 讀會看到「故障中的機台正在全速加工」,是同一份 snapshot 裡兩套互相矛盾的資料(違反鐵則二)。根因是**模板之間不一致**:11 個 template 只有 6 個在 `pre_step` 裡寫 `op["running"] and not device._fault_latched`,其餘 5 個(cnc / air_compressor / conveyor / energy_meter / heat_treat_furnace)沒寫。改成在 `engine/device.py::step` **統一擋下**(故障閂鎖 → 運轉點強制歸零),新增模板不必再記得這件事;另在元件失效的**同一拍**、driver 執行前再擋一次,否則「故障當拍」那一筆仍會自相矛盾。OEE 不受影響(`_accumulate_oee` 先看 `_fault_latched` 才看 `op["running"]`,故障仍計為可用率損失)。**這個缺陷是每日模擬測試在排程之前就抓到的** |
 
 | **廠內產線製程佈局** | 廠內視圖不再把設備等距排一列各做各的,改依**製程角色**(產出 / 搬運 / 輸送 / 廠務)排成一條看得懂的線(`web/src/world/processFlow.ts`):相鄰工站邊靠邊、手臂轉 90° 讓**取件點對到上游機台出料口、放件點壓在輸送帶起點**、廠務退到後排不佔主線、地面畫料道與方向箭頭、畫面與說明卡寫出「製程流向:射出成型 → 手臂取放 → 輸送帶出料」(由實際設備推出來)。CNC 在產線視圖套鈑金外殼,裸露刀路留給詳情頁。各機種佔地半寬由 `preview/measure.mjs` 從真實場景量回來,不是估的。**⚠ 這是空間上的對位,不是引擎層的物料交接** —— 各設備節拍仍各自獨立 |
 
-| **場景產生器化** | `scenarios/*.yaml` 改由 `scenarios/scripts/gen_*.py` 產生(規則寫死、可重現):課堂版 65 廠 / 133 設備 / 46 種組合,示範版 37 廠 / 72 設備 / 32 種組合,11 種 template 兩份都全覆蓋。設備組合符合產業工程邏輯而非隨機湊。**公司名改為虛構**(合成資料掛真實廠商名等於對真實企業的不實陳述);示範版廠名改成「{產品線}廠({老師}負責)」,產生器加了廠名唯一性斷言 |
+| **場景產生器化** | `scenarios/*.yaml` 改由 `scenarios/scripts/gen_*.py` 產生(規則寫死、可重現):課堂版 **65 廠 / 154 設備 / 42 種組合 / 12 條產線 / 32 條供應鏈**,示範版 **37 廠 / 85 設備 / 29 種組合 / 6 條產線**,11 種 template 兩份都全覆蓋(數字以 `verify_scenario.py` 實測為準)。設備組合符合產業工程邏輯而非隨機湊。**公司名改為虛構**(合成資料掛真實廠商名等於對真實企業的不實陳述);示範版廠名改成「{產品線}廠({老師}負責)」,產生器加了廠名唯一性斷言 |
 
 | **學生可寫輸入控制(2026-07-30)** | ① **CNC 刻字**:pattern 0 從寫死刻 NCUT 升級為任意文字 —— 筆畫字型 `engine/templates/_stroke_font.py`(A–Z / 0–9 / `-`,引擎與前端逐點同一套),由 `engrave_char_1..8` setpoints(ASCII,reg 102..109)驅動,學生逐格 FC06 或 REST `/engrave_text` 一次寫整串,超行程等比縮小、預設 NCUT 零回歸。② **手臂取放兩點可指定**:`pick_x/pick_y/place_x/place_y` setpoints(±1250 mm),引擎逆運動學解回六軸 keyframes,`tcp_x/y/z` 誠實反映、「方位角 ≡ J1」不變量保持;**Modbus 轉接層補 int16 二補數**(負座標可寫、反射一致)。③ 設定點寫入控件抽成共用元件並**搬進詳情彈窗**(彈窗蓋住側欄,先前可寫欄位實際上點不到)。④ `tests/test_input_control.py` 掛 CI:預設零回歸、切削點對筆畫偏距 0、IK↔FK 往返 1e-13 mm、tcp 抵達指定點 <2 mm |
 
 | **引擎產線物料流(2026-07-30)** | 原 TODO「Material flow in the engine」完成:公司 YAML 宣告 `line:`(站序)後工件在引擎內**真實傳遞**(`engine/line.py`)。① 上游完工進出料緩衝(滿 3 件上游停)、手臂**事件驅動**取放(`cycle_count` = 實際搬運件數,無料在取件點上方待命、電流/振動掉回待機值)、下游無料真的停 —— 餓料/滿料計 no-demand 不罰 OEE 可用率;完工偵測直接讀各 template 累積量 tag(帳 = 學生 Modbus 讀值,不做兩套);大 dt 下搬運配額制(tick 粒度不成瓶頸)。② **終站輸送帶為真站**:工件上帶、走完帶長(8 sim 秒)才出貨,**空帶待機不空轉**(belt_speed→0)。③ 可觀測:FC04 `line_in_buffer`/`line_out_buffer`/`line_on_belt` 進目錄,WS snapshot 加 `lines` 帳。④ 前端:緩衝方塊擺在 processFlow 對位的**手臂實際取放點**、輸送帶只畫帳上件數、產線統計列;**「🎬 慢速觀察 ×2」教師鈕**(×120 下取放僅 0.07 牆鐘秒,物理上不可見 —— 慢速下全程真實資料呈現)。⑤ 兩份場景由產生器接線(課堂 12 條 / 示範 6 條)、單機工廠全數補上搭配設備、公司 intro 補產線流向;**建廠(規則式)升級支援多型別描述**(「2 台 CNC 和 1 支手臂」)且產出自動接線。⑥ `tests/test_line_flow.py` 掛 CI:守恆(完工=待取+在手+已搬;出貨+帶上≤已搬≤完工)、餓料/滿料/空帶誠實停機 |
+
+| **學生決策層(2026-07-31)** | 學生的操作開始**有代價**,做對做錯的差別由引擎誠實反映而不是改分數改出來的([docs/決策與後果.md](決策與後果.md)):① **工單結案要先診斷再選處置動作**(`engine/repair.py` 維修手冊:每種故障對應哪個動作、在數據上長什麼樣)—— 選錯照樣扣工時、設備**不會**修好、症狀繼續;一次故障只開一張單。② **預防保養停機換壽命** —— 保養要停機、停機計入可用率損失,做太勤 OEE 掉、不做就等故障。③ **學生託管告警規則**(`api/alarm_rules.py`)—— 學生把門檻 / 持續時間交給平台代跑,平台對 ground-truth 算 **F1 與 lead time**:規則太敏感就誤報、太鈍就漏報,兩邊都有分數代價。CI:`tests/test_repair_actions.py` / `tests/test_alarm_rules.py` |
+| **資料的一生九關 + 全班進度(2026-07-31)** | 把整學期的能力拆成九關(接得上 → 讀得懂 → 存得下 → 看得見 → 找得出 → 說得準 → 修得好 → 防得住 → 講得出),定義在 `scenarios/levels.yaml`(**改關卡改 YAML,`api/levels.py` 不寫死**)。判定**現查平台事實**不快取(有沒有真的讀過協定、開過工單、上傳過預測…),人工勾選只開放無法自動判定的關且留痕;全班 **N×9 進度熱力圖**與**瓶頸關**算法讓老師一眼看出卡在哪。另加**協定端存取軌跡**(`adapters/access_log.py`:哪台被讀幾次 / 多久打一次 —— 誠實標示拿不到連線者身分)。CI:`tests/test_levels.py`。見 [docs/關卡與進度.md](關卡與進度.md) |
+| **課堂即時互動升級(2026-07-31)** | 佈題**倒數截止**(截止後不收卷)、**首答留名**(第一個答對的人上榜)、**全班投票**(`api/polls.py` + `scenarios/classroom_polls.yaml`)—— 投票收票後**照多數決真的去動引擎**(全班決定停哪台、注入什麼),不是投完就算了。CI:`tests/test_classroom_live.py`。見 [docs/課堂即時練習.md](課堂即時練習.md) |
+| **跨公司供應鏈(2026-07-31)** | `engine/supply.py`:A 公司的出貨 = B 公司的進料,課堂版接了 **32 條**。上游停 → 下游**餓料**、下游滿 → 上游**阻塞**(皆計 no-demand,不冤枉罰可用率);**自給率**量化「單一供應商風險」,可出「誰是全園區的單點故障」這類題。CI:`tests/test_supply_chain.py`(守恆 + 餓料/阻塞傳播)。見 [docs/供應鏈連動.md](供應鏈連動.md)。同批修掉「九關的『產生』關永遠不會過」(讀錯設備清單來源) |
+| **課程教材端對齊(2026-08-01)** | ① `scenarios/course_weeks.yaml` 的週次**對齊《18週教學大綱 v2.1》**(現有 8 週:W4 / W6–W8 / W10–W12 / W14)。② **correlation 批改改時間戳對齊** —— 原本按列序比對,學生取樣率不同就會算出假的相關係數;改成對 `sim_t` 對齊後再算。③ **production 生產管理 KPI 自動批改**:`metric: on_time_rate`(準交率,自當週資料窗起算的完工單)與 `wip`(未完成工單數),支援 device / company 兩種範圍,真值與 `/api/orders` 公開資料一致。CI:`tests/test_course_grading.py` |
+| **離線教材資料包(2026-08-01)** | 平台不在線也能上課、已發教材不受重啟 / 改程式影響:① **離線備援包** `tools/make_offline_pack.py`(W4 Plan B)—— 11 種產業各一台、7 sim 天乾淨基線,每台 CSV/JSON + `catalog.json`(離線也能教「查規格書」)+ manifest(seed / engine commit 可溯源)。② **每週凍結資料包** `tools/make_week_packs.py` —— 讀 `course_weeks.yaml` 逐週預產:clear 週乾淨基線、注入週**半數注入半數留乾淨對照**、`keep` 週沿用前一定義週;**產後驗證**(設備注入要健康度顯著下降 ≥0.10、感測器注入要有可偵測趨勢 t≥6、clear 週零故障,**驗不過拒產**——沒驗就發下去可能整週的題目是無解的);學生包**不含 ground-truth**,教師答案卷另存 `packs/answers/`;以學號當 `--seed` 即每人不同資料。CI:`tests/test_week_packs.py` |
 
 兩個教學階段皆可開課。Both teaching stages are classroom-ready.
 
@@ -50,37 +60,10 @@
 
 ## ⏳ 待辦 · TODO(依優先序 by priority)
 
-### 1. 每週凍結資料包 Weekly frozen data packs ★最高優先
+### 1. 其餘 template 的資料自洽性掃描 Cross-tag consistency sweep ★最高優先
 
-**問題**:`scenarios/course_weeks.yaml` 的每週情境是**套用到正在跑的引擎**上的
-(教師控制台按「套用第 N 週情境」)。這代表平台必須持續開著才有當週資料 —— 對一學期
-18 週的課不現實(斷電、重啟、學期中改程式都會影響)。
-
-**方向**:把「每週情境」離線**預先產成凍結的資料包**,平台在不在線都不影響已發教材。
-
-> **主要缺口已補(2026-08-01)**:`tools/make_week_packs.py` —— 讀 `course_weeks.yaml`
-> (週次已對齊大綱 v2.1)逐週產凍結包:clear 週乾淨基線、注入週照 spec 半數注入半數對照、
-> `keep` 週自動沿用前一定義週;**產後驗證**(退化可偵測 / 漂移趨勢 t≥6 / clear 週零故障,
-> 驗不過拒產);學生包不含 ground-truth,教師答案卷分開存;manifest 記 seed + engine commit。
-> 每學號批次 = 以學號當 `--seed` 迴圈。smoke 掛 CI(tests/test_week_packs.py)。
-
-還剩(屬教材端 / 選配):
-
-| 已有 | 缺 |
-|------|-----|
-| `tools/make_week_packs.py`(逐週凍結包 + 產後驗證 + 答案卷) | 週次 ↔ 作業 ↔ 練習題的綁定(教材端決定) |
-| `tools/make_assignment.py` / `grade_assignment.py`(每學號私有測試集 + 自動評分) | 練習題與「當週資料包」對應(目前練習是對線上活廠出的) |
-
-**另外兩個缺口**:
-- `course_weeks.yaml` 只定義了 **8 週**(W4、W6–W8、W10–W12、W14,已對齊《18週教學大綱 v2.1》,2026-08-01),18 週規劃裡其餘上課週沒有條件。
-- **產出後要驗**:每份資料包都該自動檢查「這週要學生找的東西真的找得到」
-  (注入的故障在觀測窗內有沒有顯著到可偵測、標籤分佈會不會極端不平衡)。
-  沒驗就發下去,可能整週的題目是無解的。作法可比照 [ML基準實證](ML基準實證.md)。
-
-### 2. 其餘 template 的資料自洽性掃描 Cross-tag consistency sweep
-
-> 已完成兩項:手臂 `tcp` ↔ 六軸角度(2026-07-28)、故障語意統一(2026-07-29,見 Done 表)。
-> 以下是還沒掃的。
+> 已完成三項:手臂 `tcp` ↔ 六軸角度(2026-07-28)、故障語意統一(2026-07-29)、
+> correlation 批改的時間戳對齊(2026-08-01)。以下是還沒掃的。
 
 手臂的 `tcp` 缺陷(與六軸角度互相矛盾,相關係數 −0.82)是靠一個**物理不變量**抓到的。
 其餘 10 種 template 應該也有可查的不變量,例如:
@@ -92,6 +75,17 @@
 
 成本低、風險小,而且如果真的還有「兩套互相矛盾的資料」,那是**會直接教錯學生**的問題,
 優先度高於任何視覺改善。作法比照 `verify_scenario.py::check_kinematics`。
+
+### 2. 教材資料包的收尾 Course-pack follow-ups
+
+> 工具面已完成(見 Done 表「離線教材資料包」)。剩下的是**教材端**的決定,不是程式缺口:
+
+- `course_weeks.yaml` 目前只定義 **8 週**(W4 / W6–W8 / W10–W12 / W14),18 週規劃裡其餘
+  上課週還沒有條件 —— 補齊即可整學期一次產完。
+- **週次 ↔ 作業 ↔ 練習題的綁定**:目前課堂即時練習是對**線上活廠**出的,尚未對應到
+  「當週的凍結資料包」。兩邊都在了,差一層對應表。
+- 作業出題(`make_assignment.py` / `grade_assignment.py`,每學號私有測試集)與週包目前
+  各走各的 seed,可統一成同一份學號種子表。
 
 ### 3. 產線物料流的延伸 Line-flow follow-ups
 
@@ -148,10 +142,12 @@ Cloudflare Tunnel(HTTP)+ Tailscale(原生協定),ACL 限校內 / 學生群組。
   (例:「動畫慢放 ×8」「轉速視覺 ×1/10667」)。**數值一律以點位為準,畫面節拍是換算後的**。
   這時 1 Hz 的 `pos_*` / `ram_position` 已低於該循環的 Nyquist,因此不做相位鎖定;
   倍率≈1(慢速 sim)時才會把畫面相位鎖回遙測。見 [docs/animation_binding.md](animation_binding.md) §1 鐵則三。
-- **每週情境需要活廠 Weekly scenarios need a live engine**:`scenarios/course_weeks.yaml` 的每週條件是
-  由教師控制台**套用到正在跑的引擎**上,平台沒開就沒有當週資料。離線作業目前走另一條路
-  (`tools/generate_dataset.py` 產凍結 CSV)。把兩者串起來、預先產出整學期的資料包是 TODO §1。
-  Weekly conditions are applied to the running engine; offline assignments use frozen CSVs instead.
+- **每週情境:活廠與凍結包兩條路 Live engine vs frozen packs**:`scenarios/course_weeks.yaml` 的每週條件
+  可以**套用到正在跑的引擎**(教師控制台按「套用第 N 週情境」,平台沒開就沒有當週資料),
+  也可以用 `tools/make_week_packs.py` **離線預產成凍結包**(平台在不在線都不影響已發教材,
+  且產後有驗證擋著)。發教材建議走凍結包,現場示範走活廠。**注意兩者不要混用同一份題目** ——
+  凍結包的答案卷是產包當下決定的,活廠是即時的。Weekly conditions run either on the live engine
+  or as pre-generated frozen packs; don't mix the two for the same question set.
 - **3D 層禁用 CDN 資源 No CDN in the 3D layer**:drei 的 `<Environment preset>`(抓 .hdr)與 `<Text>`
   (troika 抓字型資料,中文必抓)在無外網時會讓整個 Canvas 拋錯 / 文字消失。專案已改用本地程序化環境貼圖與
   CanvasTexture 文字牌;**新增 3D 元件時不要把這兩個 API 加回來**,`node preview/shot3d.mjs` 會攔到。

@@ -53,37 +53,58 @@ cloud-production-data/
 │   ├── signals.py             # 訊號模型(health→觀測,含熱滯後/雜訊)
 │   ├── sensor_faults.py       # 感測器故障層(stuck/drift/bias/dropout)
 │   ├── device.py              # Device = tags + drivers + health components
-│   ├── templates/             # 產業型別庫(見 docs/03;_stroke_font.py = CNC 刻字筆畫字型)
+│   ├── templates/             # 產業型別庫(11 種,見 docs/03;_stroke_font.py = CNC 刻字筆畫字型)
 │   ├── line.py                # 產線物料流:line: 宣告的公司,工件在站間真實傳遞
 │   ├── mes.py                 # MES:工單驅動設備運轉
+│   ├── course.py              # 每週課程情境:把 course_weeks.yaml 的條件套到跑著的引擎
 │   ├── supply.py              # 跨公司供應鏈:A 出貨 = B 進料;上游停→下游餓料、下游滿→上游阻塞
 │   └── world.py               # 載入場景、推進所有設備、廣播狀態
 ├── adapters/                  # 協定轉接層(讀 engine 狀態)
 │   ├── access_log.py          # 協定端存取軌跡(哪台被讀幾次 / 多久打一次;拿不到身分)
 │   ├── modbus_server.py
+│   ├── modbus_multiport.py    # 進階模式:每台設備一個專屬埠(6100+)
 │   ├── opcua_server.py
 │   └── mqtt_publisher.py
 ├── api/                       # FastAPI:REST 控制面 + WebSocket 即時面
 │   ├── rest.py
 │   ├── ws.py
+│   ├── auth.py                # 教師 token / 學生認領的權限判定
 │   ├── catalog.py             # 公開設備目錄(學生規格書)
 │   ├── tickets.py             # 工單:結案要選對處置動作,選錯扣工時且不會修好
 │   ├── maintenance.py         # 預防保養:停機換壽命(停機計入可用率損失)
 │   ├── alarm_rules.py         # 學生託管告警規則:平台代跑,對 ground-truth 算 F1 / lead time
 │   ├── levels.py              # 資料的一生九關 + 全班進度看板(判定現查,不快取)
+│   ├── classroom.py           # 課堂即時練習:佈題倒數 / 學生作答 / 即時批改 / 首答留名
 │   ├── polls.py               # 全班投票:收票後照多數決真的去動引擎
+│   ├── submissions.py         # 作業繳交與自動批改(含 production KPI:準交率 / WIP)
+│   ├── scenarios.py           # 情境腳本(災難日)+ 每週課程情境套用
+│   ├── oee.py                 # OEE 累積與排名榜
+│   ├── diagnostics.py         # 健康檢查 / 連線自測(戰情版)
 │   ├── scoring.py             # 用 ground-truth 自動評分
 │   └── predictions.py         # 階段二:接收學生模型預測
 ├── ai/                        # 自然語言建廠(LLM)
 │   └── factory_generator.py
-├── historian/                 # 寫入 TimescaleDB
-│   └── writer.py
+├── historian/                 # 持久化
+│   ├── writer.py              # 高頻 telemetry → SQLite / TimescaleDB
+│   └── state_store.py         # 營運狀態(工單 / 預測 / OEE / 認領)重啟不歸零
 ├── mcp/                       # MCP server(打 REST API)
 │   └── server.py
+├── tools/                     # 教材與運維工具(headless,不需要活廠)
+│   ├── make_offline_pack.py   # 離線備援包:11 種產業各一台、一週乾淨基線(W4 Plan B)
+│   ├── make_week_packs.py     # 每週凍結資料包:逐週預產 + 產後驗證 + 教師答案卷
+│   ├── generate_dataset.py    # 階段二訓練資料集(快轉 run-to-failure)
+│   ├── make_assignment.py     # 作業出題:每學號 train + 私有 test + 答案金鑰
+│   ├── grade_assignment.py    # 自動評分(F1 / MAE);grade_chamber_assignment.py 為製程漂移版
+│   ├── smoke_test.py          # 對執行中世界做不變式檢查(回傳 0/1 供 CI / 排程)
+│   └── stress_test.py         # WS / API 壓測
 ├── scenarios/                 # 場景 YAML(見 docs/04)
 │   ├── levels.yaml            # 九關與支線徽章定義(改關卡改這裡,api/levels.py 不寫死)
+│   ├── classroom_exercises.yaml # 課堂即時練習題庫
 │   ├── classroom_polls.yaml   # 全班投票題庫
-│   └── default_park.yaml
+│   ├── course_weeks.yaml      # 每週課程情境(週次對齊《18週教學大綱 v2.1》)
+│   ├── class_park.yaml        # 課堂版園區(65 廠 / 154 設備 / 12 產線 / 32 條供應鏈)
+│   ├── default_park.yaml      # 示範版園區(37 廠 / 85 設備 / 6 產線)
+│   └── scripts/               # ★ 場景產生器(gen_class_park.py / gen_default_park.py)
 ├── web/                       # React + PixiJS + three.js 前端
 │   ├── src/world/             # 俯瞰(PixiJS)+ 廠內產線(three.js)+ 11 種機型 3D
 │   │   ├── deviceMotion.ts    # 資料橋:狀態正規化 / 退化度 / 補間 / L3 時間換算
@@ -93,6 +114,7 @@ cloud-production-data/
 │   ├── teacher/               # 上帝視角控制台 + 參考客戶端儀表板
 │   └── catalog/               # 公開設備目錄頁
 ├── tests/animation/           # 動畫 ↔ 模擬資料一致性驗證(見該目錄 README)
+├── tests/daily/               # 每日模擬測試:情境輪替 + 圖文報告
 ├── tests/test_input_control.py  # CNC 刻字 / 手臂取放:寫 setpoint 後輸出真的跟著變(CI)
 ├── tests/test_line_flow.py      # 產線物料流:守恆 / 餓料滿料誠實停機 / 輸送帶終站(CI)
 ├── tests/test_repair_actions.py # 處置選錯不會修好 / 保養真的扣可用率 / 一次故障一張單(CI)
@@ -100,12 +122,19 @@ cloud-production-data/
 ├── tests/test_levels.py         # 九關:自動判定查平台事實 / 人工勾選不能濫用 / 瓶頸關(CI)
 ├── tests/test_classroom_live.py # 倒數截止 / 首答留名 / 全班投票真的動到引擎(CI)
 ├── tests/test_supply_chain.py   # 上游停→下游餓料 / 下游停→上游阻塞 / 守恆(CI)
+├── tests/test_course_grading.py # 週次對齊大綱 / correlation 時間戳對齊 / production KPI(CI)
+├── tests/test_week_packs.py     # 每週凍結包:產得出來 / 驗證擋得住 / 學生包不洩答案(CI)
 ├── .github/workflows/verify.yml   # CI:場景健全性 / 前端建置 / 動畫一致性
 └── student_kit/               # 給學生的範例:連線骨架、目錄查詢、預測上傳範例
 ```
 
 **場景不要手改 YAML** —— `scenarios/*.yaml` 由 `scenarios/scripts/gen_*.py` 產生,
 要調組合改產生器再重跑。手改會在下次重產時被蓋掉。
+
+**教材有兩條路,別混在一起** —— 活廠(平台開著,教師套當週情境、學生連線)與
+**凍結包**(`tools/make_week_packs.py` / `make_offline_pack.py` 離線預產,平台在不在線
+都不影響已發教材)。凍結包一律:學生包不含 ground-truth、教師答案卷分開存、manifest 記
+seed + engine commit,且**產後要驗**(注入的東西在觀測窗內真的找得到,驗不過就拒產)。
 
 **要改動畫先讀 `docs/animation_binding.md`**(綁定契約)。那份文件是動畫的唯一依據:
 每個會動的部位都必須對應一支具體 tag,前端不重算引擎已算過的物理,做了時間換算要標倍率。

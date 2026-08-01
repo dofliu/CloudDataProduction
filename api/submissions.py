@@ -258,16 +258,27 @@ class SubmissionStore:
         rows = await self.historian.query(device, tag, t_from, t_to, limit=200000)
         vals = [r["value"] for r in rows
                 if r.get("value") is not None and int((r.get("sim_t", 0) % 86400) / 3600) == hour]
+        # 學生可附上自己該桶的樣本數 n:與平台差 10 倍以上時,幾乎都是拿 wall_t 分桶
+        # (sim 加速 120 倍,桶量會差兩個數量級)。一句話點破,省掉助教式來回。
+        wall_hint = ""
+        try:
+            student_n = int(payload["n"]) if payload.get("n") is not None else None
+        except (TypeError, ValueError):
+            student_n = None
+        if student_n and len(vals) and (student_n > 10 * len(vals) or len(vals) > 10 * student_n):
+            wall_hint = (f";你的樣本數 n={student_n} 與平台 n={len(vals)} 差了 10 倍以上 —— "
+                         "你的桶可能是用 wall_t 分的,分桶請用 sim_t")
         if len(vals) < 3:
             return {"score": 0.0, "passed": False,
-                    "feedback": f"該時間窗內第 {hour} 時的資料點不足(<3);確認資料窗與是否用 sim_t 依 hour-of-day 分組。"}
+                    "feedback": f"該時間窗內第 {hour} 時的資料點不足(<3);確認資料窗與是否用 sim_t 依 hour-of-day 分組。" + wall_hint}
         truth = mean(vals)
         tol = self._tol(payload)
         score, rel = _score_rel(float(value), float(truth), tol)
         return {"score": score, "passed": score >= 60,
                 "feedback": f"第 {hour} 時平均:你算 {float(value):.4f},參考 {truth:.4f}"
                             f"(n={len(vals)},相對誤差 {rel*100:.1f}%)"
-                            + (" ✓" if score >= 60 else " ✗ 檢查 hour-of-day 分組(sim_t%86400)與聚合")}
+                            + (" ✓" if score >= 60 else " ✗ 檢查 hour-of-day 分組(sim_t%86400)與聚合")
+                            + wall_hint}
 
     async def _grade_events(self, payload: dict) -> dict:
         """W10 事件流:交本週該設備「完工工單數」,對照 MES 實際完工紀錄(訂閱事件計數的驗證)。"""
@@ -306,12 +317,19 @@ class SubmissionStore:
         t_from, t_to = self._window(payload)
         ra = await self.historian.query(device, tag_a, t_from, t_to, limit=200000)
         rb = await self.historian.query(device, tag_b, t_from, t_to, limit=200000)
-        a = [r["value"] for r in ra if r.get("value") is not None]
-        b = [r["value"] for r in rb if r.get("value") is not None]
-        n = min(len(a), len(b))
-        if n < 10:
-            return {"score": 0.0, "passed": False, "feedback": "兩個 tag 在資料窗內的共同樣本不足(<10);確認 tag 名稱與資料窗。"}
-        r = _pearson(a[:n], b[:n])
+        # 依 sim_t 時間戳對齊(取交集)再算 —— 不用「各自濾 None 後按索引截齊」:
+        # 只要有一條序列缺一個點,索引對齊會讓之後所有點整體位移一格,r 悄悄崩掉且不報錯。
+        # 這也與 W7/W10 教的「用時間戳對齊兩條序列」同語言。量化到 1 ms 消除浮點格式差;
+        # 同一桶重複取樣保留最後一筆。
+        sa = {round(float(r0["sim_t"]), 3): r0["value"] for r0 in ra
+              if r0.get("value") is not None and r0.get("sim_t") is not None}
+        sb = {round(float(r0["sim_t"]), 3): r0["value"] for r0 in rb
+              if r0.get("value") is not None and r0.get("sim_t") is not None}
+        keys = sorted(sa.keys() & sb.keys())
+        if len(keys) < 10:
+            return {"score": 0.0, "passed": False,
+                    "feedback": "兩個 tag 在資料窗內時間戳對得上的共同樣本不足(<10);確認 tag 名稱與資料窗。"}
+        r = _pearson([sa[k] for k in keys], [sb[k] for k in keys])
         if r is None:
             return {"score": 0.0, "passed": False, "feedback": "訊號變異不足,相關係數未定義;換一段有變化的資料窗。"}
         tol = float(payload.get("tolerance", 0.15))    # 相關係數用絕對容差

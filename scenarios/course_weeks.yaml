@@ -19,19 +19,27 @@ course:
   name: "雲端生產數據導論"
   default_tolerance: 0.10        # 統計類作業預設相對誤差容差(±10%)
 
+  # 週次編號對齊《18週教學大綱 v2.1》(2026-08-01 依教材端事實查核重編;
+  # 教師是按「套用第 N 週情境」操作,編號錯 = 當天全班拿到錯的資料):
+  #   舊 5→6、舊 7→7(faults 由 keep 改 clear ★)、舊 6→8、舊 8→10、舊 10→11、舊 11→12、舊 13→14
   weeks:
     - week: 4
-      title: "正常運轉 + 敘述統計"
+      title: "平台啟用:正常運轉 + 敘述統計"
       faults: clear              # 全部修復,呈現健康基線
       order_density: normal
 
-    - week: 5
-      title: "正常運轉(續)"
-      faults: clear
+    - week: 6
+      title: "正常運轉統計"
+      faults: clear              # 乾淨基線 —— 整合作業②的 ground-truth 建立在這週
       order_density: normal
 
-    - week: 6
-      title: "明顯異常"
+    - week: 7
+      title: "時序聚合"
+      faults: clear              # ★ 必須乾淨:學生本週存下的「正常基線」是 W8 的比較對象
+      order_density: normal
+
+    - week: 8
+      title: "明顯異常(設備退化)"
       order_density: high        # 多投工單,設備忙、退化明顯
       faults:
         policy: spread
@@ -39,19 +47,9 @@ course:
         count: 1
         kind: equipment
         type: gradual
-        severity: 0.85           # 明顯、好判讀
-
-    - week: 7
-      title: "時序聚合"
-      faults: keep               # 沿用上週,讓學生對同一批資料做時序處理
-      order_density: normal
+        severity: 0.85           # 明顯、好判讀(W8 講義六張圖以此為準,勿改)
 
     - week: 10
-      title: "即時串流與事件"
-      faults: keep               # 沿用,讓學生訂閱事件、計 done 工單數
-      order_density: high        # 多投單 → 更多完工事件可數
-
-    - week: 8
       title: "感測器資料品質"
       order_density: normal
       faults:
@@ -63,12 +61,17 @@ course:
         severity: 0.6
 
     - week: 11
+      title: "即時串流與事件"
+      faults: keep               # 沿用上週,讓學生訂閱事件、計 done 工單數
+      order_density: high        # 多投單 → 更多完工事件可數
+
+    - week: 12
       title: "生產 KPI / OEE"
       faults: clear              # 回到正常,聚焦產能/稼動/良率的 KPI 計算
       order_density: high
 
-    - week: 13
-      title: "趨勢與預警"
+    - week: 14
+      title: "趨勢與預警(RUL)"
       order_density: normal
       faults:
         policy: spread

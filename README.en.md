@@ -108,13 +108,34 @@ simulation loop kept **100% of its configured speed** under load. Plenty of head
 P0–P4 + production hardening complete (~100% of features): both teaching stages are deliverable, with
 four Modbus object types + teacher coil control, SQLite persistence (telemetry + ops state), 6xxx ports,
 venv launcher + watchdog + `/api/health` + smoke test, production-line choreography + in-plant people.
-Recently added: **in-class exercises**, **student self-built dashboards** (Streamlit + pure-Python, three
-protocols), an **18-week course plan + a "cloud production" concept doc**, and a full **warm "4D" UI
-redesign** (theme + 2D-world repaint + device detail modal + dual-machine tending cell — visual only, no
-data-flow changes).
-**Follow-up work** (see [docs/ROADMAP.md](docs/ROADMAP.md)): external access (Cloudflare Tunnel +
-Tailscale, pending the on-campus 5090 host), auto-graded production-management KPIs (on-time % / WIP),
-offline (self-hosted) fonts, and per-device protocol subsets.
+
+Also shipped since: **student-writable control** (engrave arbitrary text on the CNC, command the robot
+arm's pick/place points via setpoints); **engine-level material flow** (parts really move CNC → arm →
+conveyor; starved/blocked stations stop honestly and the counts are readable over Modbus); a **student
+decision layer** (closing a ticket requires picking the *correct* repair action — a wrong pick still
+costs labour hours and does *not* fix the machine; preventive maintenance trades downtime for life;
+student-authored alarm rules are hosted by the platform and scored against ground truth with F1 and
+lead time); **"nine levels of a data lifetime"** with a class-wide N×9 progress heatmap and
+protocol-side access traces; **live classroom interaction** (countdown deadlines, first-correct-answer
+credit, class polls whose majority vote really drives the engine); and a **cross-company supply chain**
+(A's shipments are B's raw material; upstream stops starve downstream, downstream backlogs block
+upstream).
+
+Latest (2026-08-01): course weeks aligned to the *18-week syllabus v2.1*; correlation grading now aligns
+on timestamps (different student sampling rates no longer produce bogus correlations); auto-graded
+**production KPIs** (on-time rate / WIP); and **offline course data packs** — `tools/make_offline_pack.py`
+(a clean one-week baseline as a Plan B when the network or platform is down) and
+`tools/make_week_packs.py` (per-week frozen packs with post-generation validation that *refuses to
+publish* a week whose injected fault isn't actually detectable; student packs carry no ground truth,
+teacher answer keys are stored separately, and manifests record seed + engine commit).
+
+CI runs scenario sanity (102 companies / 239 devices, exhaustive), 9 Python contract test suites, the
+frontend type-check/build, and 35 animation-consistency probes — all green.
+
+**Follow-up work** (see [docs/ROADMAP.md](docs/ROADMAP.md)): a cross-tag consistency sweep over the
+remaining templates, filling in the rest of the 18 weeks in `course_weeks.yaml`, external access
+(Cloudflare Tunnel + Tailscale, pending the on-campus 5090 host), offline (self-hosted) fonts, and
+per-device protocol subsets.
 
 ---
 

@@ -16,10 +16,13 @@ import { Box, Cylinder, Line } from "@react-three/drei";
 import * as THREE from "three";
 import MachineScene, { Readout, Row } from "./MachineScene";
 import { CanvasLabel, FX, FaultSmoke, HeatGlow, StatusBeacon, bodyColor } from "./MachineFx";
-import { DeviceMotion, MachineProps, approach, approachAngleRad, clamp01 } from "./deviceMotion";
+import {
+  AGV_LOOP, DeviceMotion, MachineProps, agvLockS, agvPosFromS, agvSFromPos,
+  approachAngleRad, clamp01,
+} from "./deviceMotion";
 
-// 引擎 _LOOP 的四個角(公尺)與中心
-const LOOP: [number, number][] = [[2, 2], [18, 2], [18, 12], [2, 12]];
+// 引擎 _LOOP 的四個角(幾何本體在 deviceMotion.AGV_LOOP,與引擎逐點相同)與中心
+const LOOP = AGV_LOOP;
 const LOOP_CENTER: [number, number] = [10, 7];
 const STATION_LOAD: [number, number] = [18, 2];     // s = 16
 const STATION_UNLOAD: [number, number] = [2, 12];   // s = 42
@@ -30,19 +33,23 @@ export const AgvModel = ({ motion, compact = false }: MachineProps & { compact?:
   const payloadRef = useRef<THREE.Group>(null);
   const wheelRefs = [useRef<THREE.Mesh>(null), useRef<THREE.Mesh>(null), useRef<THREE.Mesh>(null), useRef<THREE.Mesh>(null)];
   const wheelAngle = useRef(0);
-  const inited = useRef(false);
+  const sLocal = useRef<number | null>(null);
 
   useFrame((_, delta) => {
     const t = motion.tags;
     const g = ref.current;
     if (!g) return;
-    const tx = (t.pos_x ?? LOOP_CENTER[0]) - (compact ? LOOP_CENTER[0] : 0);
-    const tz = (t.pos_y ?? LOOP_CENTER[1]) - (compact ? LOOP_CENTER[1] : 0);
 
-    if (!inited.current) { g.position.set(tx, 0, tz); inited.current = true; }
-    g.position.x = approach(g.position.x, tx, 0.25, delta);
-    g.position.z = approach(g.position.z, tz, 0.25, delta);
-    g.rotation.y = approachAngleRad(g.rotation.y, THREE.MathUtils.degToRad(t.heading ?? 0), 0.3, delta);
+    // 位置走弧長鎖定(契約 §4.3):回報 (pos_x, pos_y) 投影成路徑弧長,本地 s 沿
+    // 前進向趨近、到位貼齊 —— 車體任何時刻都在巡迴路徑上,不再直線切過轉角。
+    const sTarget = agvSFromPos(t.pos_x ?? LOOP_CENTER[0], t.pos_y ?? LOOP_CENTER[1]);
+    sLocal.current = sLocal.current === null ? sTarget : agvLockS(sLocal.current, sTarget, delta);
+    const [px, py] = agvPosFromS(sLocal.current);
+    g.position.x = px - (compact ? LOOP_CENTER[0] : 0);
+    g.position.z = py - (compact ? LOOP_CENTER[1] : 0);
+    // 朝向維持 L1 吃 heading tag(wrap-aware,0.5° 內貼齊)
+    g.rotation.y = approachAngleRad(
+      g.rotation.y, THREE.MathUtils.degToRad(t.heading ?? 0), 0.3, delta, THREE.MathUtils.degToRad(0.5));
 
     // 輪子轉速由 speed 換算(v = ωr),sim 倍率也算進去
     const v = (t.speed ?? 0) * motion.timeScale;

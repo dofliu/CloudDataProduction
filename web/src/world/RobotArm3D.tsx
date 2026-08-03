@@ -89,9 +89,11 @@ export const RobotArmModel = ({ motion, stations }: MachineProps & {
       t.joint_angle_1 ?? 0, t.joint_angle_2 ?? 0, t.joint_angle_3 ?? 0,
       t.joint_angle_4 ?? 0, t.joint_angle_5 ?? 0, t.joint_angle_6 ?? 0,
     ];
-    // 故障 / 停機 → 引擎的 pre_step 不再推進,角度會凍在最後一筆:直接讓它停住即可
+    // 故障 / 停機 → 引擎的 pre_step 不再推進,角度會凍在最後一筆:直接讓它停住即可。
+    // snap 0.05°:指數趨近是漸近的,不貼齊的話下探最低點永遠差最後一小段,
+    // 夾爪看起來差一點才碰到料箱(0.05° 在 1600 mm 伸距上 ≈ 1.4 mm,肉眼不可辨)。
     const tau = 0.12;
-    for (let i = 0; i < 6; i++) cur.current[i] = approachAngleDeg(cur.current[i], target[i], tau, delta);
+    for (let i = 0; i < 6; i++) cur.current[i] = approachAngleDeg(cur.current[i], target[i], tau, delta, 0.05);
 
     const D = THREE.MathUtils.degToRad;
     const [a1, a2, a3, a4, a5, a6] = cur.current;

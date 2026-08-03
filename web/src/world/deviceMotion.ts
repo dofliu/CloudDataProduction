@@ -145,24 +145,97 @@ export function buildMotion(
 }
 
 // ── 補間(delta-based;絕不用 frame-rate 相依的固定係數)────
+//
+// snapEps:指數趨近是漸近的,數學上**永遠到不了**目標 —— 對「要停在定點」的機構
+// (AGV 停站、手臂下探)就是「位置差最後一小段」。誤差一旦小於 snapEps 就直接貼齊,
+// 靜止時畫面座標 = 遙測座標,一格不差。預設 0 = 維持原行為(純漸近)。
 
 /** 指數趨近:tau 是時間常數(秒),與 frame rate 無關。 */
-export function approach(current: number, target: number, tau: number, dt: number) {
-  if (tau <= 0) return target;
+export function approach(current: number, target: number, tau: number, dt: number, snapEps = 0) {
+  if (tau <= 0 || Math.abs(target - current) <= snapEps) return target;
   return current + (target - current) * (1 - Math.exp(-dt / tau));
 }
 
 /** 角度版(度),走最短路徑,不會在 ±180 邊界甩一整圈。 */
-export function approachAngleDeg(current: number, target: number, tau: number, dt: number) {
+export function approachAngleDeg(current: number, target: number, tau: number, dt: number, snapEps = 0) {
   let diff = ((target - current) % 360 + 540) % 360 - 180;
+  if (Math.abs(diff) <= snapEps) return current + diff;
   return current + diff * (1 - Math.exp(-dt / tau));
 }
 
 /** 角度版(弧度)。 */
-export function approachAngleRad(current: number, target: number, tau: number, dt: number) {
+export function approachAngleRad(current: number, target: number, tau: number, dt: number, snapEps = 0) {
   const TAU = Math.PI * 2;
   let diff = ((target - current) % TAU + TAU * 1.5) % TAU - Math.PI;
+  if (Math.abs(diff) <= snapEps) return current + diff;
   return current + diff * (1 - Math.exp(-dt / tau));
+}
+
+// ── AGV 巡迴路徑:與 engine/templates/agv_mobile_robot.py 的 _LOOP 同一組幾何 ──
+//
+// 引擎沿這條矩形折線積分弧長 s 再回報 (pos_x, pos_y, heading)。前端若對「最新一筆
+// 位置」做**直線**補間,兩拍跨過轉角時會切對角線離開路徑 —— 所以位置補間必須在
+// **弧長座標**上做(agvLockS),再由 agvPosFromS 還原成路徑上的點。這不是重算物理:
+// 路線是靜態幾何,速度與位置都還是引擎回報的值,前端只決定「兩拍之間走哪條路」。
+
+/** 引擎 _LOOP 的四個角(公尺)。 */
+export const AGV_LOOP: [number, number][] = [[2, 2], [18, 2], [18, 12], [2, 12]];
+const AGV_SEG_LEN = [16, 10, 16, 10];
+const AGV_SEG_HEADING = [0, 90, 180, 270];
+/** 路線周長(52 m)。 */
+export const AGV_PERIM = AGV_SEG_LEN.reduce((a, b) => a + b, 0);
+
+/** 弧長 s → (x, y, heading°)。與引擎 _pos_from_s 逐行對應。 */
+export function agvPosFromS(s: number): [number, number, number] {
+  s = ((s % AGV_PERIM) + AGV_PERIM) % AGV_PERIM;
+  for (let i = 0; i < 4; i++) {
+    const seg = AGV_SEG_LEN[i];
+    if (s <= seg) {
+      const [x0, y0] = AGV_LOOP[i];
+      const [x1, y1] = AGV_LOOP[(i + 1) % 4];
+      const f = s / seg;
+      return [x0 + (x1 - x0) * f, y0 + (y1 - y0) * f, AGV_SEG_HEADING[i]];
+    }
+    s -= seg;
+  }
+  return [AGV_LOOP[0][0], AGV_LOOP[0][1], 0];
+}
+
+/** (x, y) → 最接近的路徑弧長 s。回報位置含浮點誤差也能穩定投影。 */
+export function agvSFromPos(x: number, y: number): number {
+  let best = 0, bestD = Infinity, acc = 0;
+  for (let i = 0; i < 4; i++) {
+    const [x0, y0] = AGV_LOOP[i];
+    const [x1, y1] = AGV_LOOP[(i + 1) % 4];
+    const dx = x1 - x0, dy = y1 - y0;
+    const t = clamp01(((x - x0) * dx + (y - y0) * dy) / (dx * dx + dy * dy));
+    const px = x0 + dx * t, py = y0 + dy * t;
+    const d = (x - px) ** 2 + (y - py) ** 2;
+    if (d < bestD) { bestD = d; best = acc + AGV_SEG_LEN[i] * t; }
+    acc += AGV_SEG_LEN[i];
+  }
+  return best;
+}
+
+/**
+ * AGV 弧長鎖定:本地 s 沿**前進向**趨近回報位置的弧長 —— AGV 不倒車,走短邊反向追
+ * 會把「快到站」畫成「倒退回站」;唯投影 / 補間抖動造成的微小負缺口(< backTol)例外,
+ * 就地退回。缺口小於 snap 就貼齊(到位,不留漸近殘差)。
+ *
+ * 刻意**不做** dead-reckoning(速度 × 倍率自走):高倍率下自走會在兩拍之間衝過
+ * 回報值,前進向缺口反而爆成整圈追逐。趨近回報值的好處是收斂 —— ×1 時每拍位移
+ * 只有幾十公分,看起來就是平滑行駛;×120 時位置本來就 aliasing,沿路快滑仍誠實
+ * 反映「真實牆鐘速度本來就這麼快」,且永遠在路徑上。
+ */
+export function agvLockS(
+  local: number, reportedS: number, dt: number,
+  { tau = 0.35, snap = 0.02, backTol = 1.0 }: { tau?: number; snap?: number; backTol?: number } = {},
+): number {
+  let gap = (((reportedS - local) % AGV_PERIM) + AGV_PERIM) % AGV_PERIM;  // 前進向缺口 ∈ [0, P)
+  if (gap > AGV_PERIM - backTol) gap -= AGV_PERIM;              // 投影抖動:就地小幅退回
+  if (Math.abs(gap) <= snap) return reportedS;                  // 到位:貼齊
+  const s = local + gap * (1 - Math.exp(-dt / tau));
+  return ((s % AGV_PERIM) + AGV_PERIM) % AGV_PERIM;
 }
 
 // ── L3 視覺換算(必須標示倍率)──────────────────────────

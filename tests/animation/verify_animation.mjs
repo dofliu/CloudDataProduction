@@ -265,6 +265,17 @@ console.log("\n[3] AGV · fast(×120)—— 車體世界座標 ↔ pos_x / pos_y
   check("AGV heading → 車頭方位角(1:1)", worst < 2.0,
     `最大偏差 ${worst.toFixed(2)}° · heading 取樣值 ${[...new Set(col(rows, (r) => Math.round(r.tags.heading)))].join("/")}`
     + (worstAt ? ` · 最差 @${worstAt.i} tag=${worstAt.tag} 畫面=${worstAt.shown.toFixed(1)}` : ""));
+
+  // 到位貼齊:補間收斂後車體必須與遙測座標**一格不差**(不是「差不多」)。
+  // 指數趨近若不貼齊,靜止時永遠留一小段漸近殘差 —— 這正是「位置沒有完全到位」。
+  // 容許 0.02 m 是弧長投影與浮點餘裕,不是給補間殘差的。
+  let worstD = 0;
+  rows.forEach((r, i) => {
+    const d = Math.hypot(body[i].x - r.tags.pos_x, body[i].z - r.tags.pos_y);
+    if (d > worstD) worstD = d;
+  });
+  check("AGV 收斂後車體與遙測座標一致(到位貼齊,< 0.02 m)", worstD < 0.02,
+    `最大距離 ${worstD.toFixed(4)} m(${rows.length} 幀)`);
 }
 
 // ── 4. 沖壓機滑塊(契約:1 s 行程在 1~4 Hz 取樣下低於 Nyquist,走 L3 自由播放)──
@@ -505,6 +516,26 @@ console.log("\n[13] 六軸手臂 · slow(×1)—— 夾爪世界座標 ↔ 引�
   });
   check("手臂 畫面夾爪方位角 = joint_angle_1(基座軸沒畫反)", worst < 3.0,
     `最大偏差 ${worst.toFixed(2)}°`);
+
+  // 下探落站:取整段裡 tcp_z 最低的一幀,畫面夾爪的水平位置必須落在取 / 放站上
+  // (站座標 = setpoints ÷200;引擎 IK 保證下探時 TCP 在站上,所以這是端到端的
+  // 「夾爪真的碰到料箱」驗證)。容許 0.15 單位(30 mm):腕段骨架與 fk 有 2 mm 內建差、
+  // 幀是 0.25 s 量化(最低幀不一定剛好是 keyframe 底)、其餘是補間貼齊前的殘差;
+  // 沒有貼齊(snap)之前這裡會差到視覺可辨的量級。
+  {
+    let low = 0;
+    rows.forEach((r, i) => { if (r.tags.tcp_z < rows[low].tags.tcp_z) low = i; });
+    const r = rows[low];
+    const sp = await page.evaluate(() => window.__currentSetpoints());
+    const stations = [
+      [-(sp.pick_x ?? 820) / 200, (sp.pick_y ?? -820) / 200],
+      [-(sp.place_x ?? 820) / 200, (sp.place_y ?? 820) / 200],
+    ];
+    const dist = Math.min(...stations.map(([sx, sz]) => Math.hypot(tcp[low].x - sx, tcp[low].z - sz)));
+    check("手臂 下探最低幀夾爪水平落在取/放站上(< 0.15 單位 = 30 mm)",
+      r.tags.tcp_z < 250 && dist < 0.15,
+      `該幀 tcp_z=${r.tags.tcp_z.toFixed(0)} mm(下探設計 150)· 與最近站水平距離 ${dist.toFixed(3)} 單位`);
+  }
 }
 
 // ── 14. 柱燈語彙:state → 哪一顆燈亮(契約 §2)────────────
@@ -553,6 +584,51 @@ console.log("\n[14] 柱燈語彙 —— state / run_enable → 三色燈(契約 
   check("fault 紅燈閃爍的暗相仍可辨識(不會整支變黑)", dim.min > 0.5 && dim.max > dim.min * 1.5,
     `暗相 ${dim.min.toFixed(2)} / 亮相 ${dim.max.toFixed(2)}(暗相須 >0.5 且兩者要有明顯差,才看得出在閃)`);
   await page.evaluate(() => window.__forceState(null));
+}
+
+// ── 15. AGV 弧長鎖定:連續播放下車體不得離開巡迴路徑 ─────
+// 其他節都是「換幀 → 等補間收斂 → 才讀值」,收斂**過程**沒被驗過 —— 舊的直線補間
+// 正是在兩幀之間切過轉角(×120 下 aliasing 的位置跳點會讓補間直線穿過場地中央),
+// settle 之後什麼都看不到。這一節連續換幀、全程不等收斂,頁內 rAF 全速量
+// 「車體到路徑折線的距離」,補間走的每一步都得在路上。
+console.log("\n[15] AGV · fast(×120)—— 連續播放(不等收斂):車體恆在巡迴路徑上");
+{
+  await page.goto(`${BASE}?device=agv_mobile_robot&capture=fast`, { waitUntil: "load" });
+  await page.waitForFunction(() => window.__ready === true, { timeout: 30000 });
+  await page.evaluate(() => window.__setFrame(0));
+  await page.waitForTimeout(700);                     // 初始硬同步收斂
+  const n = await page.evaluate(() => window.__frameCount);
+  const STEP_MS = 260;
+  // 先在頁內啟動記錄器(promise 掛著),Node 端再連續換幀;兩者並行。
+  const recP = page.evaluate(([loop, dur]) => new Promise((resolve) => {
+    const segDist = (px, pz, a, b) => {
+      const dx = b[0] - a[0], dz = b[1] - a[1];
+      const t = Math.max(0, Math.min(1, ((px - a[0]) * dx + (pz - a[1]) * dz) / (dx * dx + dz * dz)));
+      return Math.hypot(px - (a[0] + dx * t), pz - (a[1] + dz * t));
+    };
+    let worst = 0, count = 0;
+    const t0 = performance.now();
+    (function tick() {
+      const p = window.__probes?.agv_body;
+      if (p) {
+        let best = Infinity;
+        for (let i = 0; i < 4; i++) best = Math.min(best, segDist(p.x, p.z, loop[i], loop[(i + 1) % 4]));
+        if (best > worst) worst = best;
+        count += 1;
+      }
+      if (performance.now() - t0 < dur) requestAnimationFrame(tick);
+      else resolve({ worst, count });
+    })();
+  }), [[[2, 2], [18, 2], [18, 12], [2, 12]], n * STEP_MS + 600]);
+  for (let i = 0; i < n; i++) {
+    await page.evaluate((k) => window.__setFrame(k), i);
+    await page.waitForTimeout(STEP_MS);
+  }
+  const rec = await recP;
+  // 容許 0.05 m:弧長鎖定下車體恆在折線上,0.05 只是浮點與投影餘裕;
+  // 直線補間在 aliasing 的跳點間切對角線,離路徑可達數公尺 —— 兩者分得極開。
+  check("AGV 連續換幀時車體與路徑最大距離 < 0.05 m", rec.worst < 0.05,
+    `max ${rec.worst.toFixed(3)} m · 全程頁內取樣 ${rec.count} 幀 · ${n} 幀連續播放`);
 }
 
 console.log(`\npage errors: ${pageErrors.length ? [...new Set(pageErrors)].join(" | ") : "none"}`);

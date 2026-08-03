@@ -40,7 +40,7 @@ node tests/animation/verify_animation.mjs
 
 **CI**:`.github/workflows/verify.yml` 會自動跑這三套 ——
 `verify_scenario.py`(純 Python,幾十秒)與前端 `tsc + build` 每次 push / PR 都跑;
-瀏覽器那套(`shot3d.mjs` 的無 CDN 檢查 + `verify_animation.mjs` 的 35 項)較慢,
+瀏覽器那套(`shot3d.mjs` 的無 CDN 檢查 + `verify_animation.mjs` 的 38 項)較慢,
 跑在 PR、手動觸發、以及 main 的 push。Chromium 路徑用 `PLAYWRIGHT_CHROMIUM`
 環境變數指定,不設就交給 playwright 自己找。
 
@@ -126,3 +126,20 @@ J1 是基座偏擺軸,所以末端的水平方位角 `atan2(tcp_y, tcp_x)` 恆�
   而不是逐幀對應。要逐幀對得上,得讓引擎以更高頻率發布 `ram_position`。
 - **課堂設定(×120)下的週期性動作**:同理。畫面節拍是換算後的,**數值一律以點位為準**,
   而且畫面角落一定有「動畫慢放 ×N」的標示。見 [docs/animation_binding.md](../../docs/animation_binding.md) §1 鐵則三。
+
+## 到位斷言(2026-08-03 新增)
+
+線性回歸對「系統性落後一小段」不敏感 —— 補間永遠差最後一截時,lag 會被吸收進截距,
+slope 與 R² 都還是漂亮的。因此另立三項**到位斷言**:
+
+- **AGV 收斂後座標一致**(< 0.02 m):settle 之後車體必須與遙測座標一格不差。
+  防的是指數趨近的漸近殘差(`deviceMotion.approach*` 的 `snapEps` 貼齊機制)。
+- **AGV 連續播放不離路徑**(< 0.05 m):連續換幀、全程**不等收斂**,頁內 rAF 全速量
+  車體到巡迴路徑折線的距離。防的是「兩拍之間直線切過轉角」—— 那只發生在收斂過程,
+  settle 後看不到,必須這樣量(弧長鎖定 `agvLockS` 保證恆在路上)。
+- **手臂下探落站**(水平 < 30 mm):取整段 `tcp_z` 最低的一幀,畫面夾爪的水平位置
+  必須落在 setpoints 指定的取 / 放站上 —— 端到端驗「夾爪真的碰到料箱」。
+
+手臂**刻意不做** CNC 式的 keyframe 相位鎖定:活廠取樣(5 s 一拍)對 8 s 取放循環
+已低於 Nyquist,鎖相只會不停硬同步成瞬移;且畫面改吃本地重建的曲線,`encoder_drift`
+感測器故障「手臂夾偏」的教學效果就消失了(畫面必須誠實反映讀值,鐵則一)。

@@ -346,7 +346,7 @@ python3 tests/animation/capture_frames.py web/preview
 cd web && npx vite &
 node preview/shot3d.mjs /tmp/shots             # 24 組情境渲染 + 無 CDN / 無 console error
 node preview/shotline.mjs /tmp/lineshots       # 5 種產線配方
-node tests/animation/verify_animation.mjs      # 35 項,失敗回傳 exit 1
+node tests/animation/verify_animation.mjs      # 38 項,失敗回傳 exit 1
 ```
 
 `.github/workflows/verify.yml` 讓這三套在每個 PR 自動跑。
@@ -510,7 +510,7 @@ CNC 相位鎖定漏比 z 軸與非 delta-based 增益、故障柱燈讀起來像
 診斷與作法見 [docs/ROADMAP.md](docs/ROADMAP.md) 待辦 §0。
 
 **驗證現況**:CI(`.github/workflows/verify.yml`)每個 PR 跑 場景健全性(102 廠 / 239 台逐廠逐台,
-不抽樣)+ 9 支 Python 契約測試 + 前端 tsc/build + 動畫一致性 35 項,目前全綠。
+不抽樣)+ 9 支 Python 契約測試 + 前端 tsc/build + 動畫一致性 38 項,目前全綠。
 
 **後續接續工作**見 [docs/ROADMAP.md](docs/ROADMAP.md)。
 

@@ -64,8 +64,17 @@ verify:
 tasks:
 
   - id: T0-motion-precision
-    title: "移動件到位精準化:AGV 沿路徑鎖定 + 手臂關節相位鎖定 + 到位斷言"
-    status: todo
+    title: "移動件到位精準化:AGV 沿路徑鎖定 + 補間到位貼齊 + 到位斷言"
+    status: in_review
+    pr: "https://github.com/dofliu/CloudDataProduction/pull/42"
+    outcome: >
+      已實作:① AGV 弧長鎖定(agvLockS:回報位置投影成路徑弧長、前進向趨近、到位貼齊,
+      車體恆在巡迴路徑上;實測連續播放離路徑 max 0.000 m、收斂後與遙測座標差 0.0000 m);
+      ② 補間函式加 snapEps 貼齊(漸近殘差歸零;手臂下探落站實測 1.4 mm);
+      ③ tests/animation 新增 3 項到位斷言(38 項全過)。
+      手臂**刻意不做** keyframe 鎖相:活廠取樣(5s/拍)對 8s 循環低於 Nyquist,
+      鎖相只會不停硬同步成瞬移;且畫面改吃本地曲線會讓 encoder_drift「夾偏」的
+      教學效果消失。理由記錄在 tests/animation/README.md。
     autonomy: self          # 2026-08-03 使用者指定的優先方向;作法比照 CNC 相位鎖定的既有契約模式
     size: M
     why: >

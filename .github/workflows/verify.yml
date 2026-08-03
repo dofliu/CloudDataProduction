@@ -88,7 +88,7 @@ jobs:
 
   # ── 動畫 ↔ 模擬資料一致性(開真的瀏覽器讀場景世界座標)──
   animation:
-    name: 動畫一致性(35 項)
+    name: 動畫一致性(38 項)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     needs: [scenario, web]
@@ -152,7 +152,7 @@ jobs:
             exit 1
           }
 
-      - name: 動畫 ↔ 模擬資料一致性(35 項)
+      - name: 動畫 ↔ 模擬資料一致性(38 項)
         run: node tests/animation/verify_animation.mjs
         working-directory: ${{ github.workspace }}
 

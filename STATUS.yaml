@@ -3,8 +3,8 @@ name_zh: 雲端生產數據導論 — 虛擬智慧工業區教學平台
 category: edtech
 progress: 100
 status: active
-last_updated: "2026-08-01"
-next_milestone: "其餘 template 的跨 tag 自洽性掃描;course_weeks 補滿 18 週條件;對外接入(Cloudflare Tunnel + Tailscale)——待能存取校內 5090 主機"
+last_updated: "2026-08-03"
+next_milestone: "移動件到位精準化(AGV 沿路徑弧長鎖定 / 手臂 keyframe 鎖相 / 動畫驗證加到位斷言);其餘 template 的跨 tag 自洽性掃描;course_weeks 補滿 18 週條件;對外接入(Cloudflare Tunnel + Tailscale)——待能存取校內 5090 主機"
 technologies:
   - Python 3.11
   - asyncio

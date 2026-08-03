@@ -6,7 +6,7 @@
 # 人要調整優先序,直接改 tasks: 的順序或 status 即可 —— 排程 session 一律照本檔做事。
 
 version: 1
-updated: "2026-08-01"
+updated: "2026-08-03"
 maintainer_note: "任務做完 / 開了 PR,務必在同一個 PR 裡把本檔的 status 與 pr 欄位一起更新,否則下次醒來會重做。"
 
 # ── 排程 session 的行為準則 ──────────────────────────────
@@ -62,6 +62,37 @@ verify:
 
 # ── 佇列本體(由上而下就是優先序)──────────────────────
 tasks:
+
+  - id: T0-motion-precision
+    title: "移動件到位精準化:AGV 沿路徑鎖定 + 手臂關節相位鎖定 + 到位斷言"
+    status: todo
+    autonomy: self          # 2026-08-03 使用者指定的優先方向;作法比照 CNC 相位鎖定的既有契約模式
+    size: M
+    why: >
+      telemetry 每 5 秒一拍,移動件(AGV 車體、手臂各軸)目前是對「最新一筆位置」做
+      直線指數趨近(deviceMotion.approach):兩拍跨過巡迴路線轉角時補間會切對角線
+      離開路徑;指數趨近是漸近的,永遠差最後一小段;收斂後靜止等下一拍,節奏變成
+      「衝刺→停頓」。這正是「移動的點位置沒有完全到位」的根因。CNC 刀尖已用相位鎖定
+      (lockCncPhase)解掉同一類問題,AGV / 手臂比照辦理即可,不需要新發明。
+    approach:
+      - "AGV:巡迴路線是已知折線(引擎 _LOOP,AgvMobileRobot3D.tsx 有同一組角點)。
+         把回報 (pos_x, pos_y) 投影成路徑弧長 s,本地以 speed×timeScale 沿路徑推進,
+         每拍 delta-based 把 s 拉回引擎值 —— 車體任何時刻都在路徑上,停站時準確落站"
+      - "手臂:對 1 Hz 樣本做關節空間直線趨近 ≠ 引擎 _KEYFRAMES 軌跡,且 tau=0.12 的
+         漸近會削掉下探最低點(夾爪視覺上差一點才碰到料箱)。比照 lockCncPhase 對
+         keyframe 週期做相位鎖定;至少讓取放判定改用原始 tag,不用補間後的角度"
+      - "驗證:現有線性回歸(slope / R²)對『系統性落後一小段』不敏感,抓不到這類缺陷。
+         tests/animation 新增**到位斷言**:AGV 停站拍 probe:agv_body 與站點距離 < ε;
+         手臂下探最低拍 probe:tcp 與取/放站距離 < ε(ε 要寫理由,不要湊)"
+      - "改完把 docs/animation_binding.md 的 AGV / 手臂綁定表補上鎖定機制的說明"
+    done_when:
+      - "AGV 車體任何時刻都在巡迴路徑上(不切角),停站時與站點誤差 < ε"
+      - "手臂下探時夾爪端點與取/放站誤差 < ε,取放事件與引擎 keyframe 對齊"
+      - "新增到位斷言進 tests/animation 且 CI 全過;既有 35 項不回歸"
+    verify:
+      - "python3 tests/animation/capture_frames.py web/preview"
+      - "cd web && npx vite --port 5173 &  然後 node tests/animation/verify_animation.mjs"
+    files: ["web/src/world/AgvMobileRobot3D.tsx", "web/src/world/RobotArm3D.tsx", "web/src/world/deviceMotion.ts", "docs/animation_binding.md", "tests/animation/"]
 
   - id: T1-consistency-sweep
     title: "其餘 template 的跨 tag 資料自洽性掃描"

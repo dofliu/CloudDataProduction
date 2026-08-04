@@ -20,21 +20,18 @@ from __future__ import annotations
 
 import argparse
 import csv
-import hashlib
 import json
 import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 GEN = ROOT / "tools" / "generate_dataset.py"
 # 學生看不到的「答案/真值」欄位 → 從測試集移除,只留觀測值給學生預測
 LABEL_COLS = ["gt_health_min", "gt_rul_sim_s", "is_sensor_fault", "ttf_sim_s", "fail_within_24h"]
 
-
-def stable_seed(s: str) -> int:
-    """穩定雜湊(非 Python hash,跨機跨進程一致)→ 每學號固定但各不同的種子。"""
-    return int(hashlib.sha256(s.encode("utf-8")).hexdigest(), 16) % (2 ** 31)
+from tools.course_seed import student_seed  # noqa: E402  課程統一種子表(與週包共用)
 
 
 def run_gen(out: Path, *, device: str, component: str, onset_day: int, seed: int,
@@ -95,8 +92,8 @@ def main():
     for sid in roster:
         sdir = out / sid
         sdir.mkdir(parents=True, exist_ok=True)
-        base = stable_seed(f"{args.master}|{sid}")
-        tseed = stable_seed(f"{args.master}|{sid}|test")
+        base = student_seed(args.master, sid)
+        tseed = student_seed(args.master, sid, "test")
         train_onset = 12 + base % 16          # 故障日各學號不同(12~27 天)
         test_onset = 12 + tseed % 16
 

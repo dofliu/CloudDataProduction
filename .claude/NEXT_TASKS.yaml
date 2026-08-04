@@ -65,7 +65,7 @@ tasks:
 
   - id: T0-motion-precision
     title: "移動件到位精準化:AGV 沿路徑鎖定 + 補間到位貼齊 + 到位斷言"
-    status: in_review
+    status: done          # PR #42 已合併(2026-08-04)
     pr: "https://github.com/dofliu/CloudDataProduction/pull/42"
     outcome: >
       已實作:① AGV 弧長鎖定(agvLockS:回報位置投影成路徑弧長、前進向趨近、到位貼齊,
@@ -105,7 +105,16 @@ tasks:
 
   - id: T1-consistency-sweep
     title: "其餘 template 的跨 tag 資料自洽性掃描"
-    status: todo
+    status: in_review
+    pr: "https://github.com/dofliu/CloudDataProduction/pull/43"
+    outcome: >
+      已實作:verify_scenario.py 新增 check_tag_invariants(),11 種 template 每種至少
+      一條物理不變量進 CI(取樣 240 拍 × 120.13s ≈ 8 模擬小時;dt 帶小數破解沖壓 1s
+      行程的相位 aliasing;離散推進逐拍精確核帳;容忍值全寫理由)。
+      抓到真缺陷並修引擎:沖壓機 tonnage 尖峰原以 |sin ph| 落在行程中點而非滑塊下死點,
+      已改為與 ram_position 同相。方法論兩則記在 ROADMAP Done 表:continuous 班表下
+      「健康時正相關」會被濾網緩堵主導出 r≈−0.3(誠實物理→改逐拍函數檢定);
+      故障閂鎖在訊號算完之後,轉換拍 tag/state 有一拍歪斜(零值斷言需連續兩拍非運轉)。
     autonomy: self
     size: M
     why: >
@@ -135,7 +144,16 @@ tasks:
 
   - id: T2-course-weeks-fill
     title: "course_weeks.yaml 補滿 18 週 + 週次 ↔ 作業 ↔ 練習題綁定"
-    status: todo
+    status: in_review
+    pr: "https://github.com/dofliu/CloudDataProduction/pull/43"   # 與 T1 同分支同 PR
+    outcome: >
+      已實作(教學決定 2026-08-04 經 AskUserQuestion 確認:W9 期中 clear、W13 keep 讓
+      W14 才注入、W15 clear+high、W18 keep;對應表與種子統一併入同 PR):
+      ① 18 週全定義 —— 停課 / 不動平台的週明確 keep 且不設 order_density(誤按套用
+      也只是重記資料窗);W5 保護整合②乾淨基線。② 每週新增 submissions:/exercises:
+      綁定欄位(凍結包與活廠共用),CI 驗綁定的 id/type 真的存在。③ tools/course_seed.py
+      統一學號種子表:make_assignment 與 make_week_packs --student 同源(sha256 公式
+      與既有逐位相同,已發答案金鑰不受影響)。整學期 18 週一次產完且產後驗證全過。
     autonomy: ask_first        # 哪一週教什麼是教學決定,不是程式決定
     size: M
     why: >

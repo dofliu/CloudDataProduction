@@ -25,7 +25,8 @@
 用法:
   python tools/make_week_packs.py                       # 產全部定義週
   python tools/make_week_packs.py --weeks 4,8 --zip     # 只產 W4/W8 並打包
-  python tools/make_week_packs.py --seed 41143209       # 換主種子(如學號 → 每人不同資料)
+  python tools/make_week_packs.py --student 41143209    # 課程統一種子表(與作業 base seed 同源)
+  python tools/make_week_packs.py --seed 20270101       # 直接換主種子(全班同一份包)
 """
 from __future__ import annotations
 
@@ -39,6 +40,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from engine.world import World  # noqa: E402
+from tools.course_seed import DEFAULT_MASTER, student_seed  # noqa: E402
 
 import yaml  # noqa: E402
 
@@ -233,7 +235,11 @@ def main() -> None:
     ap.add_argument("--course", default="scenarios/course_weeks.yaml")
     ap.add_argument("--out", default="packs")
     ap.add_argument("--weeks", default=None, help="只產這些週(逗號分隔),如 4,8;留空=全部定義週")
-    ap.add_argument("--seed", type=int, default=20260101, help="主種子(可用學號 → 每人不同資料)")
+    ap.add_argument("--seed", type=int, default=20260101, help="主種子(全班同一份包時用)")
+    ap.add_argument("--student", default=None,
+                    help="學號:改用課程統一種子表(tools/course_seed.py)推導主種子,"
+                         "與 make_assignment 的 base seed 同源 —— 每人不同、可重現")
+    ap.add_argument("--master", default=DEFAULT_MASTER, help="課程鹽(配合 --student)")
     ap.add_argument("--sim-days", type=float, default=7.0)
     ap.add_argument("--step-min", type=float, default=1.0)
     ap.add_argument("--onset-day", type=float, default=2.0, help="注入週的異常起始天(之前是乾淨基線)")
@@ -241,6 +247,9 @@ def main() -> None:
     args = ap.parse_args()
 
     root = Path(__file__).resolve().parents[1]
+    if args.student:
+        args.seed = student_seed(args.master, args.student)
+        print(f"== 學號 {args.student} → 課程種子 {args.seed}(master={args.master})==")
     course = yaml.safe_load((root / args.course).read_text(encoding="utf-8"))["course"]
     specs = resolve_week_specs(course)
     weeks = ([int(x) for x in args.weeks.split(",")] if args.weeks else sorted(specs))

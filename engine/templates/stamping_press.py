@@ -73,7 +73,10 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
             return gaussian_noise(nrng, 0.3)
         h = health_of(comp_map, "clutch_brake_wear")
         wobble = 12.0 * (1.0 - h) * math.sin(st["ph"] * 2)   # 離合器退化 → 噸位波動變大
-        return NOM_TONNAGE * (0.9 + 0.1 * abs(math.sin(st["ph"]))) + wobble + gaussian_noise(nrng, 1.0)
+        # 成形力尖峰必須落在滑塊下死點:ram = 60·(1−cos ph),(0.5 − 0.5·cos ph) = ram/120,
+        # 噸位因此與滑塊位置同相(先前用 |sin ph| 尖峰落在行程中點,ram/tonnage 相圖會教出
+        # 「離下死點越遠力越大」的錯誤物理 —— T1 不變量掃描抓到的真缺陷)。
+        return NOM_TONNAGE * (0.9 + 0.1 * (0.5 - 0.5 * math.cos(st["ph"]))) + wobble + gaussian_noise(nrng, 1.0)
 
     def drv_stroke_rate(op, c, dt):
         return (NOM_SPM * (op["load"] / max(1e-6, op["load_nom"])) if op["running"] else 0.0) + gaussian_noise(nrng, 0.3)

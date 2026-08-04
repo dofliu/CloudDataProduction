@@ -106,7 +106,7 @@ tasks:
   - id: T1-consistency-sweep
     title: "其餘 template 的跨 tag 資料自洽性掃描"
     status: in_review
-    pr: ""                # 開 PR 後回填
+    pr: "https://github.com/dofliu/CloudDataProduction/pull/43"
     outcome: >
       已實作:verify_scenario.py 新增 check_tag_invariants(),11 種 template 每種至少
       一條物理不變量進 CI(取樣 240 拍 × 120.13s ≈ 8 模擬小時;dt 帶小數破解沖壓 1s

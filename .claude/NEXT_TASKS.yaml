@@ -144,7 +144,16 @@ tasks:
 
   - id: T2-course-weeks-fill
     title: "course_weeks.yaml 補滿 18 週 + 週次 ↔ 作業 ↔ 練習題綁定"
-    status: todo
+    status: in_review
+    pr: "https://github.com/dofliu/CloudDataProduction/pull/43"   # 與 T1 同分支同 PR
+    outcome: >
+      已實作(教學決定 2026-08-04 經 AskUserQuestion 確認:W9 期中 clear、W13 keep 讓
+      W14 才注入、W15 clear+high、W18 keep;對應表與種子統一併入同 PR):
+      ① 18 週全定義 —— 停課 / 不動平台的週明確 keep 且不設 order_density(誤按套用
+      也只是重記資料窗);W5 保護整合②乾淨基線。② 每週新增 submissions:/exercises:
+      綁定欄位(凍結包與活廠共用),CI 驗綁定的 id/type 真的存在。③ tools/course_seed.py
+      統一學號種子表:make_assignment 與 make_week_packs --student 同源(sha256 公式
+      與既有逐位相同,已發答案金鑰不受影響)。整學期 18 週一次產完且產後驗證全過。
     autonomy: ask_first        # 哪一週教什麼是教學決定,不是程式決定
     size: M
     why: >

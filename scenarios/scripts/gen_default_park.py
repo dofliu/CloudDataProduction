@@ -34,7 +34,7 @@ TEACHERS = [
 # 示範園區走「每位老師一條主題產線」,主題之間盡量不同,涵蓋全部 11 種 template
 THEME_ORDER = [
     "machine_tool", "green_energy", "metal_forming", "plastics", "semiconductor",
-    "heat_treat", "motion_robotics", "logistics", "precision_parts", "facility", "optics",
+    "heat_treat", "motion_robotics", "logistics", "precision_parts", "cutting_tools", "optics",
 ]
 
 INTRO = ("{teacher}指導的**合成**示範工廠;{label} · 主力產品:{product}。"

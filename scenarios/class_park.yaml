@@ -152,11 +152,11 @@ park:
     - id: c15
       name: "信達物流科技"
       industry: logistics
-      product: "廠內無人搬運"
-      intro: "課堂教學用**合成**工廠(#15);智慧物流 · 主力產品:廠內無人搬運。製程:AGV 沿巡迴路線搬運料箱,輸送帶做進出貨接駁。所有數據皆為模擬產生,非真實場域量測。"
+      product: "AGV 無人搬運車"
+      intro: "課堂教學用**合成**工廠(#15);物流設備 · 主力產品:AGV 無人搬運車。製程:車架與輪組件在 CNC 加工中心加工,廠內 AGV 就是出貨前試跑的整車。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d033, template: agv_mobile_robot}
-        - {id: d034, template: conveyor}
+        - {id: d033, template: cnc_machining_center}
+        - {id: d034, template: agv_mobile_robot}
 
     - id: c16
       name: "大衛精機"
@@ -191,7 +191,7 @@ park:
       name: "創鋒智能"
       industry: motion_robotics
       product: "取放系統整合"
-      intro: "課堂教學用**合成**工廠(#19);自動化系統 · 主力產品:取放系統整合。製程:六軸手臂做取放節拍驗證,輸送帶模擬下游收料。所有數據皆為模擬產生,非真實場域量測。"
+      intro: "課堂教學用**合成**工廠(#19);自動化系統 · 主力產品:取放系統整合。製程:整合商出貨前驗證線:六軸手臂跑取放節拍、輸送帶模擬客戶端收料——線上這座工作站本身就是待交付的產品。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d042, template: robot_arm_6axis}
         - {id: d043, template: conveyor}
@@ -224,13 +224,13 @@ park:
         - {id: d049, template: energy_meter}
 
     - id: c23
-      name: "宏泰動力"
-      industry: facility
-      product: "壓縮空氣站"
-      intro: "課堂教學用**合成**工廠(#23);廠務動力 · 主力產品:壓縮空氣站。製程:空壓機供應全區壓縮空氣,智慧電表監測供氣能耗。所有數據皆為模擬產生,非真實場域量測。"
+      name: "宏泰刀具"
+      industry: cutting_tools
+      product: "高速鋼銑刀"
+      intro: "課堂教學用**合成**工廠(#23);切削刀具 · 主力產品:高速鋼銑刀。製程:刀體在 CNC 加工中心開槽開刃,再進熱處理爐淬火回火,取得刃口硬度。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d050, template: air_compressor}
-        - {id: d051, template: energy_meter}
+        - {id: d050, template: cnc_machining_center}
+        - {id: d051, template: heat_treat_furnace}
 
     - id: c24
       name: "清風綠能"
@@ -320,12 +320,12 @@ park:
     - id: c33
       name: "智運倉儲"
       industry: logistics
-      product: "自動倉儲揀貨"
-      intro: "課堂教學用**合成**工廠(#33);智慧物流 · 主力產品:自動倉儲揀貨。製程:AGV 往返揀貨站,輸送帶輸送料箱,智慧電表監測物流設備用電。所有數據皆為模擬產生,非真實場域量測。"
+      product: "輸送分揀系統"
+      intro: "課堂教學用**合成**工廠(#33);物流設備 · 主力產品:輸送分揀系統。製程:分揀線機架與滾筒在 CNC 加工中心加工,自家輸送帶與 AGV 組成展示中的分揀線。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d073, template: agv_mobile_robot}
+        - {id: d073, template: cnc_machining_center}
         - {id: d074, template: conveyor}
-        - {id: d075, template: energy_meter}
+        - {id: d075, template: agv_mobile_robot}
 
     - id: c34
       name: "力麒精密"
@@ -339,13 +339,13 @@ park:
         - {id: d078, template: conveyor}
 
     - id: c35
-      name: "華通氣力"
-      industry: facility
-      product: "動力機房"
-      intro: "課堂教學用**合成**工廠(#35);廠務動力 · 主力產品:動力機房。製程:兩台空壓機互為備援輪替供氣,維持管網壓力。所有數據皆為模擬產生,非真實場域量測。"
+      name: "華通切削"
+      industry: cutting_tools
+      product: "PVD 塗層刀具"
+      intro: "課堂教學用**合成**工廠(#35);切削刀具 · 主力產品:PVD 塗層刀具。製程:刀具在 CNC 加工中心研磨成形,再進製程腔體做 PVD 硬質鍍膜,提升耐磨壽命。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d079, template: air_compressor}
-        - {id: d080, template: air_compressor}
+        - {id: d079, template: cnc_machining_center}
+        - {id: d080, template: semi_process_chamber}
 
     - id: c36
       name: "藍天風電"
@@ -409,7 +409,7 @@ park:
       name: "翔宇自動化"
       industry: motion_robotics
       product: "視覺檢測工作站"
-      intro: "課堂教學用**合成**工廠(#42);自動化系統 · 主力產品:視覺檢測工作站。製程:六軸手臂持件對位檢測,空壓機供應氣動夾爪。所有數據皆為模擬產生,非真實場域量測。"
+      intro: "課堂教學用**合成**工廠(#42);自動化系統 · 主力產品:視覺檢測工作站。製程:待出貨的檢測工作站試車中:六軸手臂持件對位,空壓機供應氣動夾爪——工作站本身就是產品。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d096, template: robot_arm_6axis}
         - {id: d097, template: air_compressor}
@@ -434,13 +434,13 @@ park:
         - {id: d102, template: heat_treat_furnace}
 
     - id: c45
-      name: "大成動能"
-      industry: facility
-      product: "廠區能源管理"
-      intro: "課堂教學用**合成**工廠(#45);廠務動力 · 主力產品:廠區能源管理。製程:雙空壓機供氣,智慧電表做需量監控與能源管理示範。所有數據皆為模擬產生,非真實場域量測。"
+      name: "大成刀具"
+      industry: cutting_tools
+      product: "鎢鋼鑽頭"
+      intro: "課堂教學用**合成**工廠(#45);切削刀具 · 主力產品:鎢鋼鑽頭。製程:鑽頭在 CNC 加工中心研磨開刃,輸送帶連續出料,智慧電表監測研磨能耗。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d103, template: air_compressor}
-        - {id: d104, template: air_compressor}
+        - {id: d103, template: cnc_machining_center}
+        - {id: d104, template: conveyor}
         - {id: d105, template: energy_meter}
 
     - id: c46
@@ -496,12 +496,12 @@ park:
     - id: c51
       name: "捷通物流"
       industry: logistics
-      product: "產線間物流整合"
-      intro: "課堂教學用**合成**工廠(#51);智慧物流 · 主力產品:產線間物流整合。製程:兩台 AGV 分擔不同迴路的搬運,輸送帶銜接產線間的交接。所有數據皆為模擬產生,非真實場域量測。"
+      product: "智慧輸送模組"
+      intro: "課堂教學用**合成**工廠(#51);物流設備 · 主力產品:智慧輸送模組。製程:輸送模組結構件在 CNC 加工中心加工,輸送帶當試車台,智慧電表監測試車能耗。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d120, template: agv_mobile_robot}
-        - {id: d121, template: agv_mobile_robot}
-        - {id: d122, template: conveyor}
+        - {id: d120, template: cnc_machining_center}
+        - {id: d121, template: conveyor}
+        - {id: d122, template: energy_meter}
 
     - id: c52
       name: "威剛精機"
@@ -563,20 +563,20 @@ park:
       name: "智臂機器人"
       industry: motion_robotics
       product: "雙臂協作工作站"
-      intro: "課堂教學用**合成**工廠(#58);自動化系統 · 主力產品:雙臂協作工作站。製程:兩支六軸手臂協作傳遞工件,輸送帶收放料,驗證雙臂節拍。所有數據皆為模擬產生,非真實場域量測。"
+      intro: "課堂教學用**合成**工廠(#58);自動化系統 · 主力產品:雙臂協作工作站。製程:雙臂協作工作站出貨前驗證:兩支手臂跑協同節拍,輸送帶收放料——整站就是待交付的產品。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d136, template: robot_arm_6axis}
         - {id: d137, template: robot_arm_6axis}
         - {id: d138, template: conveyor}
 
     - id: c59
-      name: "清源氣站"
-      industry: facility
-      product: "壓縮空氣站"
-      intro: "課堂教學用**合成**工廠(#59);廠務動力 · 主力產品:壓縮空氣站。製程:空壓機供應全區壓縮空氣,智慧電表監測供氣能耗。所有數據皆為模擬產生,非真實場域量測。"
+      name: "清鋒刀具"
+      industry: cutting_tools
+      product: "高速鋼銑刀"
+      intro: "課堂教學用**合成**工廠(#59);切削刀具 · 主力產品:高速鋼銑刀。製程:刀體在 CNC 加工中心開槽開刃,再進熱處理爐淬火回火,取得刃口硬度。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d139, template: air_compressor}
-        - {id: d140, template: energy_meter}
+        - {id: d139, template: cnc_machining_center}
+        - {id: d140, template: heat_treat_furnace}
 
     - id: c60
       name: "澄光學儀"
@@ -619,11 +619,11 @@ park:
     - id: c64
       name: "環宇智慧工廠"
       industry: logistics
-      product: "成品出貨緩衝區"
-      intro: "課堂教學用**合成**工廠(#64);智慧物流 · 主力產品:成品出貨緩衝區。製程:AGV 沿巡迴路線搬運料箱,輸送帶做進出貨接駁。所有數據皆為模擬產生,非真實場域量測。"
+      product: "自動倉儲料架"
+      intro: "課堂教學用**合成**工廠(#64);物流設備 · 主力產品:自動倉儲料架。製程:車架與輪組件在 CNC 加工中心加工,廠內 AGV 就是出貨前試跑的整車。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: d150, template: agv_mobile_robot}
-        - {id: d151, template: conveyor}
+        - {id: d150, template: cnc_machining_center}
+        - {id: d151, template: agv_mobile_robot}
 
     - id: c65
       name: "上下料示範廠(教師展示)"
@@ -650,25 +650,31 @@ park:
     - {from: c12, to: c10, part: "射出坯件(汽車內飾件)", cap: 45, initial: 18, external_backup_h: 3.0}
     - {from: c10, to: c13, part: "精加工件(CNC 車銑複合)", cap: 45, initial: 18, external_backup_h: 0.0}
     - {from: c17, to: c18, part: "射出坯件(精密齒輪射出)", cap: 45, initial: 18, external_backup_h: 3.0}
-    - {from: c18, to: c16, part: "沖壓半成品(汽車鈑金件)", cap: 45, initial: 18, external_backup_h: 3.0}
-    - {from: c16, to: c20, part: "精加工件(治具與夾具加工)", cap: 45, initial: 18, external_backup_h: 0.0}
-    - {from: c22, to: c25, part: "精密零件(航太結構件)", cap: 45, initial: 18, external_backup_h: 3.0}
-    - {from: c25, to: c26, part: "組裝模組(機械手臂整合)", cap: 45, initial: 18, external_backup_h: 3.0}
-    - {from: c26, to: c27, part: "精加工件(五軸加工中心)", cap: 45, initial: 18, external_backup_h: 0.0}
+    - {from: c18, to: c15, part: "沖壓半成品(汽車鈑金件)", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c15, to: c16, part: "物流設備部件(AGV 無人搬運車)", cap: 45, initial: 18, external_backup_h: 0.0}
+    - {from: c22, to: c23, part: "精密零件(航太結構件)", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c23, to: c25, part: "切削刀具(高速鋼銑刀)", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c25, to: c20, part: "組裝模組(機械手臂整合)", cap: 45, initial: 18, external_backup_h: 0.0}
     - {from: c28, to: c29, part: "沖壓半成品(馬達矽鋼片沖壓)", cap: 45, initial: 18, external_backup_h: 3.0}
-    - {from: c29, to: c31, part: "射出坯件(醫材塑件)", cap: 45, initial: 18, external_backup_h: 3.0}
-    - {from: c31, to: c30, part: "精加工件(工具機床身部件)", cap: 45, initial: 18, external_backup_h: 0.0}
+    - {from: c29, to: c26, part: "射出坯件(醫材塑件)", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c26, to: c27, part: "精加工件(五軸加工中心)", cap: 45, initial: 18, external_backup_h: 0.0}
+    - {from: c31, to: c33, part: "精加工件(工具機床身部件)", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c33, to: c34, part: "物流設備部件(輸送分揀系統)", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c34, to: c30, part: "精密零件(醫療器械零件)", cap: 45, initial: 18, external_backup_h: 0.0}
     - {from: c38, to: c39, part: "沖壓半成品(連續沖壓端子)", cap: 45, initial: 18, external_backup_h: 3.0}
-    - {from: c39, to: c34, part: "射出坯件(光學鏡片座射出)", cap: 45, initial: 18, external_backup_h: 3.0}
-    - {from: c34, to: c37, part: "精密零件(醫療器械零件)", cap: 45, initial: 18, external_backup_h: 0.0}
-    - {from: c44, to: c46, part: "精密零件(工具機滾珠螺桿)", cap: 45, initial: 18, external_backup_h: 3.0}
-    - {from: c46, to: c40, part: "精加工件(CNC 立式加工中心)", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c39, to: c35, part: "射出坯件(光學鏡片座射出)", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c35, to: c37, part: "切削刀具(PVD 塗層刀具)", cap: 45, initial: 18, external_backup_h: 0.0}
+    - {from: c44, to: c45, part: "精密零件(工具機滾珠螺桿)", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c45, to: c40, part: "切削刀具(鎢鋼鑽頭)", cap: 45, initial: 18, external_backup_h: 3.0}
     - {from: c40, to: c43, part: "晶圓半成品(化合物半導體製程)", cap: 45, initial: 18, external_backup_h: 0.0}
     - {from: c47, to: c48, part: "沖壓半成品(五金沖壓件)", cap: 45, initial: 18, external_backup_h: 3.0}
-    - {from: c48, to: c52, part: "射出坯件(瓶胚量產射出)", cap: 45, initial: 18, external_backup_h: 3.0}
-    - {from: c52, to: c49, part: "精加工件(CNC 車銑複合)", cap: 45, initial: 18, external_backup_h: 0.0}
+    - {from: c48, to: c46, part: "射出坯件(瓶胚量產射出)", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c46, to: c49, part: "精加工件(CNC 立式加工中心)", cap: 45, initial: 18, external_backup_h: 0.0}
     - {from: c53, to: c54, part: "沖壓半成品(散熱片沖壓)", cap: 45, initial: 18, external_backup_h: 3.0}
-    - {from: c54, to: c55, part: "射出坯件(家電外殼射出)", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c54, to: c51, part: "射出坯件(家電外殼射出)", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c51, to: c52, part: "物流設備部件(智慧輸送模組)", cap: 45, initial: 18, external_backup_h: 0.0}
+    - {from: c59, to: c61, part: "切削刀具(高速鋼銑刀)", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c61, to: c55, part: "精密零件(自行車傳動件)", cap: 45, initial: 18, external_backup_h: 3.0}
     - {from: c55, to: c60, part: "晶圓半成品(晶圓蝕刻製程)", cap: 45, initial: 18, external_backup_h: 0.0}
-    - {from: c63, to: c61, part: "沖壓半成品(電子機殼沖壓)", cap: 45, initial: 18, external_backup_h: 3.0}
-    - {from: c61, to: c62, part: "精密零件(自行車傳動件)", cap: 45, initial: 18, external_backup_h: 0.0}
+    - {from: c63, to: c62, part: "沖壓半成品(電子機殼沖壓)", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c62, to: c64, part: "精加工件(治具與夾具加工)", cap: 45, initial: 18, external_backup_h: 0.0}

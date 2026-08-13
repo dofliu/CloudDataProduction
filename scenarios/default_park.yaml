@@ -203,7 +203,7 @@ park:
       name: "取放系統整合廠(李榮茂老師負責)"
       industry: motion_robotics
       product: "取放系統整合"
-      intro: "李榮茂老師指導的**合成**示範工廠;自動化系統 · 主力產品:取放系統整合。製程:六軸手臂做取放節拍驗證,輸送帶模擬下游收料。所有數據皆為模擬產生,非真實場域量測。"
+      intro: "李榮茂老師指導的**合成**示範工廠;自動化系統 · 主力產品:取放系統整合。製程:整合商出貨前驗證線:六軸手臂跑取放節拍、輸送帶模擬客戶端收料——線上這座工作站本身就是待交付的產品。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: t07-d045, template: robot_arm_6axis}
         - {id: t07-d046, template: conveyor}
@@ -218,42 +218,42 @@ park:
         - {id: t07-d048, template: cnc_machining_center}
 
     - id: t08-f1
-      name: "廠內無人搬運廠(黃秋杰老師負責)"
+      name: "AGV 無人搬運車廠(黃秋杰老師負責)"
       industry: logistics
-      product: "廠內無人搬運"
-      intro: "黃秋杰老師指導的**合成**示範工廠;智慧物流 · 主力產品:廠內無人搬運。製程:AGV 沿巡迴路線搬運料箱,輸送帶做進出貨接駁。所有數據皆為模擬產生,非真實場域量測。"
+      product: "AGV 無人搬運車"
+      intro: "黃秋杰老師指導的**合成**示範工廠;物流設備 · 主力產品:AGV 無人搬運車。製程:車架與輪組件在 CNC 加工中心加工,廠內 AGV 就是出貨前試跑的整車。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: t08-d049, template: agv_mobile_robot}
-        - {id: t08-d050, template: conveyor}
+        - {id: t08-d049, template: cnc_machining_center}
+        - {id: t08-d050, template: agv_mobile_robot}
 
     - id: t08-f2
-      name: "自動倉儲揀貨廠(黃秋杰老師負責)"
+      name: "輸送分揀系統廠(黃秋杰老師負責)"
       industry: logistics
-      product: "自動倉儲揀貨"
-      intro: "黃秋杰老師指導的**合成**示範工廠;智慧物流 · 主力產品:自動倉儲揀貨。製程:AGV 往返揀貨站,輸送帶輸送料箱,智慧電表監測物流設備用電。所有數據皆為模擬產生,非真實場域量測。"
+      product: "輸送分揀系統"
+      intro: "黃秋杰老師指導的**合成**示範工廠;物流設備 · 主力產品:輸送分揀系統。製程:分揀線機架與滾筒在 CNC 加工中心加工,自家輸送帶與 AGV 組成展示中的分揀線。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: t08-d051, template: agv_mobile_robot}
+        - {id: t08-d051, template: cnc_machining_center}
         - {id: t08-d052, template: conveyor}
-        - {id: t08-d053, template: energy_meter}
+        - {id: t08-d053, template: agv_mobile_robot}
 
     - id: t08-f3
-      name: "產線間物流整合廠(黃秋杰老師負責)"
+      name: "智慧輸送模組廠(黃秋杰老師負責)"
       industry: logistics
-      product: "產線間物流整合"
-      intro: "黃秋杰老師指導的**合成**示範工廠;智慧物流 · 主力產品:產線間物流整合。製程:兩台 AGV 分擔不同迴路的搬運,輸送帶銜接產線間的交接。所有數據皆為模擬產生,非真實場域量測。"
+      product: "智慧輸送模組"
+      intro: "黃秋杰老師指導的**合成**示範工廠;物流設備 · 主力產品:智慧輸送模組。製程:輸送模組結構件在 CNC 加工中心加工,輸送帶當試車台,智慧電表監測試車能耗。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: t08-d054, template: agv_mobile_robot}
-        - {id: t08-d055, template: agv_mobile_robot}
-        - {id: t08-d056, template: conveyor}
+        - {id: t08-d054, template: cnc_machining_center}
+        - {id: t08-d055, template: conveyor}
+        - {id: t08-d056, template: energy_meter}
 
     - id: t08-f4
-      name: "成品出貨緩衝區廠(黃秋杰老師負責)"
+      name: "自動倉儲料架廠(黃秋杰老師負責)"
       industry: logistics
-      product: "成品出貨緩衝區"
-      intro: "黃秋杰老師指導的**合成**示範工廠;智慧物流 · 主力產品:成品出貨緩衝區。製程:AGV 沿巡迴路線搬運料箱,輸送帶做進出貨接駁。所有數據皆為模擬產生,非真實場域量測。"
+      product: "自動倉儲料架"
+      intro: "黃秋杰老師指導的**合成**示範工廠;物流設備 · 主力產品:自動倉儲料架。製程:車架與輪組件在 CNC 加工中心加工,廠內 AGV 就是出貨前試跑的整車。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: t08-d057, template: agv_mobile_robot}
-        - {id: t08-d058, template: conveyor}
+        - {id: t08-d057, template: cnc_machining_center}
+        - {id: t08-d058, template: agv_mobile_robot}
 
     - id: t09-f1
       name: "自行車傳動件廠(吳俊毅老師負責)"
@@ -294,41 +294,41 @@ park:
         - {id: t09-d067, template: heat_treat_furnace}
 
     - id: t10-f1
-      name: "壓縮空氣站廠(謝式娜老師負責)"
-      industry: facility
-      product: "壓縮空氣站"
-      intro: "謝式娜老師指導的**合成**示範工廠;廠務動力 · 主力產品:壓縮空氣站。製程:空壓機供應全區壓縮空氣,智慧電表監測供氣能耗。所有數據皆為模擬產生,非真實場域量測。"
+      name: "高速鋼銑刀廠(謝式娜老師負責)"
+      industry: cutting_tools
+      product: "高速鋼銑刀"
+      intro: "謝式娜老師指導的**合成**示範工廠;切削刀具 · 主力產品:高速鋼銑刀。製程:刀體在 CNC 加工中心開槽開刃,再進熱處理爐淬火回火,取得刃口硬度。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: t10-d068, template: air_compressor}
-        - {id: t10-d069, template: energy_meter}
+        - {id: t10-d068, template: cnc_machining_center}
+        - {id: t10-d069, template: heat_treat_furnace}
 
     - id: t10-f2
-      name: "動力機房廠(謝式娜老師負責)"
-      industry: facility
-      product: "動力機房"
-      intro: "謝式娜老師指導的**合成**示範工廠;廠務動力 · 主力產品:動力機房。製程:兩台空壓機互為備援輪替供氣,維持管網壓力。所有數據皆為模擬產生,非真實場域量測。"
+      name: "PVD 塗層刀具廠(謝式娜老師負責)"
+      industry: cutting_tools
+      product: "PVD 塗層刀具"
+      intro: "謝式娜老師指導的**合成**示範工廠;切削刀具 · 主力產品:PVD 塗層刀具。製程:刀具在 CNC 加工中心研磨成形,再進製程腔體做 PVD 硬質鍍膜,提升耐磨壽命。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: t10-d070, template: air_compressor}
-        - {id: t10-d071, template: air_compressor}
+        - {id: t10-d070, template: cnc_machining_center}
+        - {id: t10-d071, template: semi_process_chamber}
 
     - id: t10-f3
-      name: "廠區能源管理廠(謝式娜老師負責)"
-      industry: facility
-      product: "廠區能源管理"
-      intro: "謝式娜老師指導的**合成**示範工廠;廠務動力 · 主力產品:廠區能源管理。製程:雙空壓機供氣,智慧電表做需量監控與能源管理示範。所有數據皆為模擬產生,非真實場域量測。"
+      name: "鎢鋼鑽頭廠(謝式娜老師負責)"
+      industry: cutting_tools
+      product: "鎢鋼鑽頭"
+      intro: "謝式娜老師指導的**合成**示範工廠;切削刀具 · 主力產品:鎢鋼鑽頭。製程:鑽頭在 CNC 加工中心研磨開刃,輸送帶連續出料,智慧電表監測研磨能耗。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: t10-d072, template: air_compressor}
-        - {id: t10-d073, template: air_compressor}
+        - {id: t10-d072, template: cnc_machining_center}
+        - {id: t10-d073, template: conveyor}
         - {id: t10-d074, template: energy_meter}
 
     - id: t10-f4
-      name: "廠務用電需量管理廠(謝式娜老師負責)"
-      industry: facility
-      product: "廠務用電需量管理"
-      intro: "謝式娜老師指導的**合成**示範工廠;廠務動力 · 主力產品:廠務用電需量管理。製程:空壓機供應全區壓縮空氣,智慧電表監測供氣能耗。所有數據皆為模擬產生,非真實場域量測。"
+      name: "螺絲攻與板牙廠(謝式娜老師負責)"
+      industry: cutting_tools
+      product: "螺絲攻與板牙"
+      intro: "謝式娜老師指導的**合成**示範工廠;切削刀具 · 主力產品:螺絲攻與板牙。製程:刀體在 CNC 加工中心開槽開刃,再進熱處理爐淬火回火,取得刃口硬度。所有數據皆為模擬產生,非真實場域量測。"
       devices:
-        - {id: t10-d075, template: air_compressor}
-        - {id: t10-d076, template: energy_meter}
+        - {id: t10-d075, template: cnc_machining_center}
+        - {id: t10-d076, template: heat_treat_furnace}
 
     - id: t11-f1
       name: "手機鏡頭模組廠(陳鵬仁老師負責)"

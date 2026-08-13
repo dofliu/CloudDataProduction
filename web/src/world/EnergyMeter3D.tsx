@@ -139,7 +139,7 @@ export const EnergyMeterModel = ({ motion }: MachineProps) => {
   });
 
   return (
-    <group position={[0, -1, 0]}>
+    <group>
       <Box args={[4, 6, 2]} position={[0, 3, 0]} castShadow receiveShadow>
         <meshStandardMaterial color="#cccccc" metalness={0.4} roughness={0.6} />
       </Box>

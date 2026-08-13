@@ -218,7 +218,9 @@ function Line() {
   }
   return (
     <div style={{ position: "absolute", inset: 0 }}>
-      <FactoryLine3D devices={devices} snapshots={snapshots} multiplier={MULTIPLIER} line={line} />
+      <FactoryLine3D devices={devices} snapshots={snapshots} multiplier={MULTIPLIER} line={line}
+                     onMeasured={q.get("probe") === "1"
+                       ? (rows: any) => { (window as any).__measured = rows; } : undefined} />
     </div>
   );
 }

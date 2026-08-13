@@ -128,7 +128,7 @@ export const HeatTreatFurnaceModel = ({ motion }: MachineProps) => {
 
   return (
     <Shake motion={motion} amount={0.4}>
-      <group position={[0, -1, 0]}>
+      <group>
         <Box args={[7, 0.6, 4.4]} position={[0, 0.3, 0]} castShadow receiveShadow>
           <meshStandardMaterial color="#4d5457" metalness={0.5} />
         </Box>

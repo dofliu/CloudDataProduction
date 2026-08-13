@@ -123,7 +123,7 @@ export const RobotArmModel = ({ motion, stations }: MachineProps & {
 
   return (
     <Shake motion={motion} amount={0.7}>
-      <group position={[0, -1, 0]}>
+      <group>
         <Cylinder args={[1.5, 2, 1, 32]} position={[0, 0.5, 0]} castShadow receiveShadow>
           <meshStandardMaterial color="#444444" metalness={0.5} roughness={0.5} />
         </Cylinder>

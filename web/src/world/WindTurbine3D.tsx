@@ -42,7 +42,7 @@ export const WindTurbineModel = ({ motion }: MachineProps) => {
 
   return (
     <Shake motion={motion} amount={0.5}>
-      <group position={[0, -1, 0]}>
+      <group>
         <Cylinder args={[1.5, 2, 1, 32]} position={[0, 0.5, 0]} castShadow receiveShadow>
           <meshStandardMaterial color="#666666" />
         </Cylinder>

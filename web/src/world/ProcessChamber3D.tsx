@@ -129,7 +129,7 @@ export const ProcessChamberModel = ({ motion }: MachineProps) => {
 
   return (
     <Shake motion={motion} amount={0.6}>
-      <group position={[0, -1, 0]}>
+      <group>
         {/* 機台底座 */}
         <Box args={[7, 1.6, 5]} position={[0, 0.8, 0]} castShadow receiveShadow>
           <meshStandardMaterial color="#5a6468" metalness={0.6} roughness={0.5} />

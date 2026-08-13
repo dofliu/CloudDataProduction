@@ -45,6 +45,7 @@ export interface TelemetryMsg {
   wall_t: number; sim_t: number; multiplier: number;
   devices: Record<string, DeviceSnapshot>;
   lines?: LineView[];          // 產線物料流(有 line: 宣告的公司才有)
+  supply?: SupplyLinkView[];   // 跨公司供應鏈(engine/supply.py;WS 直傳整份 snapshot)
 }
 export interface EventMsg {
   type: string; device: string; company?: string;

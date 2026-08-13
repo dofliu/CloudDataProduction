@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Application, Container, Graphics, Text } from "pixi.js";
-import { Park, Company, TelemetryMsg, getTeacherToken, setCoil, resetDevice } from "../api";
+import { Park, Company, SupplyLinkView, TelemetryMsg, getTeacherToken, setCoil, resetDevice } from "../api";
 import { darken } from "./machines";
 import FactoryLine3D from "./FactoryLine3D";
 import { layoutLine } from "./processFlow";
@@ -274,6 +274,41 @@ export default function WorldView({
   const fcFlow = fc ? layoutLine(fc.device_ids.map((did) => ({
     id: did, template: telemetry?.devices[did]?.template || "unknown",
   }))) : null;
+  // 供應鏈上下游(engine/supply.py 隨 snapshot 廣播):滑到 / 點進公司時顯示
+  // 「進料來自誰、出貨給誰」,缺料 / 阻塞即時標記 —— 學生一眼看出自己卡在鏈的哪一節
+  const nameById = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const c of park.companies) m[c.id] = c.name;
+    return m;
+  }, [park]);
+  const supplyOf = useMemo(() => {
+    const m: Record<string, { inb: SupplyLinkView[]; outb: SupplyLinkView[] }> = {};
+    for (const l of telemetry?.supply ?? []) {
+      (m[l.to] ??= { inb: [], outb: [] }).inb.push(l);
+      (m[l.from] ??= { inb: [], outb: [] }).outb.push(l);
+    }
+    return m;
+  }, [telemetry?.supply]);
+  const SupplyLines = ({ cid, size = 11.5 }: { cid: string; size?: number }) => {
+    const s = supplyOf[cid];
+    if (!s) return null;
+    return (
+      <div style={{ fontSize: size, lineHeight: 1.65, marginTop: 4 }}>
+        {s.inb.map((l) => (
+          <div key={`i${l.from}`} style={{ color: "var(--text-2, var(--muted))" }}>
+            ⬅ 進料:{nameById[l.from] ?? l.from} 的 {l.part}
+            {l.starving && <b style={{ color: "var(--bad, #b0483a)" }}>(缺料中)</b>}
+          </div>
+        ))}
+        {s.outb.map((l) => (
+          <div key={`o${l.to}`} style={{ color: "var(--text-2, var(--muted))" }}>
+            ➡ 出貨:{l.part} 給 {nameById[l.to] ?? l.to}
+            {l.blocking && <b style={{ color: "var(--bad, #b0483a)" }}>(下游滿,阻塞)</b>}
+          </div>
+        ))}
+      </div>
+    );
+  };
   return (
     <div style={{ position: "absolute", inset: 0 }}>
       <div ref={hostRef} style={{ position: "absolute", inset: 0 }} />
@@ -289,6 +324,7 @@ export default function WorldView({
           <div style={{ fontWeight: 700, color: "var(--text)" }}>🏭 {tip.c.name}</div>
           {tip.c.product && <div style={{ color: "var(--accent)", fontSize: 12, margin: "3px 0" }}>主要產品:{tip.c.product}</div>}
           <div className="mono" style={{ color: "var(--muted)", fontSize: 11 }}>設備:{(tip.c.device_ids || []).join("、")}</div>
+          <SupplyLines cid={tip.c.id} size={11} />
         </div>
       )}
       {/* 廠內 3D 動畫 - 保持掛載以避免 WebGL Context Lost，僅透過 CSS 顯示/隱藏 */}
@@ -329,6 +365,7 @@ export default function WorldView({
               {fcFlow?.utilityText && (
                 <div style={{ color: "var(--muted)", fontSize: 11.5, marginTop: 5 }}>{fcFlow.utilityText}</div>
               )}
+              <SupplyLines cid={fc.id} size={12} />
               <div className="mono" style={{ color: "var(--muted)", fontSize: 11, marginTop: 8 }}>廠內設備:{(fc.device_ids || []).join("、")}</div>
               <div style={{ color: "var(--pred)", fontSize: 11, marginTop: 6 }}>⚠ 合成數據,非真實產線</div>
             </>}

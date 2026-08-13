@@ -167,30 +167,30 @@ ARCHETYPES = {
              "story": "示範線:CNC 加工中心加工、六軸手臂上下料、輸送帶出貨,展示整線自動化。"},
             {"devices": ["robot_arm_6axis", "conveyor"],
              "products": ["取放系統整合"],
-             "story": "六軸手臂做取放節拍驗證,輸送帶模擬下游收料。"},
+             "story": "整合商出貨前驗證線:六軸手臂跑取放節拍、輸送帶模擬客戶端收料——線上這座工作站本身就是待交付的產品。"},
             {"devices": ["robot_arm_6axis", "cnc_machining_center"],
              "products": ["機械手臂整合"],
              "story": "六軸手臂為 CNC 加工中心上下料,驗證手臂與工具機的整合節拍。"},
             {"devices": ["robot_arm_6axis", "air_compressor"],
              "products": ["視覺檢測工作站"],
-             "story": "六軸手臂持件對位檢測,空壓機供應氣動夾爪。"},
+             "story": "待出貨的檢測工作站試車中:六軸手臂持件對位,空壓機供應氣動夾爪——工作站本身就是產品。"},
             {"devices": ["robot_arm_6axis", "robot_arm_6axis", "conveyor"],
              "products": ["雙臂協作工作站"],
-             "story": "兩支六軸手臂協作傳遞工件,輸送帶收放料,驗證雙臂節拍。"},
+             "story": "雙臂協作工作站出貨前驗證:兩支手臂跑協同節拍,輸送帶收放料——整站就是待交付的產品。"},
         ],
     },
     "logistics": {
-        "label": "智慧物流",
+        "label": "物流設備",
         "recipes": [
-            {"devices": ["agv_mobile_robot", "conveyor"],
-             "products": ["廠內無人搬運", "成品出貨緩衝區"],
-             "story": "AGV 沿巡迴路線搬運料箱,輸送帶做進出貨接駁。"},   # 兩個產品:同老師第 4 廠繞回來時不撞名
-            {"devices": ["agv_mobile_robot", "conveyor", "energy_meter"],
-             "products": ["自動倉儲揀貨"],
-             "story": "AGV 往返揀貨站,輸送帶輸送料箱,智慧電表監測物流設備用電。"},
-            {"devices": ["agv_mobile_robot", "agv_mobile_robot", "conveyor"],
-             "products": ["產線間物流整合"],
-             "story": "兩台 AGV 分擔不同迴路的搬運,輸送帶銜接產線間的交接。"},
+            {"devices": ["cnc_machining_center", "agv_mobile_robot"],
+             "products": ["AGV 無人搬運車", "自動倉儲料架"],   # 兩個產品:同老師第 4 廠繞回來時不撞名
+             "story": "車架與輪組件在 CNC 加工中心加工,廠內 AGV 就是出貨前試跑的整車。"},
+            {"devices": ["cnc_machining_center", "conveyor", "agv_mobile_robot"],
+             "products": ["輸送分揀系統"],
+             "story": "分揀線機架與滾筒在 CNC 加工中心加工,自家輸送帶與 AGV 組成展示中的分揀線。"},
+            {"devices": ["cnc_machining_center", "conveyor", "energy_meter"],
+             "products": ["智慧輸送模組"],
+             "story": "輸送模組結構件在 CNC 加工中心加工,輸送帶當試車台,智慧電表監測試車能耗。"},
         ],
     },
     "green_energy": {
@@ -207,18 +207,18 @@ ARCHETYPES = {
              "story": "兩台風機組成示範風場,智慧電表彙整發電量供運維分析。"},
         ],
     },
-    "facility": {
-        "label": "廠務動力",
+    "cutting_tools": {
+        "label": "切削刀具",
         "recipes": [
-            {"devices": ["air_compressor", "energy_meter"],
-             "products": ["壓縮空氣站", "廠務用電需量管理"],
-             "story": "空壓機供應全區壓縮空氣,智慧電表監測供氣能耗。"},   # 兩個產品:同老師第 4 廠繞回來時不撞名
-            {"devices": ["air_compressor", "air_compressor"],
-             "products": ["動力機房"],
-             "story": "兩台空壓機互為備援輪替供氣,維持管網壓力。"},
-            {"devices": ["air_compressor", "air_compressor", "energy_meter"],
-             "products": ["廠區能源管理"],
-             "story": "雙空壓機供氣,智慧電表做需量監控與能源管理示範。"},
+            {"devices": ["cnc_machining_center", "heat_treat_furnace"],
+             "products": ["高速鋼銑刀", "螺絲攻與板牙"],   # 兩個產品:同老師第 4 廠繞回來時不撞名
+             "story": "刀體在 CNC 加工中心開槽開刃,再進熱處理爐淬火回火,取得刃口硬度。"},
+            {"devices": ["cnc_machining_center", "semi_process_chamber"],
+             "products": ["PVD 塗層刀具"],
+             "story": "刀具在 CNC 加工中心研磨成形,再進製程腔體做 PVD 硬質鍍膜,提升耐磨壽命。"},
+            {"devices": ["cnc_machining_center", "conveyor", "energy_meter"],
+             "products": ["鎢鋼鑽頭"],
+             "story": "鑽頭在 CNC 加工中心研磨開刃,輸送帶連續出料,智慧電表監測研磨能耗。"},
         ],
     },
     "optics": {
@@ -247,19 +247,19 @@ NAMES = [
     ("鉅程精密", "precision_parts"), ("華晟能源", "green_energy"), ("信達物流科技", "logistics"),
     ("大衛精機", "machine_tool"), ("聯泰射出", "plastics"), ("金揚沖壓", "metal_forming"),
     ("創鋒智能", "motion_robotics"), ("晶源半導體", "semiconductor"), ("正茂熱工", "heat_treat"),
-    ("鼎新精密", "precision_parts"), ("宏泰動力", "facility"), ("清風綠能", "green_energy"),
+    ("鼎新精密", "precision_parts"), ("宏泰刀具", "cutting_tools"), ("清風綠能", "green_energy"),
     ("捷晟自動化", "motion_robotics"), ("順昌工具機", "machine_tool"), ("凱鈺光學", "optics"),
     ("廣鑫金屬", "metal_forming"), ("志程塑膠", "plastics"), ("均豪製程", "semiconductor"),
     ("岡田精機", "machine_tool"), ("興隆熱處理", "heat_treat"), ("智運倉儲", "logistics"),
-    ("力麒精密", "precision_parts"), ("華通氣力", "facility"), ("藍天風電", "green_energy"),
+    ("力麒精密", "precision_parts"), ("華通切削", "cutting_tools"), ("藍天風電", "green_energy"),
     ("盛群機械", "machine_tool"), ("和昌沖壓", "metal_forming"), ("耀陽射出", "plastics"),
     ("宸曜科技", "semiconductor"), ("三和熱工", "heat_treat"), ("翔宇自動化", "motion_robotics"),
-    ("明鏡光電", "optics"), ("長弘精密", "precision_parts"), ("大成動能", "facility"),
+    ("明鏡光電", "optics"), ("長弘精密", "precision_parts"), ("大成刀具", "cutting_tools"),
     ("啟睿智造", "machine_tool"), ("鋼承工業", "metal_forming"), ("聚立高分子", "plastics"),
     ("南科製程", "semiconductor"), ("恆溫熱處理", "heat_treat"), ("捷通物流", "logistics"),
     ("威剛精機", "machine_tool"), ("元鼎金屬", "metal_forming"), ("百川射出", "plastics"),
     ("原晶科技", "semiconductor"), ("火頌熱工", "heat_treat"), ("展翼綠電", "green_energy"),
-    ("智臂機器人", "motion_robotics"), ("清源氣站", "facility"), ("澄光學儀", "optics"),
+    ("智臂機器人", "motion_robotics"), ("清鋒刀具", "cutting_tools"), ("澄光學儀", "optics"),
     ("鋒鏵精密", "precision_parts"), ("勝弘工具機", "machine_tool"), ("永固沖壓", "metal_forming"),
     ("環宇智慧工廠", "logistics"),
 ]
@@ -379,6 +379,7 @@ CHAIN_LEN = 4
 STAGE = {
     "plastics": 0, "metal_forming": 0,                       # 成形(坯件 / 半成品)
     "machine_tool": 1, "precision_parts": 1, "motion_robotics": 1,   # 機械加工 / 組裝
+    "cutting_tools": 1, "logistics": 1,                     # 刀具 / 物流設備(都以 CNC 加工為主)
     "optics": 2, "semiconductor": 2,                         # 精整 / 精密製程
 }
 # 進料名用上游產業的「中間料」語彙(A 出給 B 的是半成品,不是 A 的整個主力產品名)
@@ -386,6 +387,7 @@ PART_BY_INDUSTRY = {
     "plastics": "射出坯件", "metal_forming": "沖壓半成品",
     "machine_tool": "精加工件", "precision_parts": "精密零件",
     "motion_robotics": "組裝模組", "optics": "光學元件", "semiconductor": "晶圓半成品",
+    "cutting_tools": "切削刀具", "logistics": "物流設備部件",
 }
 # 只有這些 template 有「完成一件」的累積量 tag,供應鏈才數得出誰出了幾件
 # (與 engine/line.py 的 COUNT_TAGS 一致)。沒有這種設備的廠不參與供應鏈 ——

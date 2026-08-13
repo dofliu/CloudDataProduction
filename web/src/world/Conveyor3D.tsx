@@ -83,7 +83,7 @@ export const ConveyorModel = ({ motion, partCount }: MachineProps & {
 
   return (
     <Shake motion={motion} amount={0.8}>
-      <group position={[0, -1, 0]}>
+      <group>
         <Box args={[LENGTH + 0.5, HEIGHT - 0.2, WIDTH + 0.5]} position={[0, HEIGHT / 2 - 0.1, 0]} castShadow receiveShadow>
           <meshStandardMaterial color={body} metalness={0.6} />
         </Box>

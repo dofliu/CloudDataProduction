@@ -135,6 +135,7 @@ function Measurer({ ids, onMeasured }: {
 }) {
   const { scene } = useThree();
   React.useEffect(() => {
+    (window as any).__lineScene = scene;   // dev 接縫:量測腳本要能連續讀世界座標
     const t = setTimeout(() => {
       const box = new THREE.Box3();
       const one = new THREE.Box3();

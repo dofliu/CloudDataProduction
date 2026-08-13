@@ -88,7 +88,10 @@ export function SceneLights() {
 export function MachineScene({
   children, camera = [0, 6, 12], fov = 45, target = [0, 2, 0],
   env = "warehouse", ground = "#e0e0e0", groundSize = 50,
-  shadowScale = 20, shadowY = -0.99, note, overlay,
+  // 慣例:所有機型模型「站在 y=0」(2026-08-13 統一)。先前單機地板在 -0.99、
+  // 各模型自帶 [0,-1,0] 下沉補償,但產線視圖 FactoryLine3D 的地板在 0 ——
+  // 每台機就陷進地面一個模型單位×縮放(手臂基座整顆埋掉)。地板高度只能有一個事實。
+  shadowScale = 20, shadowY = 0, note, overlay,
 }: {
   children: React.ReactNode;
   camera?: [number, number, number];

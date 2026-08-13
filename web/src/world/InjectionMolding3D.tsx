@@ -114,7 +114,7 @@ export const InjectionMoldingModel = ({ motion }: MachineProps) => {
 
   return (
     <Shake motion={motion}>
-      <group position={[0, -1, 0]}>
+      <group>
         <Box args={[12, 1, 4]} position={[0, 0.5, 0]} castShadow receiveShadow>
           <meshStandardMaterial color="#506060" metalness={0.7} />
         </Box>

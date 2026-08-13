@@ -87,7 +87,7 @@ export const AirCompressorModel = ({ motion }: MachineProps) => {
 
   return (
     <Shake motion={motion}>
-      <group position={[0, -1, 0]}>
+      <group>
         {/* 儲氣桶 */}
         <Cylinder args={[1.5, 1.5, 7, 32]} rotation={[0, 0, Math.PI / 2]} position={[0, 1.5, 0]} castShadow receiveShadow>
           <meshStandardMaterial color={tankColor} metalness={0.6} roughness={0.4} />

@@ -174,7 +174,7 @@ tasks:
   - id: T3-line-flow-kpi
     title: "產線層 KPI(線平衡率 / 瓶頸站利用率 / WIP 曲線)"
     status: in_review
-    pr: ""                # 開 PR 後回填
+    pr: "https://github.com/dofliu/CloudDataProduction/pull/44"
     outcome: >
       已實作:engine/line.py 的 view() 加 kpi 區塊(wip / bottleneck / line_balance /
       utilization / bottleneck_utilization / throughput_per_h)—— 純從帳上與學生讀得到的

@@ -27,120 +27,163 @@ OUT = ROOT / "scenarios" / "class_park.yaml"
 
 # ── 產業原型:每個原型有數種設備配方,輪流套用讓組合分散 ────────────────
 #    recipe 的第一台一定是 producer(主力機台)。
+#
+# 產品綁在配方上(2026-08-13):產品與設備配方原本各自獨立輪轉,會出現
+# 「工具機滾珠螺桿(需熱處理)配到沒有爐的廠、航太結構件反而拿到有爐的配方」
+# 這種故事說不通的組合 —— 學生滑到工廠看到主要產品,廠內設備要能支撐那個產品。
+# 每個配方列出「這組設備做得出來」的產品;devices 序列勿動(定 device id 與產線)。
 ARCHETYPES = {
     "machine_tool": {
         "label": "工具機加工",
-        "products": ["CNC 立式加工中心", "CNC 車銑複合", "五軸加工中心", "精密模具加工"],
         "recipes": [
-            ["cnc_machining_center", "energy_meter"],              # 加工 + 用電監測
-            ["cnc_machining_center", "robot_arm_6axis", "conveyor"],   # 手臂下料到輸送帶
-            ["cnc_machining_center", "conveyor"],                  # 加工完出料
-            ["cnc_machining_center", "air_compressor"],            # 廠務氣源
-            ["cnc_machining_center", "cnc_machining_center", "robot_arm_6axis"],
-            ["cnc_machining_center", "conveyor", "energy_meter"],
+            {"devices": ["cnc_machining_center", "energy_meter"],                      # 加工 + 用電監測
+             "products": ["精密模具加工"]},
+            {"devices": ["cnc_machining_center", "robot_arm_6axis", "conveyor"],       # 手臂下料到輸送帶
+             "products": ["CNC 立式加工中心"]},
+            {"devices": ["cnc_machining_center", "conveyor"],                          # 加工完出料
+             "products": ["CNC 車銑複合"]},
+            {"devices": ["cnc_machining_center", "air_compressor"],                    # 廠務氣源
+             "products": ["治具與夾具加工"]},
+            {"devices": ["cnc_machining_center", "cnc_machining_center", "robot_arm_6axis"],
+             "products": ["五軸加工中心"]},                                            # 雙機+手臂:高階機種
+            {"devices": ["cnc_machining_center", "conveyor", "energy_meter"],
+             "products": ["工具機床身部件"]},
         ],
     },
     "precision_parts": {
         "label": "精密零件",
-        "products": ["航太結構件", "自行車傳動件", "工具機滾珠螺桿", "醫療器械零件"],
         "recipes": [
-            ["cnc_machining_center", "conveyor"],
-            ["cnc_machining_center", "energy_meter"],
-            ["cnc_machining_center", "robot_arm_6axis", "conveyor"],
-            ["cnc_machining_center", "heat_treat_furnace"],        # 加工後熱處理
+            {"devices": ["cnc_machining_center", "conveyor"],
+             "products": ["自行車傳動件"]},                                            # 量產出料
+            {"devices": ["cnc_machining_center", "energy_meter"],
+             "products": ["航太結構件"]},                                              # 單件高值
+            {"devices": ["cnc_machining_center", "robot_arm_6axis", "conveyor"],
+             "products": ["醫療器械零件"]},                                            # 自動化下料(潔淨)
+            {"devices": ["cnc_machining_center", "heat_treat_furnace"],
+             "products": ["工具機滾珠螺桿"]},                                          # 加工後熱處理 ★綁定重點
         ],
     },
     "metal_forming": {
         "label": "沖壓鈑金",
-        "products": ["汽車鈑金件", "電子機殼沖壓", "五金沖壓件", "散熱片沖壓"],
         "recipes": [
-            ["stamping_press", "energy_meter"],
-            ["stamping_press", "conveyor"],                        # 沖完直接出料
-            ["stamping_press", "robot_arm_6axis", "conveyor"],     # 手臂取件到輸送帶
-            ["stamping_press", "air_compressor"],                  # 氣壓頂料
-            ["stamping_press", "conveyor", "energy_meter"],
-            ["stamping_press", "stamping_press", "conveyor"],      # 雙機連線
+            {"devices": ["stamping_press", "energy_meter"],
+             "products": ["五金沖壓件"]},
+            {"devices": ["stamping_press", "conveyor"],                                # 沖完直接出料
+             "products": ["散熱片沖壓"]},
+            {"devices": ["stamping_press", "robot_arm_6axis", "conveyor"],             # 手臂取件防刮傷
+             "products": ["電子機殼沖壓"]},
+            {"devices": ["stamping_press", "air_compressor"],                          # 氣壓頂料
+             "products": ["汽車鈑金件"]},
+            {"devices": ["stamping_press", "conveyor", "energy_meter"],
+             "products": ["馬達矽鋼片沖壓"]},
+            {"devices": ["stamping_press", "stamping_press", "conveyor"],              # 雙機連線
+             "products": ["連續沖壓端子"]},
         ],
     },
     "plastics": {
         "label": "塑膠射出",
-        "products": ["家電外殼射出", "汽車內飾件", "精密齒輪射出", "醫材塑件"],
         "recipes": [
-            ["injection_molding", "air_compressor"],
-            ["injection_molding", "conveyor"],                     # 頂出落料到輸送帶
-            ["injection_molding", "robot_arm_6axis", "conveyor"],  # 取件機下料到輸送帶
-            ["injection_molding", "energy_meter"],                 # 射出耗電大
-            ["injection_molding", "robot_arm_6axis", "conveyor"],
-            ["injection_molding", "injection_molding", "energy_meter"],
+            {"devices": ["injection_molding", "air_compressor"],
+             "products": ["家電外殼射出"]},
+            {"devices": ["injection_molding", "conveyor"],                             # 頂出落料到輸送帶
+             "products": ["汽車內飾件"]},
+            {"devices": ["injection_molding", "robot_arm_6axis", "conveyor"],          # 取件機下料到輸送帶
+             "products": ["精密齒輪射出"]},
+            {"devices": ["injection_molding", "energy_meter"],                         # 射出耗電大
+             "products": ["醫材塑件"]},
+            {"devices": ["injection_molding", "robot_arm_6axis", "conveyor"],
+             "products": ["光學鏡片座射出"]},
+            {"devices": ["injection_molding", "injection_molding", "energy_meter"],
+             "products": ["瓶胚量產射出"]},
         ],
     },
     "semiconductor": {
         "label": "半導體製程",
-        "products": ["晶圓蝕刻製程", "薄膜沉積製程", "封測前段製程", "化合物半導體製程"],
         "recipes": [
-            ["semi_process_chamber", "robot_arm_6axis", "semi_process_chamber"],   # 晶圓傳送手臂串兩腔
-            ["semi_process_chamber", "agv_mobile_robot"],          # AGV 搬晶圓盒
-            ["semi_process_chamber", "air_compressor"],            # 無塵室廠務
-            ["semi_process_chamber", "energy_meter"],
-            ["semi_process_chamber", "semi_process_chamber", "agv_mobile_robot"],
+            {"devices": ["semi_process_chamber", "robot_arm_6axis", "semi_process_chamber"],
+             "products": ["晶圓蝕刻製程"]},                                            # 晶圓傳送手臂串兩腔
+            {"devices": ["semi_process_chamber", "agv_mobile_robot"],                  # AGV 搬晶圓盒
+             "products": ["封測前段製程"]},
+            {"devices": ["semi_process_chamber", "air_compressor"],                    # 無塵室廠務
+             "products": ["薄膜沉積製程"]},
+            {"devices": ["semi_process_chamber", "energy_meter"],
+             "products": ["化合物半導體製程"]},
+            {"devices": ["semi_process_chamber", "semi_process_chamber", "agv_mobile_robot"],
+             "products": ["先進封裝雙腔製程"]},
         ],
     },
     "heat_treat": {
         "label": "熱處理",
-        "products": ["真空熱處理", "滲碳淬火", "退火軟化處理", "時效硬化處理"],
         "recipes": [
-            ["heat_treat_furnace", "air_compressor"],
-            ["heat_treat_furnace", "agv_mobile_robot"],            # 料籃搬運
-            ["heat_treat_furnace", "energy_meter"],                # 爐子是耗電大戶
-            ["heat_treat_furnace", "conveyor"],
-            ["heat_treat_furnace", "heat_treat_furnace", "energy_meter"],
+            {"devices": ["heat_treat_furnace", "air_compressor"],
+             "products": ["滲碳淬火"]},
+            {"devices": ["heat_treat_furnace", "agv_mobile_robot"],                    # 料籃搬運
+             "products": ["真空熱處理"]},
+            {"devices": ["heat_treat_furnace", "energy_meter"],                        # 爐子是耗電大戶
+             "products": ["退火軟化處理"]},
+            {"devices": ["heat_treat_furnace", "conveyor"],
+             "products": ["時效硬化處理"]},
+            {"devices": ["heat_treat_furnace", "heat_treat_furnace", "energy_meter"],
+             "products": ["連續爐熱處理線"]},
         ],
     },
     "motion_robotics": {
         "label": "自動化系統",
-        "products": ["機械手臂整合", "取放系統整合", "視覺檢測工作站", "產線自動化"],
         "recipes": [
-            ["cnc_machining_center", "robot_arm_6axis", "conveyor"],   # 上下料整合示範線
-            ["robot_arm_6axis", "conveyor"],
-            ["robot_arm_6axis", "cnc_machining_center"],
-            ["robot_arm_6axis", "air_compressor"],
-            ["robot_arm_6axis", "robot_arm_6axis", "conveyor"],
+            {"devices": ["cnc_machining_center", "robot_arm_6axis", "conveyor"],       # 上下料整合示範線
+             "products": ["產線自動化"]},
+            {"devices": ["robot_arm_6axis", "conveyor"],
+             "products": ["取放系統整合"]},
+            {"devices": ["robot_arm_6axis", "cnc_machining_center"],
+             "products": ["機械手臂整合"]},
+            {"devices": ["robot_arm_6axis", "air_compressor"],
+             "products": ["視覺檢測工作站"]},
+            {"devices": ["robot_arm_6axis", "robot_arm_6axis", "conveyor"],
+             "products": ["雙臂協作工作站"]},
         ],
     },
     "logistics": {
         "label": "智慧物流",
-        "products": ["廠內無人搬運", "自動倉儲揀貨", "產線間物流整合", "成品出貨緩衝區"],
         "recipes": [
-            ["agv_mobile_robot", "conveyor"],
-            ["agv_mobile_robot", "conveyor", "energy_meter"],
-            ["agv_mobile_robot", "agv_mobile_robot", "conveyor"],
+            {"devices": ["agv_mobile_robot", "conveyor"],
+             "products": ["廠內無人搬運", "成品出貨緩衝區"]},   # 兩個產品:同老師第 4 廠繞回來時不撞名
+            {"devices": ["agv_mobile_robot", "conveyor", "energy_meter"],
+             "products": ["自動倉儲揀貨"]},
+            {"devices": ["agv_mobile_robot", "agv_mobile_robot", "conveyor"],
+             "products": ["產線間物流整合"]},
         ],
     },
     "green_energy": {
         "label": "綠能發電",
-        "products": ["小型風力發電", "廠區自發自用綠電", "風場運維示範", "離岸風機監測示範"],
         "recipes": [
-            ["wind_turbine", "energy_meter"],
-            ["wind_turbine", "energy_meter"],
-            ["wind_turbine", "wind_turbine", "energy_meter"],
+            {"devices": ["wind_turbine", "energy_meter"],
+             "products": ["小型風力發電"]},
+            {"devices": ["wind_turbine", "energy_meter"],
+             "products": ["廠區自發自用綠電"]},              # 同設備、不同商業模式(自發自用)
+            {"devices": ["wind_turbine", "wind_turbine", "energy_meter"],
+             "products": ["風場運維示範"]},
         ],
     },
     "facility": {
         "label": "廠務動力",
-        "products": ["壓縮空氣站", "廠區能源管理", "動力機房", "廠務用電需量管理"],
         "recipes": [
-            ["air_compressor", "energy_meter"],
-            ["air_compressor", "air_compressor"],
-            ["air_compressor", "air_compressor", "energy_meter"],
+            {"devices": ["air_compressor", "energy_meter"],
+             "products": ["壓縮空氣站", "廠務用電需量管理"]},   # 兩個產品:同老師第 4 廠繞回來時不撞名
+            {"devices": ["air_compressor", "air_compressor"],
+             "products": ["動力機房"]},
+            {"devices": ["air_compressor", "air_compressor", "energy_meter"],
+             "products": ["廠區能源管理"]},
         ],
     },
     "optics": {
         "label": "光學元件",
-        "products": ["手機鏡頭模組", "光學鍍膜", "車用鏡頭元件", "光學檢測治具"],
         "recipes": [
-            ["semi_process_chamber", "cnc_machining_center"],      # 鍍膜腔 + 精密加工
-            ["semi_process_chamber", "energy_meter"],
-            ["cnc_machining_center", "semi_process_chamber", "air_compressor"],
+            {"devices": ["semi_process_chamber", "cnc_machining_center"],              # 鍍膜腔 + 精密加工
+             "products": ["手機鏡頭模組", "車用鏡頭元件"]},     # 兩個產品:同老師第 4 廠繞回來時不撞名
+            {"devices": ["semi_process_chamber", "energy_meter"],
+             "products": ["光學鍍膜"]},
+            {"devices": ["cnc_machining_center", "semi_process_chamber", "air_compressor"],
+             "products": ["光學檢測治具"]},
         ],
     },
 }
@@ -225,10 +268,11 @@ def build() -> tuple[list[dict], list[str]]:
         recipes = arch["recipes"]
         recipe = recipes[cursor[arch_key] % len(recipes)]
         cursor[arch_key] += 1
-        product = arch["products"][(i - 1) % len(arch["products"])]
+        # 產品從「這個配方做得出來」的清單裡選 —— 設備要能支撐掛出來的產品
+        product = recipe["products"][(i - 1) % len(recipe["products"])]
 
         devices = []
-        for tmpl in recipe:
+        for tmpl in recipe["devices"]:
             dev_no += 1
             devices.append({"id": f"d{dev_no:03d}", "template": tmpl})
 
@@ -239,7 +283,7 @@ def build() -> tuple[list[dict], list[str]]:
             "industry": arch_key,
             "product": product,
             "intro": INTRO.format(n=i, label=arch["label"], product=product,
-                                  devices=" + ".join(ZH[t] for t in recipe),
+                                  devices=" + ".join(ZH[t] for t in recipe["devices"]),
                                   line_note=line_note(line, devices)),
             "devices": devices,
         }
@@ -279,6 +323,21 @@ def build() -> tuple[list[dict], list[str]]:
 # 為什麼是 4 而不是全班一條長鏈:一條 64 節的鏈只要有人停機,後面 60 個人全陪葬,
 # 那不是教學是連坐。4 節剛好等於課堂分組的大小,斷鏈的因果也還看得清楚。
 CHAIN_LEN = 4
+
+# 工序階段(2026-08-13 供應鏈合理化):鏈內依「成形 → 機械加工 → 精整/製程」排序,
+# 上游做的東西下游才用得到 —— 先前按公司序號硬串,會出現「光學鏡頭模組餵給
+# 沖壓廠當原料」這種讀不通的方向。只列會入鏈的產業(配方裡有計件 producer 的)。
+STAGE = {
+    "plastics": 0, "metal_forming": 0,                       # 成形(坯件 / 半成品)
+    "machine_tool": 1, "precision_parts": 1, "motion_robotics": 1,   # 機械加工 / 組裝
+    "optics": 2, "semiconductor": 2,                         # 精整 / 精密製程
+}
+# 進料名用上游產業的「中間料」語彙(A 出給 B 的是半成品,不是 A 的整個主力產品名)
+PART_BY_INDUSTRY = {
+    "plastics": "射出坯件", "metal_forming": "沖壓半成品",
+    "machine_tool": "精加工件", "precision_parts": "精密零件",
+    "motion_robotics": "組裝模組", "optics": "光學元件", "semiconductor": "晶圓半成品",
+}
 # 只有這些 template 有「完成一件」的累積量 tag,供應鏈才數得出誰出了幾件
 # (與 engine/line.py 的 COUNT_TAGS 一致)。沒有這種設備的廠不參與供應鏈 ——
 # 電表廠 / 壓縮機房本來就不是在做零件,硬接進去只會在啟動時噴一堆略過警告。
@@ -303,12 +362,15 @@ def build_supply_chain(companies: list[dict]) -> list[dict]:
         chain = pool[start:start + CHAIN_LEN]
         if len(chain) < 2:
             break
+        # 鏈內依工序階段排序(stable:同階段維持原相對序)—— 成員不變,方向合理化
+        chain.sort(key=lambda c: STAGE.get(c["industry"], 1))
         for i in range(len(chain) - 1):
             up, down = chain[i], chain[i + 1]
             last_hop = i == len(chain) - 2
             links.append({
                 "from": up["id"], "to": down["id"],
-                "part": up["product"],
+                # 進料 = 上游產業的中間料(括注上游主力產品,學生看得出這批料是誰做的)
+                "part": f"{PART_BY_INDUSTRY.get(up['industry'], '零件')}({up['product']})",
                 "cap": CAP, "initial": INITIAL,
                 "external_backup_h": 0.0 if last_hop else BACKUP_H,
             })

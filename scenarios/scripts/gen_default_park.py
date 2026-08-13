@@ -48,11 +48,13 @@ def build() -> list[dict]:
         theme = THEME_ORDER[ti % len(THEME_ORDER)]
         arch = ARCHETYPES[theme]
         for f in range(1, n_factories + 1):
-            # 同一位老師的各廠走同主題的不同配方 → 主題一致但組合不同
+            # 同一位老師的各廠走同主題的不同配方 → 主題一致但組合不同。
+            # 產品從該配方自己的清單選(設備要能支撐掛出來的產品);配方數 < 廠數而
+            # 繞回同一配方時,靠該配方的多個產品錯開(唯一性由 _assert_unique_names 把關)。
             recipe = arch["recipes"][(f - 1) % len(arch["recipes"])]
-            product = arch["products"][(f - 1) % len(arch["products"])]
+            product = recipe["products"][(f - 1) % len(recipe["products"])]
             devices = []
-            for tmpl in recipe:
+            for tmpl in recipe["devices"]:
                 dev_no += 1
                 devices.append({"id": f"{tid}-d{dev_no:03d}", "template": tmpl})
             line = derive_line(devices)
@@ -64,7 +66,7 @@ def build() -> list[dict]:
                 "industry": theme,
                 "product": product,
                 "intro": INTRO.format(teacher=teacher, label=arch["label"], product=product,
-                                      devices=" + ".join(ZH[t] for t in recipe),
+                                      devices=" + ".join(ZH[t] for t in recipe["devices"]),
                                       line_note=line_note(line, devices)),
                 "devices": devices,
             }

@@ -105,7 +105,7 @@ tasks:
 
   - id: T1-consistency-sweep
     title: "其餘 template 的跨 tag 資料自洽性掃描"
-    status: in_review
+    status: done          # PR #43 已合併(2026-08-04)
     pr: "https://github.com/dofliu/CloudDataProduction/pull/43"
     outcome: >
       已實作:verify_scenario.py 新增 check_tag_invariants(),11 種 template 每種至少
@@ -144,7 +144,7 @@ tasks:
 
   - id: T2-course-weeks-fill
     title: "course_weeks.yaml 補滿 18 週 + 週次 ↔ 作業 ↔ 練習題綁定"
-    status: in_review
+    status: done          # PR #43 已合併(2026-08-04)
     pr: "https://github.com/dofliu/CloudDataProduction/pull/43"   # 與 T1 同分支同 PR
     outcome: >
       已實作(教學決定 2026-08-04 經 AskUserQuestion 確認:W9 期中 clear、W13 keep 讓
@@ -173,7 +173,15 @@ tasks:
 
   - id: T3-line-flow-kpi
     title: "產線層 KPI(線平衡率 / 瓶頸站利用率 / WIP 曲線)"
-    status: todo
+    status: in_review
+    pr: "https://github.com/dofliu/CloudDataProduction/pull/44"
+    outcome: >
+      已實作:engine/line.py 的 view() 加 kpi 區塊(wip / bottleneck / line_balance /
+      utilization / bottleneck_utilization / throughput_per_h)—— 純從帳上與學生讀得到的
+      節拍 tag 自算、不另存狀態,隨 snapshot.lines 流到 WS 與所有 API;前端產線統計列
+      顯示 WIP / 瓶頸 / 線平衡率 / 出貨速率;tests/test_line_flow.py 新增正常流動與
+      塞住兩種狀態的 KPI 自洽斷言。同 PR 一併修「設備不在對的位置」:見 ROADMAP Done
+      表「產線視圖空間對位修正」。
     autonomy: self
     size: S
     why: >

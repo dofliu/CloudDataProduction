@@ -63,18 +63,32 @@ export const LINE_SCALE: Record<string, number> = {
  */
 // 這些是 `node preview/measure.mjs` 從真實場景量回來的(已套 LINE_SCALE)+0.3 餘隙,
 // 不是估的。改過任何機種的幾何或 LINE_SCALE 之後,重跑一次量測再貼回來。
-const HALF_W: Record<string, number> = {
-  cnc_machining_center: 3.2, stamping_press: 1.5, injection_molding: 4.7,
-  semi_process_chamber: 3.0, heat_treat_furnace: 2.7, conveyor: 3.8,
-  agv_mobile_robot: 1.5, air_compressor: 3.3, energy_meter: 1.5, wind_turbine: 2.1,
-  robot_arm_6axis: 2.9,
+//
+// [left, right] = 模型「擺放原點」向左 / 向右的實際延伸 —— 不是對稱的 halfW。
+// 射出機的料管在原點左邊 5.5、合模部只有 3.3;先前用對稱 4.7 擺,整台向左凸出料道
+// 0.8、右側又留 1.4 空隙,取件箭頭就飄在走道上(這正是「設備不在對的位置」的主因)。
+const EXTENT_X: Record<string, [number, number]> = {
+  cnc_machining_center: [3.2, 3.2],
+  stamping_press: [1.5, 1.5],
+  injection_molding: [5.8, 3.6],
+  semi_process_chamber: [3.1, 3.0],
+  heat_treat_furnace: [2.4, 3.0],
+  robot_arm_6axis: [3.9, 1.8],
+  // AGV 是「巡迴包絡」不是瞬時包圍盒:compact 模式路線縮 0.25 後車體活動半徑
+  // ±(8×0.25+1.2)×0.85 ≈ 2.7,再加餘隙 —— 量測抓到的是車子當下停的位置,不能用。
+  agv_mobile_robot: [3.0, 3.0],
+  conveyor: [3.8, 3.8],
+  wind_turbine: [2.4, 1.5],
+  air_compressor: [3.3, 3.3],
+  energy_meter: [1.5, 1.5],
 };
-const halfW = (t: string) => HALF_W[t] ?? 3.0;
+const extentX = (t: string): [number, number] => EXTENT_X[t] ?? [3.0, 3.0];
 
 /** 相鄰工站之間留的走道 */
 const AISLE = 1.6;
-/** 手臂取件時伸進上游機台出料口的深度 —— 夾爪要在機台裡面,不是站在走道上比劃 */
-const ARM_REACH_IN = 1.0;
+/** 手臂取件時伸進上游機台出料口的深度。先前 1.0 會讓整支前臂穿過 CNC 鈑金 /
+ *  沖壓機架 —— 夾爪停在出料口「口沿」內一點就讀得懂,不必潛進機腹。 */
+const ARM_REACH_IN = 0.4;
 /** 手臂放件點壓在輸送帶起點上一點,看起來才是「放到帶子上」 */
 const ARM_DROP_OVER = 0.8;
 /** 廠務排在主線後方 */
@@ -145,9 +159,9 @@ export function layoutLine(devices: { id: string; template: string }[]): Layout 
       // 放件點壓在下一台(輸送帶)的起點上
       cursor = x + ARM_REACH_X - ARM_DROP_OVER;
     } else {
-      const hw = halfW(d.template);
-      placed.push({ id: d.id, template: d.template, role: d.role, x: cursor + hw, z: 0, yaw: 0 });
-      cursor += 2 * hw + AISLE;
+      const [l, r] = extentX(d.template);
+      placed.push({ id: d.id, template: d.template, role: d.role, x: cursor + l, z: 0, yaw: 0 });
+      cursor += l + r + AISLE;
     }
   });
 
@@ -158,10 +172,10 @@ export function layoutLine(devices: { id: string; template: string }[]): Layout 
   let uCursor = 0;
   const uPlaced: Placed[] = [];
   utils.forEach((d) => {
-    const hw = halfW(d.template);
+    const [l, r] = extentX(d.template);
     uPlaced.push({ id: d.id, template: d.template, role: d.role,
-                   x: uCursor + hw, z: UTILITY_Z, yaw: 0 });
-    uCursor += 2 * hw + AISLE;
+                   x: uCursor + l, z: UTILITY_Z, yaw: 0 });
+    uCursor += l + r + AISLE;
   });
   for (const p of uPlaced) p.x += -uCursor / 2;
   placed.push(...uPlaced);
@@ -174,10 +188,12 @@ export function layoutLine(devices: { id: string; template: string }[]): Layout 
     ? "廠務:" + utils.map((d) => VERB[d.template] ?? d.template).join(" · ")
     : "";
 
-  // 料道只有在「真的有上下游」時才畫 —— 單機廠畫一條線反而誤導
+  // 料道只有在「真的有上下游」時才畫 —— 單機廠畫一條線反而誤導。
+  // 範圍用實際邊界(x ± extent),不是機台中心 —— 原點偏心的機種(射出機)才不會凸出料道。
+  const mainPlaced = placed.filter((p) => p.role !== "utility");
   const lane = main.length >= 2
-    ? { from: Math.min(...placed.filter((p) => p.role !== "utility").map((p) => p.x)) - 4,
-        to: Math.max(...placed.filter((p) => p.role !== "utility").map((p) => p.x)) + 4 }
+    ? { from: Math.min(...mainPlaced.map((p) => p.x - extentX(p.template)[0])) - 1,
+        to: Math.max(...mainPlaced.map((p) => p.x + extentX(p.template)[1])) + 1 }
     : null;
 
   return { placed, lane, flowText, utilityText };

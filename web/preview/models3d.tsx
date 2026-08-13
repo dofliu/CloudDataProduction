@@ -147,6 +147,8 @@ const LINE_COMBOS: Record<string, number[]> = {
   inj: [10, 2, 6],
   // 沖壓 → 手臂取件(metal_forming)
   press: [8, 2],
+  // CNC → AGV 搬運 → 輸送帶:驗 AGV compact(巡迴路線縮尺進機台格,不在產線裡亂開)
+  agv: [0, 4, 6],
   // 單機 + 廠務:不該畫料道,廠務要退到後排
   solo: [0, 14, 16],
   // 全部混一起,壓力測試

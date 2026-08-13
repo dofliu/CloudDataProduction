@@ -116,7 +116,7 @@ def check_models(used: set[str]) -> None:
 
     # 產線佈局表也要涵蓋 —— 少一筆就會用預設寬度,機台互相穿模或中間空一段
     flow = (WEB_WORLD / "processFlow.ts").read_text(encoding="utf-8")
-    for tbl, why in [("ROLE", "製程角色"), ("LINE_SCALE", "產線縮放"), ("HALF_W", "佔地半寬")]:
+    for tbl, why in [("ROLE", "製程角色"), ("LINE_SCALE", "產線縮放"), ("EXTENT_X", "佔地邊界")]:
         miss = used - _ts_map_keys(flow, tbl)
         (ok if not miss else fail)(
             f"{len(used)} 種 template 都有 processFlow.{tbl}({why})" if not miss

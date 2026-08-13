@@ -130,7 +130,7 @@ const CameraFit = ({ halfW, halfD }: { halfW: number; halfD: number }) => {
  * 正式畫面不傳 onMeasured,這段就不會掛上。
  */
 function Measurer({ ids, onMeasured }: {
-  ids: { id: string; template: string }[];
+  ids: { id: string; template: string; x?: number; z?: number }[];
   onMeasured: (rows: any[]) => void;
 }) {
   const { scene } = useThree();
@@ -138,7 +138,7 @@ function Measurer({ ids, onMeasured }: {
     const t = setTimeout(() => {
       const box = new THREE.Box3();
       const one = new THREE.Box3();
-      const rows = ids.map(({ id, template }) => {
+      const rows = ids.map(({ id, template, x = 0, z = 0 }) => {
         const node = scene.getObjectByName(`dev:${id}`);
         if (!node) return null;
         // 只算實體 Mesh:粒子系統(冷卻液 / 火花 / 煙)在待機時把粒子停在 ±100、−999,
@@ -158,6 +158,12 @@ function Measurer({ ids, onMeasured }: {
           halfW: (box.max.x - box.min.x) / 2,
           halfD: (box.max.z - box.min.z) / 2,
           height: box.max.y - box.min.y,
+          // 相對「擺放原點」的左右延伸 —— 模型原點不在幾何中心時(射出機的料管、
+          // 爐的煙囪),對稱 halfW 會把整台擺歪;佈局要用這兩個數字做邊靠邊。
+          left: x - box.min.x,
+          right: box.max.x - x,
+          front: box.max.z - z,
+          back: z - box.min.z,
         };
       }).filter(Boolean);
       onMeasured(rows as any[]);
@@ -305,6 +311,16 @@ export default function FactoryLine3D({
             {line.stations.filter((s) => s.role === "handler").map((s) =>
               ` · ${s.device} 累積搬運 ${s.moved ?? 0} 件${(s.carrying ?? 0) > 0 ? "(搬運中)" : ""}`
             ).join("")}
+          </span>
+        )}
+        {line?.kpi && (
+          <span className="mono" style={{ background: "rgba(90,140,158,.16)", color: "#3f5c6b",
+                                          padding: "4px 10px", borderRadius: 8, alignSelf: "flex-start" }}>
+            WIP {line.kpi.wip} 件
+            {line.kpi.bottleneck != null && <> · 瓶頸 {line.kpi.bottleneck}
+              (利用率 {Math.round((line.kpi.bottleneck_utilization ?? 0) * 100)}%)</>}
+            {line.kpi.line_balance != null && <> · 線平衡率 {Math.round(line.kpi.line_balance * 100)}%</>}
+            {line.kpi.throughput_per_h != null && <> · 出貨 {line.kpi.throughput_per_h} 件/h</>}
           </span>
         )}
         {/* ×120 下一件工件 0.2 秒就完成,取放動作本來就看不見 —— 慢速觀察把 sim 降到 ×2,

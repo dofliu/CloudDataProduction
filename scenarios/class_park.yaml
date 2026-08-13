@@ -19,6 +19,7 @@ park:
       name: "昇泰精機"
       industry: machine_tool
       product: "精密模具加工"
+      product_icon: "🧰"
       intro: "課堂教學用**合成**工廠(#01);工具機加工 · 主力產品:精密模具加工。製程:模仁與模板在 CNC 加工中心銑削放電成形,智慧電表監測加工能耗與稼動。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d001, template: cnc_machining_center}
@@ -28,6 +29,7 @@ park:
       name: "鴻鋒工業"
       industry: metal_forming
       product: "五金沖壓件"
+      product_icon: "🔩"
       intro: "課堂教學用**合成**工廠(#02);沖壓鈑金 · 主力產品:五金沖壓件。製程:捲料在沖壓機連續沖裁成形,智慧電表監測沖次能耗。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d003, template: stamping_press}
@@ -37,6 +39,7 @@ park:
       name: "群曜科技"
       industry: semiconductor
       product: "晶圓蝕刻製程"
+      product_icon: "💿"
       intro: "課堂教學用**合成**工廠(#03);半導體製程 · 主力產品:晶圓蝕刻製程。製程:晶圓由六軸手臂在兩座製程腔體間傳送,依序完成蝕刻與清洗步驟。產線:半導體製程腔體(d005) → 六軸機械手臂(d006) → 半導體製程腔體(d007) —— 工件在引擎內真實流動,上游完工、手臂搬運、下游才有料可加工(緩衝可讀 FC04 line_in/out_buffer)。所有數據皆為模擬產生,非真實場域量測。"
       line: [d005, d006, d007]   # 產線物料流(engine/line.py)
       devices:
@@ -48,6 +51,7 @@ park:
       name: "巨鼎金屬"
       industry: metal_forming
       product: "散熱片沖壓"
+      product_icon: "❄️"
       intro: "課堂教學用**合成**工廠(#04);沖壓鈑金 · 主力產品:散熱片沖壓。製程:散熱鰭片在沖壓機高速沖切,成品直接落到輸送帶出料。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d008, template: stamping_press}
@@ -57,6 +61,7 @@ park:
       name: "東昇精密"
       industry: machine_tool
       product: "CNC 立式加工中心"
+      product_icon: "🛠️"
       intro: "課堂教學用**合成**工廠(#05);工具機加工 · 主力產品:CNC 立式加工中心。製程:立加的床身與主軸座由 CNC 加工中心銑削,六軸手臂下料、輸送帶送出成品部件。產線:CNC 加工中心(d010) → 六軸機械手臂(d011) → 輸送帶(d012) —— 工件在引擎內真實流動,上游完工、手臂搬運、下游才有料可加工(緩衝可讀 FC04 line_in/out_buffer)。所有數據皆為模擬產生,非真實場域量測。"
       line: [d010, d011, d012]   # 產線物料流(engine/line.py)
       devices:
@@ -68,6 +73,7 @@ park:
       name: "立捷自動化"
       industry: motion_robotics
       product: "產線自動化"
+      product_icon: "🦾"
       intro: "課堂教學用**合成**工廠(#06);自動化系統 · 主力產品:產線自動化。製程:示範線:CNC 加工中心加工、六軸手臂上下料、輸送帶出貨,展示整線自動化。產線:CNC 加工中心(d013) → 六軸機械手臂(d014) → 輸送帶(d015) —— 工件在引擎內真實流動,上游完工、手臂搬運、下游才有料可加工(緩衝可讀 FC04 line_in/out_buffer)。所有數據皆為模擬產生,非真實場域量測。"
       line: [d013, d014, d015]   # 產線物料流(engine/line.py)
       devices:
@@ -79,6 +85,7 @@ park:
       name: "光鼎光電"
       industry: optics
       product: "手機鏡頭模組"
+      product_icon: "📷"
       intro: "課堂教學用**合成**工廠(#07);光學元件 · 主力產品:手機鏡頭模組。製程:鏡筒與鏡座先在 CNC 加工中心精密切削,再進製程腔體完成光學鍍膜(增透膜),組成鏡頭模組。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d016, template: cnc_machining_center}
@@ -88,6 +95,7 @@ park:
       name: "台曜熱處理"
       industry: heat_treat
       product: "滲碳淬火"
+      product_icon: "🔥"
       intro: "課堂教學用**合成**工廠(#08);熱處理 · 主力產品:滲碳淬火。製程:工件在熱處理爐滲碳後淬火,空壓機供應淬火攪拌與爐門氣封。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d018, template: heat_treat_furnace}
@@ -97,6 +105,7 @@ park:
       name: "宏程塑膠"
       industry: plastics
       product: "家電外殼射出"
+      product_icon: "📺"
       intro: "課堂教學用**合成**工廠(#09);塑膠射出 · 主力產品:家電外殼射出。製程:外殼在射出成型機射出保壓成形,空壓機供應頂出與模具吹氣。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d020, template: injection_molding}
@@ -106,6 +115,7 @@ park:
       name: "永勤機械"
       industry: machine_tool
       product: "CNC 車銑複合"
+      product_icon: "🛠️"
       intro: "課堂教學用**合成**工廠(#10);工具機加工 · 主力產品:CNC 車銑複合。製程:車銑複合機的關鍵件在 CNC 加工中心完成銑削,完工件經輸送帶出料。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d022, template: cnc_machining_center}
@@ -115,6 +125,7 @@ park:
       name: "旭鋼實業"
       industry: metal_forming
       product: "電子機殼沖壓"
+      product_icon: "💻"
       intro: "課堂教學用**合成**工廠(#11);沖壓鈑金 · 主力產品:電子機殼沖壓。製程:機殼在沖壓機拉伸成形,六軸手臂取件避免刮傷,經輸送帶出貨。產線:沖壓機(d024) → 六軸機械手臂(d025) → 輸送帶(d026) —— 工件在引擎內真實流動,上游完工、手臂搬運、下游才有料可加工(緩衝可讀 FC04 line_in/out_buffer)。所有數據皆為模擬產生,非真實場域量測。"
       line: [d024, d025, d026]   # 產線物料流(engine/line.py)
       devices:
@@ -126,6 +137,7 @@ park:
       name: "宇鴻塑膠"
       industry: plastics
       product: "汽車內飾件"
+      product_icon: "🚗"
       intro: "課堂教學用**合成**工廠(#12);塑膠射出 · 主力產品:汽車內飾件。製程:內飾件射出後自動頂出落料,經輸送帶連續出貨。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d027, template: injection_molding}
@@ -135,6 +147,7 @@ park:
       name: "鉅程精密"
       industry: precision_parts
       product: "自行車傳動件"
+      product_icon: "🚲"
       intro: "課堂教學用**合成**工廠(#13);精密零件 · 主力產品:自行車傳動件。製程:齒盤與曲柄在 CNC 加工中心切削成形,完工件經輸送帶連續出料。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d029, template: cnc_machining_center}
@@ -144,6 +157,7 @@ park:
       name: "華晟能源"
       industry: green_energy
       product: "小型風力發電"
+      product_icon: "🌬️"
       intro: "課堂教學用**合成**工廠(#14);綠能發電 · 主力產品:小型風力發電。製程:風力發電機發電,智慧電表計量發電量與饋線品質。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d031, template: wind_turbine}
@@ -153,6 +167,7 @@ park:
       name: "信達物流科技"
       industry: logistics
       product: "AGV 無人搬運車"
+      product_icon: "🚚"
       intro: "課堂教學用**合成**工廠(#15);物流設備 · 主力產品:AGV 無人搬運車。製程:車架與輪組件在 CNC 加工中心加工,廠內 AGV 就是出貨前試跑的整車。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d033, template: cnc_machining_center}
@@ -162,6 +177,7 @@ park:
       name: "大衛精機"
       industry: machine_tool
       product: "治具與夾具加工"
+      product_icon: "🗜️"
       intro: "課堂教學用**合成**工廠(#16);工具機加工 · 主力產品:治具與夾具加工。製程:治具板件在 CNC 加工中心銑削鑽孔,空壓機供應氣動夾持與吹屑氣源。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d035, template: cnc_machining_center}
@@ -171,6 +187,7 @@ park:
       name: "聯泰射出"
       industry: plastics
       product: "精密齒輪射出"
+      product_icon: "⚙️"
       intro: "課堂教學用**合成**工廠(#17);塑膠射出 · 主力產品:精密齒輪射出。製程:精密齒輪射出成形,六軸手臂取件避免澆道拉傷,輸送帶送檢。產線:射出成型機(d037) → 六軸機械手臂(d038) → 輸送帶(d039) —— 工件在引擎內真實流動,上游完工、手臂搬運、下游才有料可加工(緩衝可讀 FC04 line_in/out_buffer)。所有數據皆為模擬產生,非真實場域量測。"
       line: [d037, d038, d039]   # 產線物料流(engine/line.py)
       devices:
@@ -182,6 +199,7 @@ park:
       name: "金揚沖壓"
       industry: metal_forming
       product: "汽車鈑金件"
+      product_icon: "🚗"
       intro: "課堂教學用**合成**工廠(#18);沖壓鈑金 · 主力產品:汽車鈑金件。製程:鈑金件在沖壓機成形,空壓機供應模內氣壓頂料與吹屑。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d040, template: stamping_press}
@@ -191,6 +209,7 @@ park:
       name: "創鋒智能"
       industry: motion_robotics
       product: "取放系統整合"
+      product_icon: "🦾"
       intro: "課堂教學用**合成**工廠(#19);自動化系統 · 主力產品:取放系統整合。製程:整合商出貨前驗證線:六軸手臂跑取放節拍、輸送帶模擬客戶端收料——線上這座工作站本身就是待交付的產品。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d042, template: robot_arm_6axis}
@@ -200,6 +219,7 @@ park:
       name: "晶源半導體"
       industry: semiconductor
       product: "封測前段製程"
+      product_icon: "💿"
       intro: "課堂教學用**合成**工廠(#20);半導體製程 · 主力產品:封測前段製程。製程:晶圓在製程腔體完成前段處理,AGV 搬運晶圓盒往返倉儲。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d044, template: semi_process_chamber}
@@ -209,6 +229,7 @@ park:
       name: "正茂熱工"
       industry: heat_treat
       product: "真空熱處理"
+      product_icon: "🌡️"
       intro: "課堂教學用**合成**工廠(#21);熱處理 · 主力產品:真空熱處理。製程:料籃由 AGV 送進熱處理爐真空加熱,避免工件表面氧化。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d046, template: heat_treat_furnace}
@@ -218,6 +239,7 @@ park:
       name: "鼎新精密"
       industry: precision_parts
       product: "航太結構件"
+      product_icon: "✈️"
       intro: "課堂教學用**合成**工廠(#22);精密零件 · 主力產品:航太結構件。製程:航太級鋁合金結構件在 CNC 加工中心多工序銑削,智慧電表監測高值加工的能耗。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d048, template: cnc_machining_center}
@@ -227,6 +249,7 @@ park:
       name: "宏泰刀具"
       industry: cutting_tools
       product: "高速鋼銑刀"
+      product_icon: "🪚"
       intro: "課堂教學用**合成**工廠(#23);切削刀具 · 主力產品:高速鋼銑刀。製程:刀體在 CNC 加工中心開槽開刃,再進熱處理爐淬火回火,取得刃口硬度。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d050, template: cnc_machining_center}
@@ -236,6 +259,7 @@ park:
       name: "清風綠能"
       industry: green_energy
       product: "廠區自發自用綠電"
+      product_icon: "⚡"
       intro: "課堂教學用**合成**工廠(#24);綠能發電 · 主力產品:廠區自發自用綠電。製程:風機發電直供廠區自用,智慧電表計量自發自用的比例。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d052, template: wind_turbine}
@@ -245,6 +269,7 @@ park:
       name: "捷晟自動化"
       industry: motion_robotics
       product: "機械手臂整合"
+      product_icon: "🦾"
       intro: "課堂教學用**合成**工廠(#25);自動化系統 · 主力產品:機械手臂整合。製程:六軸手臂為 CNC 加工中心上下料,驗證手臂與工具機的整合節拍。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d054, template: robot_arm_6axis}
@@ -254,6 +279,7 @@ park:
       name: "順昌工具機"
       industry: machine_tool
       product: "五軸加工中心"
+      product_icon: "🛠️"
       intro: "課堂教學用**合成**工廠(#26);工具機加工 · 主力產品:五軸加工中心。製程:兩台 CNC 加工中心分擔粗銑與精銑,六軸手臂在兩機間傳遞工件,組成五軸機部件產線。產線:CNC 加工中心(d056) → 六軸機械手臂(d058) → CNC 加工中心(d057) —— 工件在引擎內真實流動,上游完工、手臂搬運、下游才有料可加工(緩衝可讀 FC04 line_in/out_buffer)。所有數據皆為模擬產生,非真實場域量測。"
       line: [d056, d058, d057]   # 產線物料流(engine/line.py)
       devices:
@@ -265,6 +291,7 @@ park:
       name: "凱鈺光學"
       industry: optics
       product: "光學鍍膜"
+      product_icon: "🔍"
       intro: "課堂教學用**合成**工廠(#27);光學元件 · 主力產品:光學鍍膜。製程:光學元件在製程腔體真空鍍膜,智慧電表監測腔體能耗與製程穩定。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d059, template: semi_process_chamber}
@@ -274,6 +301,7 @@ park:
       name: "廣鑫金屬"
       industry: metal_forming
       product: "馬達矽鋼片沖壓"
+      product_icon: "🧲"
       intro: "課堂教學用**合成**工廠(#28);沖壓鈑金 · 主力產品:馬達矽鋼片沖壓。製程:矽鋼片在沖壓機連續級進沖裁,輸送帶出料,智慧電表監測高速沖壓的用電。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d061, template: stamping_press}
@@ -284,6 +312,7 @@ park:
       name: "志程塑膠"
       industry: plastics
       product: "醫材塑件"
+      product_icon: "💉"
       intro: "課堂教學用**合成**工廠(#29);塑膠射出 · 主力產品:醫材塑件。製程:醫材塑件在射出成型機潔淨成形,智慧電表監測製程能耗的穩定性。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d064, template: injection_molding}
@@ -293,6 +322,7 @@ park:
       name: "均豪製程"
       industry: semiconductor
       product: "薄膜沉積製程"
+      product_icon: "💿"
       intro: "課堂教學用**合成**工廠(#30);半導體製程 · 主力產品:薄膜沉積製程。製程:薄膜在製程腔體內沉積,空壓機供應無塵室氣動閥件用氣。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d066, template: semi_process_chamber}
@@ -302,6 +332,7 @@ park:
       name: "岡田精機"
       industry: machine_tool
       product: "工具機床身部件"
+      product_icon: "🏗️"
       intro: "課堂教學用**合成**工廠(#31);工具機加工 · 主力產品:工具機床身部件。製程:床身鑄件在 CNC 加工中心精修導軌面,輸送帶出料,智慧電表監測產線能耗。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d068, template: cnc_machining_center}
@@ -312,6 +343,7 @@ park:
       name: "興隆熱處理"
       industry: heat_treat
       product: "退火軟化處理"
+      product_icon: "♨️"
       intro: "課堂教學用**合成**工廠(#32);熱處理 · 主力產品:退火軟化處理。製程:工件在熱處理爐緩慢退火軟化,智慧電表監測爐子的長時間耗電。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d071, template: heat_treat_furnace}
@@ -321,6 +353,7 @@ park:
       name: "智運倉儲"
       industry: logistics
       product: "輸送分揀系統"
+      product_icon: "📦"
       intro: "課堂教學用**合成**工廠(#33);物流設備 · 主力產品:輸送分揀系統。製程:分揀線機架與滾筒在 CNC 加工中心加工,自家輸送帶與 AGV 組成展示中的分揀線。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d073, template: cnc_machining_center}
@@ -331,6 +364,7 @@ park:
       name: "力麒精密"
       industry: precision_parts
       product: "醫療器械零件"
+      product_icon: "🩺"
       intro: "課堂教學用**合成**工廠(#34);精密零件 · 主力產品:醫療器械零件。製程:醫療零件在 CNC 加工中心精密切削,六軸手臂潔淨下料、輸送帶送檢出貨。產線:CNC 加工中心(d076) → 六軸機械手臂(d077) → 輸送帶(d078) —— 工件在引擎內真實流動,上游完工、手臂搬運、下游才有料可加工(緩衝可讀 FC04 line_in/out_buffer)。所有數據皆為模擬產生,非真實場域量測。"
       line: [d076, d077, d078]   # 產線物料流(engine/line.py)
       devices:
@@ -342,6 +376,7 @@ park:
       name: "華通切削"
       industry: cutting_tools
       product: "PVD 塗層刀具"
+      product_icon: "🛠️"
       intro: "課堂教學用**合成**工廠(#35);切削刀具 · 主力產品:PVD 塗層刀具。製程:刀具在 CNC 加工中心研磨成形,再進製程腔體做 PVD 硬質鍍膜,提升耐磨壽命。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d079, template: cnc_machining_center}
@@ -351,6 +386,7 @@ park:
       name: "藍天風電"
       industry: green_energy
       product: "風場運維示範"
+      product_icon: "🌬️"
       intro: "課堂教學用**合成**工廠(#36);綠能發電 · 主力產品:風場運維示範。製程:兩台風機組成示範風場,智慧電表彙整發電量供運維分析。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d081, template: wind_turbine}
@@ -361,6 +397,7 @@ park:
       name: "盛群機械"
       industry: machine_tool
       product: "精密模具加工"
+      product_icon: "🧰"
       intro: "課堂教學用**合成**工廠(#37);工具機加工 · 主力產品:精密模具加工。製程:模仁與模板在 CNC 加工中心銑削放電成形,智慧電表監測加工能耗與稼動。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d084, template: cnc_machining_center}
@@ -370,6 +407,7 @@ park:
       name: "和昌沖壓"
       industry: metal_forming
       product: "連續沖壓端子"
+      product_icon: "🔌"
       intro: "課堂教學用**合成**工廠(#38);沖壓鈑金 · 主力產品:連續沖壓端子。製程:兩台沖壓機串成級進工序(先沖孔、再成形),端子帶經輸送帶收料。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d086, template: stamping_press}
@@ -380,6 +418,7 @@ park:
       name: "耀陽射出"
       industry: plastics
       product: "光學鏡片座射出"
+      product_icon: "📷"
       intro: "課堂教學用**合成**工廠(#39);塑膠射出 · 主力產品:光學鏡片座射出。製程:鏡片座射出成形,六軸手臂無塵取件,輸送帶送往下工序。產線:射出成型機(d089) → 六軸機械手臂(d090) → 輸送帶(d091) —— 工件在引擎內真實流動,上游完工、手臂搬運、下游才有料可加工(緩衝可讀 FC04 line_in/out_buffer)。所有數據皆為模擬產生,非真實場域量測。"
       line: [d089, d090, d091]   # 產線物料流(engine/line.py)
       devices:
@@ -391,6 +430,7 @@ park:
       name: "宸曜科技"
       industry: semiconductor
       product: "化合物半導體製程"
+      product_icon: "💡"
       intro: "課堂教學用**合成**工廠(#40);半導體製程 · 主力產品:化合物半導體製程。製程:化合物晶圓在製程腔體加工,智慧電表監測腔體的高耗能製程。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d092, template: semi_process_chamber}
@@ -400,6 +440,7 @@ park:
       name: "三和熱工"
       industry: heat_treat
       product: "時效硬化處理"
+      product_icon: "⏲️"
       intro: "課堂教學用**合成**工廠(#41);熱處理 · 主力產品:時效硬化處理。製程:鋁件在熱處理爐時效硬化,出爐後經輸送帶冷卻出料。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d094, template: heat_treat_furnace}
@@ -409,6 +450,7 @@ park:
       name: "翔宇自動化"
       industry: motion_robotics
       product: "視覺檢測工作站"
+      product_icon: "👁️"
       intro: "課堂教學用**合成**工廠(#42);自動化系統 · 主力產品:視覺檢測工作站。製程:待出貨的檢測工作站試車中:六軸手臂持件對位,空壓機供應氣動夾爪——工作站本身就是產品。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d096, template: robot_arm_6axis}
@@ -418,6 +460,7 @@ park:
       name: "明鏡光電"
       industry: optics
       product: "光學檢測治具"
+      product_icon: "🔬"
       intro: "課堂教學用**合成**工廠(#43);光學元件 · 主力產品:光學檢測治具。製程:治具在 CNC 加工中心加工,製程腔體做表面硬化處理,空壓機供應潔淨氣源。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d098, template: cnc_machining_center}
@@ -428,6 +471,7 @@ park:
       name: "長弘精密"
       industry: precision_parts
       product: "工具機滾珠螺桿"
+      product_icon: "🔩"
       intro: "課堂教學用**合成**工廠(#44);精密零件 · 主力產品:工具機滾珠螺桿。製程:螺桿先在 CNC 加工中心車銑出溝槽,再進熱處理爐淬火回火,取得需要的硬度與壽命。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d101, template: cnc_machining_center}
@@ -437,6 +481,7 @@ park:
       name: "大成刀具"
       industry: cutting_tools
       product: "鎢鋼鑽頭"
+      product_icon: "🪛"
       intro: "課堂教學用**合成**工廠(#45);切削刀具 · 主力產品:鎢鋼鑽頭。製程:鑽頭在 CNC 加工中心研磨開刃,輸送帶連續出料,智慧電表監測研磨能耗。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d103, template: cnc_machining_center}
@@ -447,6 +492,7 @@ park:
       name: "啟睿智造"
       industry: machine_tool
       product: "CNC 立式加工中心"
+      product_icon: "🛠️"
       intro: "課堂教學用**合成**工廠(#46);工具機加工 · 主力產品:CNC 立式加工中心。製程:立加的床身與主軸座由 CNC 加工中心銑削,六軸手臂下料、輸送帶送出成品部件。產線:CNC 加工中心(d106) → 六軸機械手臂(d107) → 輸送帶(d108) —— 工件在引擎內真實流動,上游完工、手臂搬運、下游才有料可加工(緩衝可讀 FC04 line_in/out_buffer)。所有數據皆為模擬產生,非真實場域量測。"
       line: [d106, d107, d108]   # 產線物料流(engine/line.py)
       devices:
@@ -458,6 +504,7 @@ park:
       name: "鋼承工業"
       industry: metal_forming
       product: "五金沖壓件"
+      product_icon: "🔩"
       intro: "課堂教學用**合成**工廠(#47);沖壓鈑金 · 主力產品:五金沖壓件。製程:捲料在沖壓機連續沖裁成形,智慧電表監測沖次能耗。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d109, template: stamping_press}
@@ -467,6 +514,7 @@ park:
       name: "聚立高分子"
       industry: plastics
       product: "瓶胚量產射出"
+      product_icon: "🍼"
       intro: "課堂教學用**合成**工廠(#48);塑膠射出 · 主力產品:瓶胚量產射出。製程:兩台射出成型機並行量產瓶胚,智慧電表監測尖峰用電。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d111, template: injection_molding}
@@ -477,6 +525,7 @@ park:
       name: "南科製程"
       industry: semiconductor
       product: "先進封裝雙腔製程"
+      product_icon: "🎛️"
       intro: "課堂教學用**合成**工廠(#49);半導體製程 · 主力產品:先進封裝雙腔製程。製程:兩座製程腔體分擔封裝前後段,AGV 在腔體與料架間搬運晶舟。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d114, template: semi_process_chamber}
@@ -487,6 +536,7 @@ park:
       name: "恆溫熱處理"
       industry: heat_treat
       product: "連續爐熱處理線"
+      product_icon: "🔥"
       intro: "課堂教學用**合成**工廠(#50);熱處理 · 主力產品:連續爐熱處理線。製程:兩座熱處理爐串成預熱段與主熱段,智慧電表監測整線能耗。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d117, template: heat_treat_furnace}
@@ -497,6 +547,7 @@ park:
       name: "捷通物流"
       industry: logistics
       product: "智慧輸送模組"
+      product_icon: "📦"
       intro: "課堂教學用**合成**工廠(#51);物流設備 · 主力產品:智慧輸送模組。製程:輸送模組結構件在 CNC 加工中心加工,輸送帶當試車台,智慧電表監測試車能耗。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d120, template: cnc_machining_center}
@@ -507,6 +558,7 @@ park:
       name: "威剛精機"
       industry: machine_tool
       product: "CNC 車銑複合"
+      product_icon: "🛠️"
       intro: "課堂教學用**合成**工廠(#52);工具機加工 · 主力產品:CNC 車銑複合。製程:車銑複合機的關鍵件在 CNC 加工中心完成銑削,完工件經輸送帶出料。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d123, template: cnc_machining_center}
@@ -516,6 +568,7 @@ park:
       name: "元鼎金屬"
       industry: metal_forming
       product: "散熱片沖壓"
+      product_icon: "❄️"
       intro: "課堂教學用**合成**工廠(#53);沖壓鈑金 · 主力產品:散熱片沖壓。製程:散熱鰭片在沖壓機高速沖切,成品直接落到輸送帶出料。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d125, template: stamping_press}
@@ -525,6 +578,7 @@ park:
       name: "百川射出"
       industry: plastics
       product: "家電外殼射出"
+      product_icon: "📺"
       intro: "課堂教學用**合成**工廠(#54);塑膠射出 · 主力產品:家電外殼射出。製程:外殼在射出成型機射出保壓成形,空壓機供應頂出與模具吹氣。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d127, template: injection_molding}
@@ -534,6 +588,7 @@ park:
       name: "原晶科技"
       industry: semiconductor
       product: "晶圓蝕刻製程"
+      product_icon: "💿"
       intro: "課堂教學用**合成**工廠(#55);半導體製程 · 主力產品:晶圓蝕刻製程。製程:晶圓由六軸手臂在兩座製程腔體間傳送,依序完成蝕刻與清洗步驟。產線:半導體製程腔體(d129) → 六軸機械手臂(d130) → 半導體製程腔體(d131) —— 工件在引擎內真實流動,上游完工、手臂搬運、下游才有料可加工(緩衝可讀 FC04 line_in/out_buffer)。所有數據皆為模擬產生,非真實場域量測。"
       line: [d129, d130, d131]   # 產線物料流(engine/line.py)
       devices:
@@ -545,6 +600,7 @@ park:
       name: "火頌熱工"
       industry: heat_treat
       product: "滲碳淬火"
+      product_icon: "🔥"
       intro: "課堂教學用**合成**工廠(#56);熱處理 · 主力產品:滲碳淬火。製程:工件在熱處理爐滲碳後淬火,空壓機供應淬火攪拌與爐門氣封。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d132, template: heat_treat_furnace}
@@ -554,6 +610,7 @@ park:
       name: "展翼綠電"
       industry: green_energy
       product: "小型風力發電"
+      product_icon: "🌬️"
       intro: "課堂教學用**合成**工廠(#57);綠能發電 · 主力產品:小型風力發電。製程:風力發電機發電,智慧電表計量發電量與饋線品質。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d134, template: wind_turbine}
@@ -563,6 +620,7 @@ park:
       name: "智臂機器人"
       industry: motion_robotics
       product: "雙臂協作工作站"
+      product_icon: "🦾"
       intro: "課堂教學用**合成**工廠(#58);自動化系統 · 主力產品:雙臂協作工作站。製程:雙臂協作工作站出貨前驗證:兩支手臂跑協同節拍,輸送帶收放料——整站就是待交付的產品。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d136, template: robot_arm_6axis}
@@ -573,6 +631,7 @@ park:
       name: "清鋒刀具"
       industry: cutting_tools
       product: "高速鋼銑刀"
+      product_icon: "🪚"
       intro: "課堂教學用**合成**工廠(#59);切削刀具 · 主力產品:高速鋼銑刀。製程:刀體在 CNC 加工中心開槽開刃,再進熱處理爐淬火回火,取得刃口硬度。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d139, template: cnc_machining_center}
@@ -582,6 +641,7 @@ park:
       name: "澄光學儀"
       industry: optics
       product: "車用鏡頭元件"
+      product_icon: "📷"
       intro: "課堂教學用**合成**工廠(#60);光學元件 · 主力產品:車用鏡頭元件。製程:鏡筒與鏡座先在 CNC 加工中心精密切削,再進製程腔體完成光學鍍膜(增透膜),組成鏡頭模組。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d141, template: cnc_machining_center}
@@ -591,6 +651,7 @@ park:
       name: "鋒鏵精密"
       industry: precision_parts
       product: "自行車傳動件"
+      product_icon: "🚲"
       intro: "課堂教學用**合成**工廠(#61);精密零件 · 主力產品:自行車傳動件。製程:齒盤與曲柄在 CNC 加工中心切削成形,完工件經輸送帶連續出料。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d143, template: cnc_machining_center}
@@ -600,6 +661,7 @@ park:
       name: "勝弘工具機"
       industry: machine_tool
       product: "治具與夾具加工"
+      product_icon: "🗜️"
       intro: "課堂教學用**合成**工廠(#62);工具機加工 · 主力產品:治具與夾具加工。製程:治具板件在 CNC 加工中心銑削鑽孔,空壓機供應氣動夾持與吹屑氣源。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d145, template: cnc_machining_center}
@@ -609,6 +671,7 @@ park:
       name: "永固沖壓"
       industry: metal_forming
       product: "電子機殼沖壓"
+      product_icon: "💻"
       intro: "課堂教學用**合成**工廠(#63);沖壓鈑金 · 主力產品:電子機殼沖壓。製程:機殼在沖壓機拉伸成形,六軸手臂取件避免刮傷,經輸送帶出貨。產線:沖壓機(d147) → 六軸機械手臂(d148) → 輸送帶(d149) —— 工件在引擎內真實流動,上游完工、手臂搬運、下游才有料可加工(緩衝可讀 FC04 line_in/out_buffer)。所有數據皆為模擬產生,非真實場域量測。"
       line: [d147, d148, d149]   # 產線物料流(engine/line.py)
       devices:
@@ -620,6 +683,7 @@ park:
       name: "環宇智慧工廠"
       industry: logistics
       product: "自動倉儲料架"
+      product_icon: "🚚"
       intro: "課堂教學用**合成**工廠(#64);物流設備 · 主力產品:自動倉儲料架。製程:車架與輪組件在 CNC 加工中心加工,廠內 AGV 就是出貨前試跑的整車。所有數據皆為模擬產生,非真實場域量測。"
       devices:
         - {id: d150, template: cnc_machining_center}
@@ -629,6 +693,7 @@ park:
       name: "上下料示範廠(教師展示)"
       industry: machine_tool
       product: "CNC 上下料自動化工作站"
+      product_icon: "🦾"
       intro: "教師展示用:雙 CNC + 六軸手臂上下料工作站。產線:CNC 加工中心(d152) → 六軸機械手臂(d154) → CNC 加工中心(d153) —— 工件在引擎內真實流動,上游完工、手臂搬運、下游才有料可加工(緩衝可讀 FC04 line_in/out_buffer)。不屬於一人一廠的個人作業範圍。"
       line: [d152, d154, d153]   # 產線物料流(engine/line.py)
       devices:

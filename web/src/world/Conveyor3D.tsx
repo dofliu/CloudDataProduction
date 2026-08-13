@@ -10,7 +10,7 @@ import { useFrame } from "@react-three/fiber";
 import { Box, Cylinder } from "@react-three/drei";
 import * as THREE from "three";
 import MachineScene, { Readout, Row } from "./MachineScene";
-import { FaultSmoke, Shake, StatusBeacon, StatusText, bodyColor } from "./MachineFx";
+import { FaultSmoke, Shake, StatusBeacon, StatusText, WORKPIECE, WORKPIECE_SIZE, bodyColor } from "./MachineFx";
 import { DeviceMotion, MachineProps, clamp01, scaleNote } from "./deviceMotion";
 
 const LENGTH = 12, WIDTH = 2, HEIGHT = 1.5;
@@ -64,7 +64,7 @@ export const ConveyorModel = ({ motion, partCount }: MachineProps & {
           dummy.position.set(0, -100, 0);            // 藏到地下(instancedMesh 沒有 per-instance 顯示開關)
         } else {
           const progress = ((travel.current / LENGTH + i / PART_COUNT) % 1 + 1) % 1;
-          dummy.position.set(-LENGTH / 2 + progress * LENGTH, HEIGHT + 0.3, 0);
+          dummy.position.set(-LENGTH / 2 + progress * LENGTH, HEIGHT + WORKPIECE_SIZE / 2, 0);
         }
         dummy.updateMatrix();
         partsRef.current.setMatrixAt(i, dummy.matrix);
@@ -108,8 +108,8 @@ export const ConveyorModel = ({ motion, partCount }: MachineProps & {
         ))}
 
         <instancedMesh ref={partsRef} args={[undefined, undefined, PART_COUNT]} castShadow receiveShadow>
-          <boxGeometry args={[0.8, 0.6, 0.8]} />
-          <meshStandardMaterial color="#f09000" roughness={0.3} metalness={0.8} />
+          <boxGeometry args={[WORKPIECE_SIZE, WORKPIECE_SIZE, WORKPIECE_SIZE]} />
+          <meshStandardMaterial color={WORKPIECE} roughness={0.6} />
         </instancedMesh>
         <object3D ref={probeRef} name="probe:belt_part0" />
 

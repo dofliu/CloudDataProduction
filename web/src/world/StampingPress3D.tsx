@@ -16,7 +16,7 @@ import { useFrame } from "@react-three/fiber";
 import { Box } from "@react-three/drei";
 import * as THREE from "three";
 import MachineScene, { Readout, Row } from "./MachineScene";
-import { FX, FaultSmoke, HeatGlow, Shake, StatusBeacon, StatusText, bodyColor } from "./MachineFx";
+import { BLANK, FX, FaultSmoke, HeatGlow, Shake, StatusBeacon, StatusText, bodyColor } from "./MachineFx";
 import { DeviceMotion, MachineProps, clamp01, scaleNote, visualPeriod } from "./deviceMotion";
 
 const RAM_MAX_MM = 120;      // 引擎 ram_position 上死點
@@ -142,7 +142,7 @@ export const StampingPressModel = ({ motion }: MachineProps) => {
 
         {/* 工件:外觀吃 burr_rate */}
         <Box args={[1.5, 0.1, 1.2]} position={[0, 1.8, 0]} castShadow receiveShadow>
-          <meshStandardMaterial ref={workRef} color="#d9a441" emissive="#ffaa00" emissiveIntensity={0} />
+          <meshStandardMaterial ref={workRef} color={BLANK} emissive="#ffaa00" emissiveIntensity={0} />
         </Box>
 
         <Sparks active={hittingRef.current} position={sparkPos} burr={clamp01(motion.wear)} />

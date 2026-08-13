@@ -6,6 +6,7 @@ export interface Company {
   id: string; name: string; industry: string;
   owner: string | null; map_pos: MapPos | null; device_ids: string[];
   product?: string | null; intro?: string | null;
+  product_icon?: string | null;   // 成品示意(emoji;離線環境不抓圖,用系統字型渲染)
 }
 export interface Park {
   name: string; protocol_mode: string;

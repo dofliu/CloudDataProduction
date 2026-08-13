@@ -12,7 +12,7 @@ import { OrbitControls, Box, ContactShadows } from "@react-three/drei";
 import { DeviceSnapshot, LineView, getTeacherToken, setClock } from "../api";
 import { DeviceMotion, buildMotion } from "./deviceMotion";
 import { StudioEnvironment } from "./MachineScene";
-import { CanvasLabel } from "./MachineFx";
+import { CanvasLabel, WORKPIECE } from "./MachineFx";
 
 import { CNCModel } from "./CncMachine3D";
 import { RobotArmModel } from "./RobotArm3D";
@@ -57,7 +57,7 @@ function BufferStack({ x, z, count, label }: { x: number; z: number; count: numb
       </Box>
       {Array.from({ length: Math.min(count, 6) }, (_, i) => (
         <Box key={i} args={[0.62, 0.55, 0.62]} position={[0, 0.42 + i * 0.58, 0]} castShadow>
-          <meshStandardMaterial color="#3a8a3a" roughness={0.6} />
+          <meshStandardMaterial color={WORKPIECE} roughness={0.6} />
         </Box>
       ))}
       <CanvasLabel text={`${label} ${count}`} position={[0, 0.02, 1.35]}
@@ -312,6 +312,12 @@ export default function FactoryLine3D({
             {line.stations.filter((s) => s.role === "handler").map((s) =>
               ` · ${s.device} 累積搬運 ${s.moved ?? 0} 件${(s.carrying ?? 0) > 0 ? "(搬運中)" : ""}`
             ).join("")}
+          </span>
+        )}
+        {line && (
+          <span style={{ background: "rgba(255,250,240,.8)", color: "var(--muted)", padding: "4px 10px",
+                         borderRadius: 8, alignSelf: "flex-start", fontSize: 11.5 }}>
+            🟩 綠色方塊 = 流動中的工件(緩衝 / 在手 / 帶上)· 米黃大件 = 機內加工中的胚料
           </span>
         )}
         {line?.kpi && (

@@ -322,7 +322,8 @@ export default function WorldView({
         <div className="card float" style={{ position: "absolute", left: Math.min(tip.x + 14, (hostRef.current?.clientWidth ?? 800) - 250),
                       top: tip.y + 14, width: 232, padding: "9px 12px", pointerEvents: "none" }}>
           <div style={{ fontWeight: 700, color: "var(--text)" }}>🏭 {tip.c.name}</div>
-          {tip.c.product && <div style={{ color: "var(--accent)", fontSize: 12, margin: "3px 0" }}>主要產品:{tip.c.product}</div>}
+          {tip.c.product && <div style={{ color: "var(--accent)", fontSize: 12, margin: "3px 0" }}>
+            主要產品:{tip.c.product_icon ? `${tip.c.product_icon} ` : ""}{tip.c.product}</div>}
           <div className="mono" style={{ color: "var(--muted)", fontSize: 11 }}>設備:{(tip.c.device_ids || []).join("、")}</div>
           <SupplyLines cid={tip.c.id} size={11} />
         </div>
@@ -354,7 +355,17 @@ export default function WorldView({
                       onClick={() => setInfoOpen((v) => !v)}>{infoOpen ? "▾" : "▸"}</button>
             </div>
             {infoOpen && <>
-              {fc.product && <div style={{ color: "var(--accent)", fontSize: 12.5, margin: "6px 0" }}>主要產品:{fc.product}</div>}
+              {fc.product && (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "8px 0",
+                              padding: "8px 10px", borderRadius: 8, background: "rgba(200,112,58,.10)" }}>
+                  {/* 成品示意:emoji 用系統字型渲染,校內 LAN 離線也不會缺圖 */}
+                  <span style={{ fontSize: 30, lineHeight: 1 }} aria-hidden>{fc.product_icon ?? "📦"}</span>
+                  <div>
+                    <div style={{ fontSize: 11, color: "var(--muted)", letterSpacing: ".06em" }}>主要產品(成品示意)</div>
+                    <div style={{ color: "var(--accent)", fontSize: 13.5, fontWeight: 700 }}>{fc.product}</div>
+                  </div>
+                </div>
+              )}
               {fc.intro && <div style={{ color: "var(--text-2)", fontSize: 12.5, lineHeight: 1.6 }}>{fc.intro}</div>}
               {fcFlow?.flowText && (
                 <div style={{ marginTop: 9, padding: "7px 9px", borderRadius: 7,

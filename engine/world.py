@@ -275,6 +275,7 @@ class World:
                     "owner": c.get("owner"),
                     "map_pos": c.get("map_pos"),
                     "product": c.get("product"),     # 主要產品(給 tooltip / 介紹面板)
+                    "product_icon": c.get("product_icon"),   # 成品示意(emoji,離線可用)
                     "intro": c.get("intro"),         # 公司介紹文字
                     "device_ids": [d.get("id") for d in c.get("devices", []) or []],
                 }

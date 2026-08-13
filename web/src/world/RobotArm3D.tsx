@@ -18,7 +18,7 @@ import { useFrame } from "@react-three/fiber";
 import { Box, Cylinder } from "@react-three/drei";
 import * as THREE from "three";
 import MachineScene, { Readout, Row } from "./MachineScene";
-import { FaultSmoke, HeatGlow, Shake, StatusBeacon, bodyColor } from "./MachineFx";
+import { FaultSmoke, HeatGlow, Shake, StatusBeacon, WORKPIECE, bodyColor } from "./MachineFx";
 import { DeviceMotion, MachineProps, approachAngleDeg, clamp01, scaleNote } from "./deviceMotion";
 
 // 骨架尺寸(必須與下方 mesh 一致,fk 才算得準)
@@ -195,7 +195,7 @@ export const RobotArmModel = ({ motion, stations }: MachineProps & {
                                 <object3D name="probe:tcp" position={[0, 0.38, 0]} />
                                 {holding && (
                                   <Box args={[0.5, 0.5, 0.5]} position={[0, 0.38, 0]} castShadow receiveShadow>
-                                    <meshStandardMaterial color="#3a8a3a" />
+                                    <meshStandardMaterial color={WORKPIECE} />
                                   </Box>
                                 )}
                               </group>
@@ -252,7 +252,7 @@ function Station({ pos, showBox }: { pos: [number, number, number]; showBox: boo
       ))}
       {showBox && (
         <Box args={[0.6, 0.6, 0.6]} position={[0, top + 0.52, 0]} castShadow receiveShadow>
-          <meshStandardMaterial color="#3a8a3a" />
+          <meshStandardMaterial color={WORKPIECE} />
         </Box>
       )}
     </group>

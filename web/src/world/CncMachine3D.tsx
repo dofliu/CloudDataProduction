@@ -10,7 +10,7 @@ import { useFrame } from "@react-three/fiber";
 import { Box, Cylinder } from "@react-three/drei";
 import * as THREE from "three";
 import MachineScene, { Readout, Row } from "./MachineScene";
-import { FaultSmoke, HeatGlow, Shake, StatusBeacon, bodyColor } from "./MachineFx";
+import { BLANK, FaultSmoke, HeatGlow, Shake, StatusBeacon, bodyColor } from "./MachineFx";
 import {
   DeviceMotion, MachineProps, approach, clamp01, cncToolPath, engraveStrokes, engraveText,
   lockCncPhase, scaleNote, visualPeriod, visualSpin,
@@ -259,7 +259,7 @@ export const CNCModel = ({ motion, enclosed = false }: MachineProps & {
           <meshStandardMaterial color="#c5bcae" roughness={0.7} metalness={0.2} />
         </Box>
         <Box args={[10, 1, 10]} position={[0, 0.75, 0]} receiveShadow castShadow>
-          <meshStandardMaterial color="#e6dfd3" roughness={0.8} />
+          <meshStandardMaterial color={BLANK} roughness={0.8} />
         </Box>
 
         <instancedMesh ref={trailMeshRef} args={[undefined, undefined, MAX_TRAIL_POINTS]} castShadow receiveShadow>

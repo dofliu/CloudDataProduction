@@ -15,6 +15,17 @@ export const FX = {
   hot: "#ff7a2f", steel: "#7b8a8b", dark: "#333333",
 };
 
+// ── 工件視覺語彙(全站統一,2026-08-13)──────────────────────
+// 同一個工件在 CNC 裡是白色大板、手臂夾著是綠色小塊、輸送帶上又變橘色 ——
+// 學生看不出「誰是誰」。統一成兩種身分、各一種顏色與尺寸:
+//   · 站間「流動中的工件」(緩衝堆 / 手臂在手 / 棧板 / 輸送帶上 / AGV 載貨):
+//     一律綠色 WORKPIECE、0.5 立方 —— 綠色只給工件,機身沒有這個顏色。
+//   · 機內「加工中的胚料」(CNC 刻字板 / 沖壓模台料):一律胚料黃 BLANK ——
+//     大板是材料,加工完的「件」才變綠色進入流動。
+export const WORKPIECE = "#3a8a3a";
+export const WORKPIECE_SIZE = 0.5;
+export const BLANK = "#cbb98f";
+
 /** 機身主色:故障轉警示紅、被停機轉灰、其餘維持原色。 */
 export function bodyColor(motion: DeviceMotion, base = FX.steel) {
   if (motion.fault) return FX.fault;

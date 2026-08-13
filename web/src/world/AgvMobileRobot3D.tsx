@@ -15,7 +15,7 @@ import { useFrame } from "@react-three/fiber";
 import { Box, Cylinder, Line } from "@react-three/drei";
 import * as THREE from "three";
 import MachineScene, { Readout, Row } from "./MachineScene";
-import { CanvasLabel, FX, FaultSmoke, HeatGlow, StatusBeacon, bodyColor } from "./MachineFx";
+import { CanvasLabel, FX, FaultSmoke, HeatGlow, StatusBeacon, WORKPIECE, bodyColor } from "./MachineFx";
 import {
   AGV_LOOP, DeviceMotion, MachineProps, agvLockS, agvPosFromS, agvSFromPos,
   approachAngleRad, clamp01,
@@ -122,7 +122,7 @@ export const AgvModel = ({ motion, compact = false }: MachineProps & { compact?:
         <meshStandardMaterial color="#444444" />
       </Cylinder>
       <group ref={payloadRef} position={[0, 2.1, 0]} visible={false}>
-        <Box args={[0.5, 0.5, 0.5]} castShadow receiveShadow><meshStandardMaterial color="#3a8a3a" /></Box>
+        <Box args={[0.5, 0.5, 0.5]} castShadow receiveShadow><meshStandardMaterial color={WORKPIECE} /></Box>
       </group>
       {/* 行進方向燈 */}
       <Box args={[0.6, 0.1, 0.4]} position={[0, 0.55, 1.0]} castShadow receiveShadow>
@@ -195,7 +195,7 @@ const StationArm = ({ at, motion, isLoad }: { at: [number, number]; motion: Devi
   return (
     <group>
       <Box ref={srcBoxRef} args={[0.5, 0.5, 0.5]} position={[0, 2.05, -3.2]} castShadow>
-        <meshStandardMaterial color="#3a8a3a" />
+        <meshStandardMaterial color={WORKPIECE} />
       </Box>
       <Cylinder args={[0.6, 0.8, 1.0, 32]} position={[0, 0.5, 0]} castShadow><meshStandardMaterial color="#444444" /></Cylinder>
       <group ref={j1} position={[0, 1.0, 0]}>
@@ -214,7 +214,7 @@ const StationArm = ({ at, motion, isLoad }: { at: [number, number]; motion: Devi
                     <Box args={[0.05, 0.4, 0.1]} position={[-0.15, 0.2, 0]}><meshStandardMaterial color="#222222" /></Box>
                     <Box args={[0.05, 0.4, 0.1]} position={[0.15, 0.2, 0]}><meshStandardMaterial color="#222222" /></Box>
                     <Box ref={boxRef} args={[0.5, 0.5, 0.5]} position={[0, 0.5, 0]} castShadow visible={false}>
-                      <meshStandardMaterial color="#3a8a3a" />
+                      <meshStandardMaterial color={WORKPIECE} />
                     </Box>
                   </group>
                 </group>

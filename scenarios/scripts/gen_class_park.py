@@ -38,22 +38,28 @@ ARCHETYPES = {
         "recipes": [
             {"devices": ["cnc_machining_center", "energy_meter"],                      # 加工 + 用電監測
              "products": ["精密模具加工"],
-             "story": "模仁與模板在 CNC 加工中心銑削放電成形,智慧電表監測加工能耗與稼動。"},
+             "story": "模仁與模板在 CNC 加工中心銑削放電成形,智慧電表監測加工能耗與稼動。",
+             "icon": "🧰"},
             {"devices": ["cnc_machining_center", "robot_arm_6axis", "conveyor"],       # 手臂下料到輸送帶
              "products": ["CNC 立式加工中心"],
-             "story": "立加的床身與主軸座由 CNC 加工中心銑削,六軸手臂下料、輸送帶送出成品部件。"},
+             "story": "立加的床身與主軸座由 CNC 加工中心銑削,六軸手臂下料、輸送帶送出成品部件。",
+             "icon": "🛠️"},
             {"devices": ["cnc_machining_center", "conveyor"],                          # 加工完出料
              "products": ["CNC 車銑複合"],
-             "story": "車銑複合機的關鍵件在 CNC 加工中心完成銑削,完工件經輸送帶出料。"},
+             "story": "車銑複合機的關鍵件在 CNC 加工中心完成銑削,完工件經輸送帶出料。",
+             "icon": "🛠️"},
             {"devices": ["cnc_machining_center", "air_compressor"],                    # 廠務氣源
              "products": ["治具與夾具加工"],
-             "story": "治具板件在 CNC 加工中心銑削鑽孔,空壓機供應氣動夾持與吹屑氣源。"},
+             "story": "治具板件在 CNC 加工中心銑削鑽孔,空壓機供應氣動夾持與吹屑氣源。",
+             "icon": "🗜️"},
             {"devices": ["cnc_machining_center", "cnc_machining_center", "robot_arm_6axis"],
              "products": ["五軸加工中心"],
-             "story": "兩台 CNC 加工中心分擔粗銑與精銑,六軸手臂在兩機間傳遞工件,組成五軸機部件產線。"},                                            # 雙機+手臂:高階機種
+             "story": "兩台 CNC 加工中心分擔粗銑與精銑,六軸手臂在兩機間傳遞工件,組成五軸機部件產線。",
+             "icon": "🛠️"},                                            # 雙機+手臂:高階機種
             {"devices": ["cnc_machining_center", "conveyor", "energy_meter"],
              "products": ["工具機床身部件"],
-             "story": "床身鑄件在 CNC 加工中心精修導軌面,輸送帶出料,智慧電表監測產線能耗。"},
+             "story": "床身鑄件在 CNC 加工中心精修導軌面,輸送帶出料,智慧電表監測產線能耗。",
+             "icon": "🏗️"},
         ],
     },
     "precision_parts": {
@@ -61,16 +67,20 @@ ARCHETYPES = {
         "recipes": [
             {"devices": ["cnc_machining_center", "conveyor"],
              "products": ["自行車傳動件"],
-             "story": "齒盤與曲柄在 CNC 加工中心切削成形,完工件經輸送帶連續出料。"},                                            # 量產出料
+             "story": "齒盤與曲柄在 CNC 加工中心切削成形,完工件經輸送帶連續出料。",
+             "icon": "🚲"},                                            # 量產出料
             {"devices": ["cnc_machining_center", "energy_meter"],
              "products": ["航太結構件"],
-             "story": "航太級鋁合金結構件在 CNC 加工中心多工序銑削,智慧電表監測高值加工的能耗。"},                                              # 單件高值
+             "story": "航太級鋁合金結構件在 CNC 加工中心多工序銑削,智慧電表監測高值加工的能耗。",
+             "icon": "✈️"},                                              # 單件高值
             {"devices": ["cnc_machining_center", "robot_arm_6axis", "conveyor"],
              "products": ["醫療器械零件"],
-             "story": "醫療零件在 CNC 加工中心精密切削,六軸手臂潔淨下料、輸送帶送檢出貨。"},                                            # 自動化下料(潔淨)
+             "story": "醫療零件在 CNC 加工中心精密切削,六軸手臂潔淨下料、輸送帶送檢出貨。",
+             "icon": "🩺"},                                            # 自動化下料(潔淨)
             {"devices": ["cnc_machining_center", "heat_treat_furnace"],
              "products": ["工具機滾珠螺桿"],
-             "story": "螺桿先在 CNC 加工中心車銑出溝槽,再進熱處理爐淬火回火,取得需要的硬度與壽命。"},                                          # 加工後熱處理 ★綁定重點
+             "story": "螺桿先在 CNC 加工中心車銑出溝槽,再進熱處理爐淬火回火,取得需要的硬度與壽命。",
+             "icon": "🔩"},                                          # 加工後熱處理 ★綁定重點
         ],
     },
     "metal_forming": {
@@ -78,22 +88,28 @@ ARCHETYPES = {
         "recipes": [
             {"devices": ["stamping_press", "energy_meter"],
              "products": ["五金沖壓件"],
-             "story": "捲料在沖壓機連續沖裁成形,智慧電表監測沖次能耗。"},
+             "story": "捲料在沖壓機連續沖裁成形,智慧電表監測沖次能耗。",
+             "icon": "🔩"},
             {"devices": ["stamping_press", "conveyor"],                                # 沖完直接出料
              "products": ["散熱片沖壓"],
-             "story": "散熱鰭片在沖壓機高速沖切,成品直接落到輸送帶出料。"},
+             "story": "散熱鰭片在沖壓機高速沖切,成品直接落到輸送帶出料。",
+             "icon": "❄️"},
             {"devices": ["stamping_press", "robot_arm_6axis", "conveyor"],             # 手臂取件防刮傷
              "products": ["電子機殼沖壓"],
-             "story": "機殼在沖壓機拉伸成形,六軸手臂取件避免刮傷,經輸送帶出貨。"},
+             "story": "機殼在沖壓機拉伸成形,六軸手臂取件避免刮傷,經輸送帶出貨。",
+             "icon": "💻"},
             {"devices": ["stamping_press", "air_compressor"],                          # 氣壓頂料
              "products": ["汽車鈑金件"],
-             "story": "鈑金件在沖壓機成形,空壓機供應模內氣壓頂料與吹屑。"},
+             "story": "鈑金件在沖壓機成形,空壓機供應模內氣壓頂料與吹屑。",
+             "icon": "🚗"},
             {"devices": ["stamping_press", "conveyor", "energy_meter"],
              "products": ["馬達矽鋼片沖壓"],
-             "story": "矽鋼片在沖壓機連續級進沖裁,輸送帶出料,智慧電表監測高速沖壓的用電。"},
+             "story": "矽鋼片在沖壓機連續級進沖裁,輸送帶出料,智慧電表監測高速沖壓的用電。",
+             "icon": "🧲"},
             {"devices": ["stamping_press", "stamping_press", "conveyor"],              # 雙機連線
              "products": ["連續沖壓端子"],
-             "story": "兩台沖壓機串成級進工序(先沖孔、再成形),端子帶經輸送帶收料。"},
+             "story": "兩台沖壓機串成級進工序(先沖孔、再成形),端子帶經輸送帶收料。",
+             "icon": "🔌"},
         ],
     },
     "plastics": {
@@ -101,22 +117,28 @@ ARCHETYPES = {
         "recipes": [
             {"devices": ["injection_molding", "air_compressor"],
              "products": ["家電外殼射出"],
-             "story": "外殼在射出成型機射出保壓成形,空壓機供應頂出與模具吹氣。"},
+             "story": "外殼在射出成型機射出保壓成形,空壓機供應頂出與模具吹氣。",
+             "icon": "📺"},
             {"devices": ["injection_molding", "conveyor"],                             # 頂出落料到輸送帶
              "products": ["汽車內飾件"],
-             "story": "內飾件射出後自動頂出落料,經輸送帶連續出貨。"},
+             "story": "內飾件射出後自動頂出落料,經輸送帶連續出貨。",
+             "icon": "🚗"},
             {"devices": ["injection_molding", "robot_arm_6axis", "conveyor"],          # 取件機下料到輸送帶
              "products": ["精密齒輪射出"],
-             "story": "精密齒輪射出成形,六軸手臂取件避免澆道拉傷,輸送帶送檢。"},
+             "story": "精密齒輪射出成形,六軸手臂取件避免澆道拉傷,輸送帶送檢。",
+             "icon": "⚙️"},
             {"devices": ["injection_molding", "energy_meter"],                         # 射出耗電大
              "products": ["醫材塑件"],
-             "story": "醫材塑件在射出成型機潔淨成形,智慧電表監測製程能耗的穩定性。"},
+             "story": "醫材塑件在射出成型機潔淨成形,智慧電表監測製程能耗的穩定性。",
+             "icon": "💉"},
             {"devices": ["injection_molding", "robot_arm_6axis", "conveyor"],
              "products": ["光學鏡片座射出"],
-             "story": "鏡片座射出成形,六軸手臂無塵取件,輸送帶送往下工序。"},
+             "story": "鏡片座射出成形,六軸手臂無塵取件,輸送帶送往下工序。",
+             "icon": "📷"},
             {"devices": ["injection_molding", "injection_molding", "energy_meter"],
              "products": ["瓶胚量產射出"],
-             "story": "兩台射出成型機並行量產瓶胚,智慧電表監測尖峰用電。"},
+             "story": "兩台射出成型機並行量產瓶胚,智慧電表監測尖峰用電。",
+             "icon": "🍼"},
         ],
     },
     "semiconductor": {
@@ -124,19 +146,24 @@ ARCHETYPES = {
         "recipes": [
             {"devices": ["semi_process_chamber", "robot_arm_6axis", "semi_process_chamber"],
              "products": ["晶圓蝕刻製程"],
-             "story": "晶圓由六軸手臂在兩座製程腔體間傳送,依序完成蝕刻與清洗步驟。"},                                            # 晶圓傳送手臂串兩腔
+             "story": "晶圓由六軸手臂在兩座製程腔體間傳送,依序完成蝕刻與清洗步驟。",
+             "icon": "💿"},                                            # 晶圓傳送手臂串兩腔
             {"devices": ["semi_process_chamber", "agv_mobile_robot"],                  # AGV 搬晶圓盒
              "products": ["封測前段製程"],
-             "story": "晶圓在製程腔體完成前段處理,AGV 搬運晶圓盒往返倉儲。"},
+             "story": "晶圓在製程腔體完成前段處理,AGV 搬運晶圓盒往返倉儲。",
+             "icon": "💿"},
             {"devices": ["semi_process_chamber", "air_compressor"],                    # 無塵室廠務
              "products": ["薄膜沉積製程"],
-             "story": "薄膜在製程腔體內沉積,空壓機供應無塵室氣動閥件用氣。"},
+             "story": "薄膜在製程腔體內沉積,空壓機供應無塵室氣動閥件用氣。",
+             "icon": "💿"},
             {"devices": ["semi_process_chamber", "energy_meter"],
              "products": ["化合物半導體製程"],
-             "story": "化合物晶圓在製程腔體加工,智慧電表監測腔體的高耗能製程。"},
+             "story": "化合物晶圓在製程腔體加工,智慧電表監測腔體的高耗能製程。",
+             "icon": "💡"},
             {"devices": ["semi_process_chamber", "semi_process_chamber", "agv_mobile_robot"],
              "products": ["先進封裝雙腔製程"],
-             "story": "兩座製程腔體分擔封裝前後段,AGV 在腔體與料架間搬運晶舟。"},
+             "story": "兩座製程腔體分擔封裝前後段,AGV 在腔體與料架間搬運晶舟。",
+             "icon": "🎛️"},
         ],
     },
     "heat_treat": {
@@ -144,19 +171,24 @@ ARCHETYPES = {
         "recipes": [
             {"devices": ["heat_treat_furnace", "air_compressor"],
              "products": ["滲碳淬火"],
-             "story": "工件在熱處理爐滲碳後淬火,空壓機供應淬火攪拌與爐門氣封。"},
+             "story": "工件在熱處理爐滲碳後淬火,空壓機供應淬火攪拌與爐門氣封。",
+             "icon": "🔥"},
             {"devices": ["heat_treat_furnace", "agv_mobile_robot"],                    # 料籃搬運
              "products": ["真空熱處理"],
-             "story": "料籃由 AGV 送進熱處理爐真空加熱,避免工件表面氧化。"},
+             "story": "料籃由 AGV 送進熱處理爐真空加熱,避免工件表面氧化。",
+             "icon": "🌡️"},
             {"devices": ["heat_treat_furnace", "energy_meter"],                        # 爐子是耗電大戶
              "products": ["退火軟化處理"],
-             "story": "工件在熱處理爐緩慢退火軟化,智慧電表監測爐子的長時間耗電。"},
+             "story": "工件在熱處理爐緩慢退火軟化,智慧電表監測爐子的長時間耗電。",
+             "icon": "♨️"},
             {"devices": ["heat_treat_furnace", "conveyor"],
              "products": ["時效硬化處理"],
-             "story": "鋁件在熱處理爐時效硬化,出爐後經輸送帶冷卻出料。"},
+             "story": "鋁件在熱處理爐時效硬化,出爐後經輸送帶冷卻出料。",
+             "icon": "⏲️"},
             {"devices": ["heat_treat_furnace", "heat_treat_furnace", "energy_meter"],
              "products": ["連續爐熱處理線"],
-             "story": "兩座熱處理爐串成預熱段與主熱段,智慧電表監測整線能耗。"},
+             "story": "兩座熱處理爐串成預熱段與主熱段,智慧電表監測整線能耗。",
+             "icon": "🔥"},
         ],
     },
     "motion_robotics": {
@@ -164,19 +196,24 @@ ARCHETYPES = {
         "recipes": [
             {"devices": ["cnc_machining_center", "robot_arm_6axis", "conveyor"],       # 上下料整合示範線
              "products": ["產線自動化"],
-             "story": "示範線:CNC 加工中心加工、六軸手臂上下料、輸送帶出貨,展示整線自動化。"},
+             "story": "示範線:CNC 加工中心加工、六軸手臂上下料、輸送帶出貨,展示整線自動化。",
+             "icon": "🦾"},
             {"devices": ["robot_arm_6axis", "conveyor"],
              "products": ["取放系統整合"],
-             "story": "整合商出貨前驗證線:六軸手臂跑取放節拍、輸送帶模擬客戶端收料——線上這座工作站本身就是待交付的產品。"},
+             "story": "整合商出貨前驗證線:六軸手臂跑取放節拍、輸送帶模擬客戶端收料——線上這座工作站本身就是待交付的產品。",
+             "icon": "🦾"},
             {"devices": ["robot_arm_6axis", "cnc_machining_center"],
              "products": ["機械手臂整合"],
-             "story": "六軸手臂為 CNC 加工中心上下料,驗證手臂與工具機的整合節拍。"},
+             "story": "六軸手臂為 CNC 加工中心上下料,驗證手臂與工具機的整合節拍。",
+             "icon": "🦾"},
             {"devices": ["robot_arm_6axis", "air_compressor"],
              "products": ["視覺檢測工作站"],
-             "story": "待出貨的檢測工作站試車中:六軸手臂持件對位,空壓機供應氣動夾爪——工作站本身就是產品。"},
+             "story": "待出貨的檢測工作站試車中:六軸手臂持件對位,空壓機供應氣動夾爪——工作站本身就是產品。",
+             "icon": "👁️"},
             {"devices": ["robot_arm_6axis", "robot_arm_6axis", "conveyor"],
              "products": ["雙臂協作工作站"],
-             "story": "雙臂協作工作站出貨前驗證:兩支手臂跑協同節拍,輸送帶收放料——整站就是待交付的產品。"},
+             "story": "雙臂協作工作站出貨前驗證:兩支手臂跑協同節拍,輸送帶收放料——整站就是待交付的產品。",
+             "icon": "🦾"},
         ],
     },
     "logistics": {
@@ -184,13 +221,16 @@ ARCHETYPES = {
         "recipes": [
             {"devices": ["cnc_machining_center", "agv_mobile_robot"],
              "products": ["AGV 無人搬運車", "自動倉儲料架"],   # 兩個產品:同老師第 4 廠繞回來時不撞名
-             "story": "車架與輪組件在 CNC 加工中心加工,廠內 AGV 就是出貨前試跑的整車。"},
+             "story": "車架與輪組件在 CNC 加工中心加工,廠內 AGV 就是出貨前試跑的整車。",
+             "icon": "🚚"},
             {"devices": ["cnc_machining_center", "conveyor", "agv_mobile_robot"],
              "products": ["輸送分揀系統"],
-             "story": "分揀線機架與滾筒在 CNC 加工中心加工,自家輸送帶與 AGV 組成展示中的分揀線。"},
+             "story": "分揀線機架與滾筒在 CNC 加工中心加工,自家輸送帶與 AGV 組成展示中的分揀線。",
+             "icon": "📦"},
             {"devices": ["cnc_machining_center", "conveyor", "energy_meter"],
              "products": ["智慧輸送模組"],
-             "story": "輸送模組結構件在 CNC 加工中心加工,輸送帶當試車台,智慧電表監測試車能耗。"},
+             "story": "輸送模組結構件在 CNC 加工中心加工,輸送帶當試車台,智慧電表監測試車能耗。",
+             "icon": "📦"},
         ],
     },
     "green_energy": {
@@ -198,13 +238,16 @@ ARCHETYPES = {
         "recipes": [
             {"devices": ["wind_turbine", "energy_meter"],
              "products": ["小型風力發電"],
-             "story": "風力發電機發電,智慧電表計量發電量與饋線品質。"},
+             "story": "風力發電機發電,智慧電表計量發電量與饋線品質。",
+             "icon": "🌬️"},
             {"devices": ["wind_turbine", "energy_meter"],
              "products": ["廠區自發自用綠電"],
-             "story": "風機發電直供廠區自用,智慧電表計量自發自用的比例。"},              # 同設備、不同商業模式(自發自用)
+             "story": "風機發電直供廠區自用,智慧電表計量自發自用的比例。",
+             "icon": "⚡"},              # 同設備、不同商業模式(自發自用)
             {"devices": ["wind_turbine", "wind_turbine", "energy_meter"],
              "products": ["風場運維示範"],
-             "story": "兩台風機組成示範風場,智慧電表彙整發電量供運維分析。"},
+             "story": "兩台風機組成示範風場,智慧電表彙整發電量供運維分析。",
+             "icon": "🌬️"},
         ],
     },
     "cutting_tools": {
@@ -212,13 +255,16 @@ ARCHETYPES = {
         "recipes": [
             {"devices": ["cnc_machining_center", "heat_treat_furnace"],
              "products": ["高速鋼銑刀", "螺絲攻與板牙"],   # 兩個產品:同老師第 4 廠繞回來時不撞名
-             "story": "刀體在 CNC 加工中心開槽開刃,再進熱處理爐淬火回火,取得刃口硬度。"},
+             "story": "刀體在 CNC 加工中心開槽開刃,再進熱處理爐淬火回火,取得刃口硬度。",
+             "icon": "🪚"},
             {"devices": ["cnc_machining_center", "semi_process_chamber"],
              "products": ["PVD 塗層刀具"],
-             "story": "刀具在 CNC 加工中心研磨成形,再進製程腔體做 PVD 硬質鍍膜,提升耐磨壽命。"},
+             "story": "刀具在 CNC 加工中心研磨成形,再進製程腔體做 PVD 硬質鍍膜,提升耐磨壽命。",
+             "icon": "🛠️"},
             {"devices": ["cnc_machining_center", "conveyor", "energy_meter"],
              "products": ["鎢鋼鑽頭"],
-             "story": "鑽頭在 CNC 加工中心研磨開刃,輸送帶連續出料,智慧電表監測研磨能耗。"},
+             "story": "鑽頭在 CNC 加工中心研磨開刃,輸送帶連續出料,智慧電表監測研磨能耗。",
+             "icon": "🪛"},
         ],
     },
     "optics": {
@@ -226,13 +272,16 @@ ARCHETYPES = {
         "recipes": [
             {"devices": ["cnc_machining_center", "semi_process_chamber"],              # 先精密加工、再進腔鍍膜
              "products": ["手機鏡頭模組", "車用鏡頭元件"],
-             "story": "鏡筒與鏡座先在 CNC 加工中心精密切削,再進製程腔體完成光學鍍膜(增透膜),組成鏡頭模組。"},     # 兩個產品:同老師第 4 廠繞回來時不撞名
+             "story": "鏡筒與鏡座先在 CNC 加工中心精密切削,再進製程腔體完成光學鍍膜(增透膜),組成鏡頭模組。",
+             "icon": "📷"},     # 兩個產品:同老師第 4 廠繞回來時不撞名
             {"devices": ["semi_process_chamber", "energy_meter"],
              "products": ["光學鍍膜"],
-             "story": "光學元件在製程腔體真空鍍膜,智慧電表監測腔體能耗與製程穩定。"},
+             "story": "光學元件在製程腔體真空鍍膜,智慧電表監測腔體能耗與製程穩定。",
+             "icon": "🔍"},
             {"devices": ["cnc_machining_center", "semi_process_chamber", "air_compressor"],
              "products": ["光學檢測治具"],
-             "story": "治具在 CNC 加工中心加工,製程腔體做表面硬化處理,空壓機供應潔淨氣源。"},
+             "story": "治具在 CNC 加工中心加工,製程腔體做表面硬化處理,空壓機供應潔淨氣源。",
+             "icon": "🔬"},
         ],
     },
 }
@@ -331,6 +380,7 @@ def build() -> tuple[list[dict], list[str]]:
             "name": name,
             "industry": arch_key,
             "product": product,
+            "product_icon": recipe.get("icon", "📦"),
             "intro": INTRO.format(n=i, label=arch["label"], product=product,
                                   story=recipe["story"],
                                   line_note=line_note(line, devices)),
@@ -351,6 +401,7 @@ def build() -> tuple[list[dict], list[str]]:
         "name": "上下料示範廠(教師展示)",
         "industry": "machine_tool",
         "product": "CNC 上下料自動化工作站",
+        "product_icon": "🦾",
         "intro": ("教師展示用:雙 CNC + 六軸手臂上下料工作站。"
                   + line_note(demo_line, demo) + "不屬於一人一廠的個人作業範圍。"),
         "devices": demo,
@@ -453,6 +504,7 @@ def to_yaml(companies: list[dict]) -> str:
         lines.append(f'      name: "{c["name"]}"')
         lines.append(f"      industry: {c['industry']}")
         lines.append(f'      product: "{c["product"]}"')
+        lines.append(f'      product_icon: "{c["product_icon"]}"')
         lines.append(f'      intro: "{c["intro"]}"')
         if c.get("line"):
             lines.append(f"      line: [{', '.join(c['line'])}]   # 產線物料流(engine/line.py)")

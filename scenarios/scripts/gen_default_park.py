@@ -65,6 +65,7 @@ def build() -> list[dict]:
                 "name": f"{product}廠({teacher}負責)",
                 "industry": theme,
                 "product": product,
+                "product_icon": recipe.get("icon", "📦"),
                 "intro": INTRO.format(teacher=teacher, label=arch["label"], product=product,
                                       story=recipe["story"],
                                       line_note=line_note(line, devices)),
@@ -115,6 +116,7 @@ def to_yaml(companies: list[dict]) -> str:
         lines.append(f'      name: "{c["name"]}"')
         lines.append(f"      industry: {c['industry']}")
         lines.append(f'      product: "{c["product"]}"')
+        lines.append(f'      product_icon: "{c["product_icon"]}"')
         lines.append(f'      intro: "{c["intro"]}"')
         if c.get("line"):
             lines.append(f"      line: [{', '.join(c['line'])}]   # 產線物料流(engine/line.py)")

@@ -38,7 +38,7 @@ THEME_ORDER = [
 ]
 
 INTRO = ("{teacher}指導的**合成**示範工廠;{label} · 主力產品:{product}。"
-         "廠內設備:{devices}。{line_note}所有數據皆為模擬產生,非真實場域量測。")
+         "製程:{story}{line_note}所有數據皆為模擬產生,非真實場域量測。")
 
 
 def build() -> list[dict]:
@@ -66,7 +66,7 @@ def build() -> list[dict]:
                 "industry": theme,
                 "product": product,
                 "intro": INTRO.format(teacher=teacher, label=arch["label"], product=product,
-                                      devices=" + ".join(ZH[t] for t in recipe["devices"]),
+                                      story=recipe["story"],
                                       line_note=line_note(line, devices)),
                 "devices": devices,
             }

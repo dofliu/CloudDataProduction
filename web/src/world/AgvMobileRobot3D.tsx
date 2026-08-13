@@ -27,6 +27,13 @@ const LOOP_CENTER: [number, number] = [10, 7];
 const STATION_LOAD: [number, number] = [18, 2];     // s = 16
 const STATION_UNLOAD: [number, number] = [2, 12];   // s = 42
 const WHEEL_R = 0.2;
+// compact(產線視圖)的空間縮尺:20×14 m 巡迴路線縮進單一機台格。先前只把中心平移、
+// 沒縮比例,車體照原尺寸路線在產線裡滿場開、直接穿過別台機器。縮尺是空間版的
+// 「時間換算標倍率」(契約 §1):位置仍逐點對應 pos_x/pos_y,只是等比縮小,
+// 並把縮小後的路徑畫在地上,讀起來是「廠內物流圈」的沙盤。
+const COMPACT_SCALE = 0.25;
+const compactXY = (x: number, y: number): [number, number] =>
+  [(x - LOOP_CENTER[0]) * COMPACT_SCALE, (y - LOOP_CENTER[1]) * COMPACT_SCALE];
 
 export const AgvModel = ({ motion, compact = false }: MachineProps & { compact?: boolean }) => {
   const ref = useRef<THREE.Group>(null);
@@ -45,8 +52,14 @@ export const AgvModel = ({ motion, compact = false }: MachineProps & { compact?:
     const sTarget = agvSFromPos(t.pos_x ?? LOOP_CENTER[0], t.pos_y ?? LOOP_CENTER[1]);
     sLocal.current = sLocal.current === null ? sTarget : agvLockS(sLocal.current, sTarget, delta);
     const [px, py] = agvPosFromS(sLocal.current);
-    g.position.x = px - (compact ? LOOP_CENTER[0] : 0);
-    g.position.z = py - (compact ? LOOP_CENTER[1] : 0);
+    if (compact) {
+      const [cx, cz] = compactXY(px, py);
+      g.position.x = cx;
+      g.position.z = cz;
+    } else {
+      g.position.x = px;
+      g.position.z = py;
+    }
     // 朝向維持 L1 吃 heading tag(wrap-aware,0.5° 內貼齊)
     g.rotation.y = approachAngleRad(
       g.rotation.y, THREE.MathUtils.degToRad(t.heading ?? 0), 0.3, delta, THREE.MathUtils.degToRad(0.5));
@@ -62,7 +75,33 @@ export const AgvModel = ({ motion, compact = false }: MachineProps & { compact?:
   const soc = motion.tags.battery_soc ?? 0;
   const body = motion.fault ? FX.fault : motion.charging ? "#44aa44" : bodyColor(motion, "#ffaa00");
 
+  // compact:縮小後的巡迴路徑畫在地上(車體在標線上跑,讀起來才是「物流圈」而非亂開)
+  const compactLoopPts = useMemo(() => {
+    if (!compact) return null;
+    return [...LOOP, LOOP[0]].map(([x, y]) => {
+      const [cx, cz] = compactXY(x, y);
+      return [cx, 0.02, cz] as [number, number, number];
+    });
+  }, [compact]);
+
   return (
+    <group>
+      {compact && compactLoopPts && (
+        <group>
+          <Line points={compactLoopPts} color="#b8a888" lineWidth={2} dashed dashSize={0.25} gapSize={0.15} />
+          {[STATION_LOAD, STATION_UNLOAD].map((s, i) => {
+            const [cx, cz] = compactXY(s[0], s[1]);
+            return (
+              <Cylinder key={i} args={[0.35, 0.35, 0.04, 20]} position={[cx, 0.02, cz]}>
+                <meshStandardMaterial color={i === 0 ? "#8a6f3a" : "#5a7a5a"} />
+              </Cylinder>
+            );
+          })}
+          <CanvasLabel text={`巡迴路線縮尺 1:${Math.round(1 / COMPACT_SCALE)}`}
+                       position={[0, 0.03, 2.6]} rotation={[-Math.PI / 2, 0, 0]}
+                       height={0.34} color="#8a7a5e" bg="none" />
+        </group>
+      )}
     <group ref={ref} position={[compact ? 0 : LOOP_CENTER[0], 0, compact ? 0 : LOOP_CENTER[1]]}>
       {/* 驗證探針:車體中心 —— 世界 (x,z) 應等於 (pos_x, pos_y),朝向應等於 heading */}
       <object3D name="probe:agv_body" />
@@ -95,6 +134,7 @@ export const AgvModel = ({ motion, compact = false }: MachineProps & { compact?:
       <FaultSmoke motion={motion} position={[0, 1.4, 0]} scale={0.7} />
       <CanvasLabel text={`SOC ${soc.toFixed(1)}%`} position={[0, 3.1, 0]} rotation={[0, Math.PI, 0]}
                    height={0.46} color={soc < 30 ? FX.fault : "#3a3226"} />
+    </group>
     </group>
   );
 };

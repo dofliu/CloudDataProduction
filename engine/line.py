@@ -50,6 +50,16 @@ ARM_CYCLE_S = 8.0   # 手臂一次取放循環的 sim 秒(= robot_arm_6axis.CYCL
 BELT_TRANSIT_S = 8.0   # 工件走完輸送帶的 sim 秒(帶長 8 m ÷ 額定 1 m/s)
 BELT_CAP = 8           # 帶上最多同時幾件(滿了手臂等)
 
+# 各 producer 的額定單件節拍(sim 秒)—— 只在該站的節拍 tag 讀不到有效值時(如待機中
+# stroke_rate / throughput 歸零)當保底;運轉中一律以學生讀得到的 tag 現值換算。
+# 數字對應各 template 的常數(cnc 45s / injection CYCLE_S=30 / press 60spm / chamber 25wph)。
+NOMINAL_CYCLE_S: Dict[str, float] = {
+    "cnc_machining_center": 45.0,
+    "injection_molding": 30.0,
+    "stamping_press": 1.0,
+    "semi_process_chamber": 144.0,
+}
+
 
 class _Station:
     def __init__(self, device: Device, role: str):
@@ -159,9 +169,57 @@ class ProductionLine:
                 up.out_buf -= 1                            # 工件上手(從上游出料取走)
                 lk["in_hand"] += 1
 
-    def view(self) -> dict:
+    # ── 產線層 KPI:純粹從帳上與學生讀得到的 tag 自算,不另存任何狀態 ──────
+    def _cycle_s(self, st: _Station) -> Optional[float]:
+        """該 producer 站目前的單件節拍(sim 秒)。由節拍類 tag 現值換算 ——
+        學生自己讀 Modbus 也能算出同一個數字;讀不到有效值(待機)退回額定值。"""
+        d = st.device
+        val = {t.name: float(t.value) for t in d.tags}
+        if d.template in ("cnc_machining_center", "injection_molding"):
+            v = val.get("cycle_time", 0.0)
+            return v if v > 0.5 else NOMINAL_CYCLE_S[d.template]
+        if d.template == "stamping_press":
+            r = val.get("stroke_rate", 0.0)
+            return 60.0 / r if r > 1.0 else NOMINAL_CYCLE_S[d.template]
+        if d.template == "semi_process_chamber":
+            w = val.get("throughput", 0.0)
+            return 3600.0 / w if w > 1.0 else NOMINAL_CYCLE_S[d.template]
+        return None
+
+    def kpi(self, sim_t: float) -> dict:
+        """線層 KPI(教瓶頸分析與 Little's Law 用):
+          wip                    帳上在製品 = 緩衝 + 在手 + 帶上(與 stations 各欄加總一致)
+          bottleneck             節拍最長的 producer 站(理論瓶頸)
+          line_balance           線平衡率 = Σ節拍 / (站數 × 瓶頸節拍),1.0 = 完全平衡
+          utilization            各 producer 利用率 ≈ 完成件數 × 節拍 / 經過 sim 時間
+                                 (對「日曆時間」算 —— 班外 / 餓料 / 阻塞都會誠實拉低它)
+          bottleneck_utilization 瓶頸站的利用率(< 1 的缺口 = 排程外 + 餓料/阻塞損失)
+          throughput_per_h       產線出貨速率(shipped / sim 時間)
+        """
+        wip = (sum(st.in_buf + st.out_buf for st in self.stations)
+               + sum(lk["in_hand"] for lk in self.links)
+               + sum(len(st.on_belt) for st in self.stations))
+        out: dict = {"wip": wip}
+        cycles = {st.device.id: c for st in self.stations
+                  if st.role in ("source", "mid", "sink") and (c := self._cycle_s(st))}
+        if cycles and sim_t > 0.0:
+            bneck = max(cycles, key=lambda k: cycles[k])
+            cmax = cycles[bneck]
+            util = {st.device.id: round(min(1.0, st.count() * cycles[st.device.id] / sim_t), 3)
+                    for st in self.stations if st.device.id in cycles}
+            out.update({
+                "bottleneck": bneck,
+                "line_balance": round(sum(cycles.values()) / (len(cycles) * cmax), 3),
+                "utilization": util,
+                "bottleneck_utilization": util.get(bneck),
+                "throughput_per_h": round(self.shipped / sim_t * 3600.0, 2),
+            })
+        return out
+
+    def view(self, sim_t: float = 0.0) -> dict:
         return {
             "company": self.company_id,
+            "kpi": self.kpi(sim_t),
             "stations": [
                 {
                     "device": st.device.id,
@@ -269,4 +327,5 @@ class LineManager:
             line.advance(dt_sim)
 
     def view(self) -> List[dict]:
-        return [line.view() for line in self.lines]
+        sim_t = float(self.world.clock.now())
+        return [line.view(sim_t) for line in self.lines]

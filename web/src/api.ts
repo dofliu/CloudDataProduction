@@ -30,7 +30,16 @@ export interface LineStation {
   moved: number | null;        // 手臂累積搬運件數(handler)
   on_belt: number | null;      // 帶上工件數(terminal 輸送帶;走完帶長才算出貨)
 }
-export interface LineView { company: string; stations: LineStation[]; shipped: number; }
+/** 線層 KPI(engine/line.py::kpi):純從帳上與節拍 tag 自算,教瓶頸分析 / Little's Law。 */
+export interface LineKpi {
+  wip: number;                              // 帳上在製品(緩衝 + 在手 + 帶上)
+  bottleneck?: string;                      // 節拍最長的 producer 站
+  line_balance?: number;                    // Σ節拍 / (站數 × 瓶頸節拍),1.0 = 完全平衡
+  utilization?: Record<string, number>;     // 各 producer 利用率(對日曆 sim 時間)
+  bottleneck_utilization?: number | null;
+  throughput_per_h?: number;                // 出貨速率(件 / sim 小時)
+}
+export interface LineView { company: string; stations: LineStation[]; shipped: number; kpi?: LineKpi; }
 
 export interface TelemetryMsg {
   wall_t: number; sim_t: number; multiplier: number;

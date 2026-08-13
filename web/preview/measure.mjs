@@ -28,14 +28,18 @@ await page.goto(`${BASE}?line=measure`, { waitUntil: "load" });
 await page.waitForFunction(() => (window).__measured, { timeout: 30000 });
 const rows = await page.evaluate(() => (window).__measured);
 
-console.log("template".padEnd(24), "halfW".padStart(7), "halfD".padStart(7), "height".padStart(7));
+console.log("template".padEnd(24), "halfW".padStart(7), "halfD".padStart(7), "height".padStart(7),
+  "left".padStart(7), "right".padStart(7));
 for (const r of rows) {
   console.log(r.template.padEnd(24),
-    r.halfW.toFixed(2).padStart(7), r.halfD.toFixed(2).padStart(7), r.height.toFixed(2).padStart(7));
+    r.halfW.toFixed(2).padStart(7), r.halfD.toFixed(2).padStart(7), r.height.toFixed(2).padStart(7),
+    (r.left ?? 0).toFixed(2).padStart(7), (r.right ?? 0).toFixed(2).padStart(7));
 }
-console.log("\n// 貼回 processFlow.ts 的 HALF_W:");
-console.log("const HALF_W: Record<string, number> = {");
-for (const r of rows) console.log(`  ${r.template}: ${(r.halfW + 0.3).toFixed(1)},`);
+console.log("\n// 貼回 processFlow.ts 的 EXTENT_X(相對原點的左/右延伸 +0.3 餘隙):");
+console.log("const EXTENT_X: Record<string, [number, number]> = {");
+for (const r of rows) {
+  console.log(`  ${r.template}: [${((r.left ?? r.halfW) + 0.3).toFixed(1)}, ${((r.right ?? r.halfW) + 0.3).toFixed(1)}],`);
+}
 console.log("};");
 
 await browser.close();

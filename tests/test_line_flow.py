@@ -84,6 +84,21 @@ def main() -> None:
     check(made_b <= moved, f"下游守恆:消耗 {made_b} ≤ 送達 {moved}(工件不憑空出現)")
     check(0 <= out_a <= 3 and 0 <= in_b <= 3, f"緩衝在容量內(out={out_a}, in={in_b})")
 
+    # ── 線層 KPI:純從帳上自算,必須與 stations 各欄加總對得起來(T3)──
+    kpi = line.get("kpi") or {}
+    ledger_wip = (out_a or 0) + (in_b or 0) + carrying
+    check(kpi.get("wip") == ledger_wip,
+          f"KPI wip 與產線帳自洽({kpi.get('wip')} = 待取 {out_a} + 入料 {in_b} + 在手 {carrying})")
+    check(kpi.get("bottleneck") in ("cnc-a", "cnc-b"),
+          f"瓶頸站是 producer 之一({kpi.get('bottleneck')})")
+    check(0.0 < (kpi.get("line_balance") or 0.0) <= 1.0
+          and kpi.get("line_balance", 0) > 0.9,
+          f"兩台同型 CNC 的線平衡率接近 1({kpi.get('line_balance')})")
+    check(0.0 < (kpi.get("bottleneck_utilization") or 0.0) <= 1.0,
+          f"瓶頸站利用率在 (0,1]({kpi.get('bottleneck_utilization')})")
+    check((kpi.get("throughput_per_h") or 0.0) > 0.0,
+          f"出貨速率 > 0(尾站 producer 完成即出貨,{kpi.get('throughput_per_h')} 件/h)")
+
     # FC04 可觀測點位
     irs_a = snap["devices"]["cnc-a"]["input_regs"]
     irs_b = snap["devices"]["cnc-b"]["input_regs"]
@@ -107,6 +122,13 @@ def main() -> None:
     a_out3 = {s["device"]: s for s in snap3["lines"][0]["stations"]}["cnc-a"]["out_buffer"]
     check(a_out3 == 3, f"上游出料緩衝塞滿({a_out3}/3)")
     check(snap3["devices"]["cnc-a"]["state"] == "idle", "滿料的上游 state=idle(停機等搬運)")
+    # 塞住的線:KPI wip 仍與帳一致(= 塞滿的出料緩衝 + 在手;入料已耗盡)
+    kpi3 = snap3["lines"][0].get("kpi") or {}
+    st3 = {s["device"]: s for s in snap3["lines"][0]["stations"]}
+    stuck_wip = (st3["cnc-a"]["out_buffer"] or 0) + (st3["cnc-b"]["in_buffer"] or 0) \
+        + (st3["arm-1"]["carrying"] or 0)
+    check(kpi3.get("wip") == stuck_wip,
+          f"塞住的線 KPI wip 仍與帳一致({kpi3.get('wip')} = {stuck_wip})")
 
     # ── 手臂待命誠實:恢復手臂,搬完緩衝後 waiting → idle、電流掉回保持電流 ──
     world.devices["arm-1"].set_coil("run_enable", True)

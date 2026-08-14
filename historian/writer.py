@@ -51,12 +51,17 @@ class Historian:
         sqlite_path: str = "historian.db",
         sample_interval_s: float = 0.5,
         mem_maxlen: int = 20000,
+        retention_days: float = 14.0,
     ):
         self.dsn = dsn
         self.enabled = enabled
         self.backend = (backend or "memory").lower()
         self.sqlite_path = sqlite_path
         self.sample_interval_s = sample_interval_s
+        # 保留期:課堂規模(154 台 × ~11 tag、5 秒一拍)一天就寫 ~2900 萬列 ≈ 2-3 GB,
+        # 而教學只查「當週資料窗」、凍結週包又是離線預產 —— 不清就只是白占硬碟。
+        # 0 = 不清(要留整學期做期末大分析時再開)。
+        self.retention_days = float(retention_days)
 
         self._pool = None                     # asyncpg pool(timescale)
         self._sqlite: Optional[sqlite3.Connection] = None
@@ -119,11 +124,44 @@ class Historian:
                 else:
                     self._buffer.append((wall_t, sim_t, device_id, tag, float(value)))
 
-    # ── 批次 flush ──────────────────────────────────────────
+    # ── 批次 flush + 定期清舊 ───────────────────────────────
     async def _flush_loop(self) -> None:
+        tick = 0
         while self._running:
             await asyncio.sleep(1.0)
             await self._flush()
+            tick += 1
+            # 每小時清一次超過保留期的列(啟動後 60 秒先清一輪,舊 DB 立刻止血)
+            if self.retention_days > 0 and (tick == 60 or tick % 3600 == 0):
+                await self._prune()
+
+    async def _prune(self) -> None:
+        if self.degraded:
+            return
+        import time as _time
+        cutoff = _time.time() - self.retention_days * 86400.0
+        try:
+            if self.backend == "sqlite":
+                deleted = await asyncio.to_thread(self._sqlite_prune, cutoff)
+            elif self._pool is not None:
+                async with self._pool.acquire() as conn:
+                    res = await conn.execute(
+                        "DELETE FROM telemetry WHERE time < to_timestamp($1)", cutoff)
+                deleted = int(res.split()[-1]) if res else 0
+            else:
+                return
+            if deleted:
+                print(f"[historian] 保留期 {self.retention_days:g} 天:清除 {deleted} 列舊 telemetry")
+        except Exception as exc:
+            print(f"[historian] 清舊失敗(下輪再試):{exc}")
+
+    def _sqlite_prune(self, cutoff: float) -> int:
+        with self._sqlite_lock:
+            cur = self._sqlite.execute("DELETE FROM telemetry WHERE wall_t < ?", (cutoff,))
+            self._sqlite.commit()
+            # 釋放出的頁面會被之後的寫入重複使用(檔案停止成長);要實際縮小檔案
+            # 得離線跑一次 VACUUM —— 那會鎖表數十秒,不適合在活廠自動做。
+            return cur.rowcount
 
     async def _flush(self) -> None:
         if self.degraded or not self._buffer:

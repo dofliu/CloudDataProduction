@@ -197,7 +197,7 @@ tasks:
   - id: T11-new-industries-commissioning
     title: "新產業四機種(AOI / 焊接 / 雷切 / 包裝)+ 整合建廠自動上線(A+B+C)"
     status: in_review
-    pr: ""            # 開 PR 後回填
+    pr: "https://github.com/dofliu/CloudDataProduction/pull/51"
     autonomy: self    # 2026-08-19 使用者指定的方向(設備多樣化 + 自動上線流程)
     size: XL
     outcome: >

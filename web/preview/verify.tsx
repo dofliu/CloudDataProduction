@@ -24,12 +24,18 @@ import AirCompressor3D from "../src/world/AirCompressor3D";
 import EnergyMeter3D from "../src/world/EnergyMeter3D";
 import ProcessChamber3D from "../src/world/ProcessChamber3D";
 import HeatTreatFurnace3D from "../src/world/HeatTreatFurnace3D";
+import AoiInspection3D from "../src/world/AoiInspection3D";
+import WeldingCell3D from "../src/world/WeldingCell3D";
+import LaserCutter3D from "../src/world/LaserCutter3D";
+import PackagingMachine3D from "../src/world/PackagingMachine3D";
 
 const SCENES: Record<string, React.ComponentType<any>> = {
   cnc_machining_center: CncMachine3D, robot_arm_6axis: RobotArm3D, injection_molding: InjectionMolding3D,
   agv_mobile_robot: AgvMobileRobot3D, conveyor: Conveyor3D, stamping_press: StampingPress3D,
   wind_turbine: WindTurbine3D, air_compressor: AirCompressor3D, energy_meter: EnergyMeter3D,
   semi_process_chamber: ProcessChamber3D, heat_treat_furnace: HeatTreatFurnace3D,
+  aoi_inspection: AoiInspection3D, welding_cell: WeldingCell3D,
+  laser_cutter: LaserCutter3D, packaging_machine: PackagingMachine3D,
 };
 
 type Frame = { sim_t: number; multiplier: number; devices: Record<string, any> };

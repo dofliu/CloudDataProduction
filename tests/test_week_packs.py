@@ -54,10 +54,12 @@ def main() -> None:
             print(r.stdout[-2000:], r.stderr[-2000:])
             _finish()
 
+        from engine.templates import available_templates
+        n_tmpl = len(available_templates())          # 每 template 一台(新增產業自動跟上)
         for wk in (4, 8):
             wk_dir = out / f"week{wk:02d}"
             csvs = sorted(wk_dir.glob("*.csv"))
-            check(len(csvs) == 11, f"week{wk:02d} 有 11 台設備 CSV(實際 {len(csvs)})")
+            check(len(csvs) == n_tmpl, f"week{wk:02d} 有 {n_tmpl} 台設備 CSV(實際 {len(csvs)})")
             check((wk_dir / "manifest.json").exists() and (wk_dir / "README.txt").exists(),
                   f"week{wk:02d} 有 manifest + README")
             head = next(csv.reader(open(csvs[0], encoding="utf-8")))

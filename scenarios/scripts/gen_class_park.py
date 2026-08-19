@@ -319,7 +319,9 @@ INTRO = ("課堂教學用**合成**工廠(#{n:02d});{label} · 主力產品:{pro
 # ── 產線推導:配方裡有「producer + 手臂 + (producer 或輸送帶)」就接成引擎物料流 ──
 # 站序規則與 engine/line.py 一致:手臂夾在兩台 producer 之間,或把成品搬上輸送帶出貨。
 LINE_PRODUCERS = {"cnc_machining_center", "injection_molding",
-                  "stamping_press", "semi_process_chamber"}
+                  "stamping_press", "semi_process_chamber",
+                  "welding_cell", "laser_cutter",
+                  "aoi_inspection", "packaging_machine"}
 
 
 def derive_line(devices: list[dict]) -> list[str] | None:
@@ -351,6 +353,8 @@ ZH = {
     "stamping_press": "沖壓機", "injection_molding": "射出成型機", "wind_turbine": "風力發電機",
     "energy_meter": "智慧電表", "semi_process_chamber": "半導體製程腔體",
     "heat_treat_furnace": "熱處理爐",
+    "aoi_inspection": "AOI 光學檢測站", "welding_cell": "焊接機器人工作站",
+    "laser_cutter": "雷射切割機", "packaging_machine": "包裝機",
 }
 ALL_TEMPLATES = set(ZH)
 
@@ -408,6 +412,46 @@ def build() -> tuple[list[dict], list[str]]:
         "line": demo_line,
     })
 
+    # 新產業廠(2026-08 追加:AOI / 焊接 / 雷切 / 包裝)。附加在 c65 之後 ——
+    # 既有公司的 device id / unit_id 零位移(unit_id 依檔案順序遞增),
+    # 週包種子、動畫錄製、已發教材都不受影響。四間剛好自成一條供應鏈:
+    # 雷切下料(c67)→ 焊接(c66)→ 檢測(c68)→ 包裝(c69)。
+    NEW_FACTORIES = [
+        ("c66", "鈦騰焊接", "welding", "自行車鋁合金車架", "🔥",
+         "焊接接合",
+         "管件在焊接工作站沿焊道電弧熔填成車架,六軸手臂上下料,輸送帶送出待檢焊件。",
+         ["welding_cell", "robot_arm_6axis", "conveyor"]),
+        ("c67", "銳光雷切", "laser_cutting", "機箱鈑金雷切件", "🔆",
+         "雷射下料",
+         "板材在雷射切割機沿輪廓切出機箱鈑金,六軸手臂取件,包裝機封裝出貨。",
+         ["laser_cutter", "robot_arm_6axis", "packaging_machine"]),
+        ("c68", "明察智檢", "inspection", "連接器射出件(全檢)", "🔍",
+         "光學檢測",
+         "連接器在射出成型機成形,六軸手臂送檢,AOI 光學檢測站逐件全檢判定良品。",
+         ["injection_molding", "robot_arm_6axis", "aoi_inspection"]),
+        ("c69", "恆好包裝", "packaging", "食品級封口包裝", "📦",
+         "自動包裝",
+         "成品在包裝機封口裝箱,智慧電表監測包裝線能耗與稼動。",
+         ["packaging_machine", "energy_meter"]),
+    ]
+    for cid, name, industry, product, icon, label, story, tmpls in NEW_FACTORIES:
+        devices = []
+        for tmpl in tmpls:
+            dev_no += 1
+            devices.append({"id": f"d{dev_no:03d}", "template": tmpl})
+        line = derive_line(devices)
+        company = {
+            "id": cid, "name": name, "industry": industry,
+            "product": product, "product_icon": icon,
+            "intro": (f"課堂教學用**合成**工廠({cid});{label} · 主力產品:{product}。"
+                      f"製程:{story}{line_note(line, devices)}"
+                      "所有數據皆為模擬產生,非真實場域量測。"),
+            "devices": devices,
+        }
+        if line:
+            company["line"] = line
+        companies.append(company)
+
     warnings = []
     used = {d["template"] for c in companies for d in c["devices"]}
     missing = ALL_TEMPLATES - used
@@ -432,6 +476,9 @@ STAGE = {
     "machine_tool": 1, "precision_parts": 1, "motion_robotics": 1,   # 機械加工 / 組裝
     "cutting_tools": 1, "logistics": 1,                     # 刀具 / 物流設備(都以 CNC 加工為主)
     "optics": 2, "semiconductor": 2,                         # 精整 / 精密製程
+    "laser_cutting": 0,                                      # 雷切下料(成形)
+    "welding": 1,                                            # 焊接接合(加工)
+    "inspection": 2, "packaging": 2,                         # 檢測 / 包裝(精整收尾)
 }
 # 進料名用上游產業的「中間料」語彙(A 出給 B 的是半成品,不是 A 的整個主力產品名)
 PART_BY_INDUSTRY = {
@@ -439,11 +486,14 @@ PART_BY_INDUSTRY = {
     "machine_tool": "精加工件", "precision_parts": "精密零件",
     "motion_robotics": "組裝模組", "optics": "光學元件", "semiconductor": "晶圓半成品",
     "cutting_tools": "切削刀具", "logistics": "物流設備部件",
+    "laser_cutting": "雷切下料件", "welding": "焊接組件",
+    "inspection": "檢驗合格件", "packaging": "包裝成品",
 }
 # 只有這些 template 有「完成一件」的累積量 tag,供應鏈才數得出誰出了幾件
 # (與 engine/line.py 的 COUNT_TAGS 一致)。沒有這種設備的廠不參與供應鏈 ——
 # 電表廠 / 壓縮機房本來就不是在做零件,硬接進去只會在啟動時噴一堆略過警告。
-SUPPLY_TEMPLATES = {"cnc_machining_center", "injection_molding", "stamping_press", "semi_process_chamber"}
+SUPPLY_TEMPLATES = {"cnc_machining_center", "injection_molding", "stamping_press", "semi_process_chamber",
+                    "welding_cell", "laser_cutter", "aoi_inspection", "packaging_machine"}
 # 每條鏈的**最後一段**不給外部備援(external_backup_h=0)—— 刻意留一個對照組:
 # 有備援的那幾段會看到「靠外購撐著」,沒備援的那段上游一停就真的死給你看。
 BACKUP_H = 3.0
@@ -456,14 +506,23 @@ def build_supply_chain(companies: list[dict]) -> list[dict]:
     """把「做得出零件」的公司每 CHAIN_LEN 間串成一條供應鏈。教師示範廠(c65)不參與。
 
     鏈上的公司不必是連號 —— 中間跳過的是沒有 producer 的廠(電表 / 壓縮機 / 風機那類)。"""
+    # 新產業廠(c66~c69)不進一般 pool —— 塞進去會補滿舊 pool 的最後一組,
+    # 改變既有鏈的成員;獨立成鏈(雷切下料 → 焊接 → 檢測 → 包裝)故事也才連貫。
+    NEW_CHAIN_IDS = {"c66", "c67", "c68", "c69"}
     pool = [c for c in companies
-            if c["id"] != "c65"
+            if c["id"] != "c65" and c["id"] not in NEW_CHAIN_IDS
             and any(d["template"] in SUPPLY_TEMPLATES for d in c["devices"])]
+    new_group = sorted((c for c in companies if c["id"] in NEW_CHAIN_IDS),
+                       key=lambda c: c["id"])
+    # 舊 pool 依原規則切組;新四廠**單獨一組**(不能直接 append 進 pool ——
+    # 舊 pool 尾組不滿 4 時會被新廠補滿,既有鏈成員就變了)。
+    groups = [pool[i:i + CHAIN_LEN] for i in range(0, len(pool), CHAIN_LEN)]
+    if new_group:
+        groups.append(new_group)
     links: list[dict] = []
-    for start in range(0, len(pool), CHAIN_LEN):
-        chain = pool[start:start + CHAIN_LEN]
+    for chain in groups:
         if len(chain) < 2:
-            break
+            continue
         # 鏈內依工序階段排序(stable:同階段維持原相對序)—— 成員不變,方向合理化
         chain.sort(key=lambda c: STAGE.get(c["industry"], 1))
         for i in range(len(chain) - 1):
@@ -481,14 +540,14 @@ def build_supply_chain(companies: list[dict]) -> list[dict]:
 
 def to_yaml(companies: list[dict]) -> str:
     lines = [
-        "# 課堂場景(64 廠一人一廠 + 1 間教師示範廠)。",
+        "# 課堂場景(64 廠一人一廠 + 1 間教師示範廠 + 4 間新產業廠 c66~c69)。",
         "# ⚠ 全為合成(synthetic)教學資料,非任何真實公司產線。",
         "#   公司名為**虛構**廠商 —— 這些廠會故障、數據全是模擬產生的,",
         "#   掛真實廠商名字會變成對真實企業的不實陳述(CLAUDE.md 鐵則二)。",
         "#",
         "# 本檔由 scenarios/scripts/gen_class_park.py 產生,要調組合請改那支再重跑。",
         "park:",
-        '  name: "智慧工業區 · 課堂版(64 廠 + 上下料示範)"',
+        '  name: "智慧工業區 · 課堂版(64 廠 + 示範與新產業)"',
         "  sim:",
         "    tick_hz: 2",
         "    time_multiplier: 120",

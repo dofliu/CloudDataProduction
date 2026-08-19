@@ -168,6 +168,80 @@ duty 預設 `two_shift`,呈現日 / 週負載結構。OEE 欄位借用為「負�
 
 ---
 
+## AOI 光學檢測站 `aoi_inspection`(2026-08 新增)
+
+品質閘門工站:相機龍門對工件做 5 列蛇形掃描(±150 × ±100 mm,節拍 15 s/件)。
+可入產線當「檢測」站(完成計數 `inspected_count`)。
+
+| tag | 單位 | 說明 |
+|-----|------|------|
+| camera_pos_x / camera_pos_y | mm | 相機龍門座標(蛇形掃描,動畫 L1) |
+| light_intensity | % | 環形光源(led_aging → 下滑) |
+| focus_score | score | **影像清晰度**(lens_contamination → 下滑) |
+| false_call_rate | % | **誤判率**(鏡頭污染 + 光源衰減共同推高 —— 量測系統本身劣化的教學題) |
+| inspect_time | s | 單件節拍(stage_bearing → 變慢) |
+| vibration_rms | mm/s | **stage_bearing 退化主指標** |
+| inspected_count | count | 累積檢數 |
+
+退化元件:`stage_bearing`(exponential,本體 → fault)、`lens_contamination`(指標)、
+`led_aging`(指標)。兩個指標推同一個 false_call,學生要靠 focus / light 分離根因。
+
+## 焊接機器人工作站 `welding_cell`(2026-08 新增)
+
+焊槍沿焊道直線行走(±200 mm,16 s/道,奇偶道交替 ±60 mm),電弧段佔 72%。
+
+| tag | 單位 | 說明 |
+|-----|------|------|
+| torch_pos_x / torch_pos_y | mm | 焊槍座標(動畫 L1) |
+| arc_current / arc_voltage | A / V | 電弧(送絲打滑 → 電流波動;導電纜老化 → 電壓緩升) |
+| wire_feed_rate | m/min | **wire_feeder_wear → 下滑** |
+| gas_flow | L/min | **nozzle_clog → 下滑**(保護氣) |
+| torch_temp | °C | 一階熱滯後 |
+| spatter_rate | % | **飛濺率**(品質指標,氣護不足 + 送絲不穩) |
+| weld_count | count | 完成焊道數 |
+
+退化元件:`wire_feeder_wear`(exponential,本體 → 斷弧 fault)、`nozzle_clog`(指標,
+對症是**清潔**不是換件)、`torch_cable_aging`(指標,電氣線)。
+
+## 雷射切割機 `laser_cutter`(2026-08 新增)
+
+切割頭沿矩形輪廓走一圈切一件(±150 × ±100 mm,24 s/件,切割段佔 80%)。
+
+| tag | 單位 | 說明 |
+|-----|------|------|
+| head_pos_x / head_pos_y | mm | 切割頭座標(動畫 L1) |
+| laser_power | W | 額定 3000;冷卻水溫升 → 降額保護 |
+| lens_temp | °C | **protective_lens_fouling 退化主指標**(污損吸收 → 發熱) |
+| chiller_temp | °C | chiller_degradation → 緩升 |
+| assist_gas_pressure | bar | nozzle_wear → 波動變大 |
+| cut_speed | mm/s | 鏡片污損 → 降速補償 |
+| dross_rate | % | **掛渣率**(品質指標) |
+| cut_count | count | 累積切件數 |
+
+退化元件:`protective_lens_fouling`(exponential,本體 → 切不斷 fault)、
+`chiller_degradation`(指標,流體系統)、`nozzle_wear`(指標)。
+
+## 包裝機 `packaging_machine`(2026-08 新增)
+
+產線終站:封口鉗一開一合封一包(jaw_gap 80→0 mm,15 s/包)。入線時當 sink producer
+(完成即出貨)。
+
+| tag | 單位 | 說明 |
+|-----|------|------|
+| jaw_gap | mm | 封口鉗開度(80 全開 → 0 閉合,動畫 L1) |
+| seal_temp | °C | **設定點 145;sealer_heater_aging → 到不了**(與熱處理爐同款語彙) |
+| film_tension | N | film_feed_wear → 波動變大 |
+| index_rate | ppm | 每分鐘包數(≡ 60 / cycle_time,自洽不變量) |
+| cycle_time | s | 加熱器老化 → 變長 |
+| reject_rate | % | **封口不良率**(三條退化線共同推高) |
+| motor_current | A | 加熱器電阻升 → 電流升 |
+| package_count | count | 累積包數 |
+
+退化元件:`sealer_heater_aging`(exponential,本體 → 燒斷 fault)、`film_feed_wear`(指標)、
+`cutter_blade_wear`(指標)。
+
+---
+
 ## 型別庫設計慣例
 
 - 每個 template 是一個 `engine/templates/<name>.py`,匯出 tag schema、退化元件預設、duty cycle 預設。

@@ -28,6 +28,8 @@ stroke_count / wafer_count / cycle_count)的整數進位 —— 學生從 Modbus
 """
 from __future__ import annotations
 
+import math
+
 from typing import Dict, List, Optional
 
 from .device import Device, InputRegPoint
@@ -38,6 +40,10 @@ COUNT_TAGS: Dict[str, str] = {
     "injection_molding": "shot_count",
     "stamping_press": "stroke_count",
     "semi_process_chamber": "wafer_count",
+    "welding_cell": "weld_count",
+    "laser_cutter": "cut_count",
+    "aoi_inspection": "inspected_count",
+    "packaging_machine": "package_count",
 }
 HANDLER_TEMPLATES = {"robot_arm_6axis"}
 TERMINAL_TEMPLATES = {"conveyor"}
@@ -58,6 +64,10 @@ NOMINAL_CYCLE_S: Dict[str, float] = {
     "injection_molding": 30.0,
     "stamping_press": 1.0,
     "semi_process_chamber": 144.0,
+    "welding_cell": 16.0,
+    "laser_cutter": 24.0,
+    "aoi_inspection": 15.0,
+    "packaging_machine": 15.0,
 }
 
 
@@ -69,6 +79,7 @@ class _Station:
         self.out_buf = 0                    # 出料緩衝(producer 非末站)
         self.on_belt: List[float] = []      # terminal 輸送帶:帶上各工件的剩餘輸送秒數
         self.prev_count: Optional[int] = None   # 累積量 tag 上次讀值(None=尚未初始化)
+        self.need_items = 1                 # 本拍要完成幾件(= ceil(dt/節拍);gate() 更新)
         self.count_tag = None               # 累積量 tag 物件(快取)
         tag_name = COUNT_TAGS.get(device.template) or (
             "cycle_count" if device.template in HANDLER_TEMPLATES else None)
@@ -94,11 +105,16 @@ class ProductionLine:
                                    "in_hand": 0, "prev_cycles": None, "moved": 0})
 
     # ── 每 tick,設備 step 之前:設閘門 ──────────────────────
-    def gate(self) -> None:
+    def gate(self, dt_sim: float = 0.0) -> None:
         for i, st in enumerate(self.stations):
             d = st.device
             if st.role in ("mid", "sink"):
-                d.line_has_input = st.in_buf > 0
+                # 本拍會完成 ceil(dt/節拍) 件 —— 料要夠這一拍吃,不然一拍內就會把
+                # 「完成量 > 入料量」做進累積量 tag(工件憑空出現)。dt ≤ 節拍時 need=1,
+                # 與先前「有料就開」完全等價。
+                cyc = self._cycle_s(st) or NOMINAL_CYCLE_S.get(d.template, 45.0)
+                st.need_items = max(1, math.ceil(dt_sim / max(1e-6, cyc) - 1e-9)) if dt_sim > 0 else 1
+                d.line_has_input = st.in_buf >= st.need_items
             if st.role in ("source", "mid"):
                 d.line_output_blocked = st.out_buf >= OUT_CAP
             if st.role == "handler":
@@ -165,7 +181,7 @@ class ProductionLine:
             up: _Station = lk["up"]
             while (lk["in_hand"] < cap and up.out_buf > 0
                    and (len(down.on_belt) + lk["in_hand"] < BELT_CAP if down.role == "terminal"
-                        else down.in_buf + lk["in_hand"] < IN_CAP)):
+                        else down.in_buf + lk["in_hand"] < max(IN_CAP, down.need_items))):
                 up.out_buf -= 1                            # 工件上手(從上游出料取走)
                 lk["in_hand"] += 1
 
@@ -175,8 +191,11 @@ class ProductionLine:
         學生自己讀 Modbus 也能算出同一個數字;讀不到有效值(待機)退回額定值。"""
         d = st.device
         val = {t.name: float(t.value) for t in d.tags}
-        if d.template in ("cnc_machining_center", "injection_molding"):
+        if d.template in ("cnc_machining_center", "injection_molding", "packaging_machine"):
             v = val.get("cycle_time", 0.0)
+            return v if v > 0.5 else NOMINAL_CYCLE_S[d.template]
+        if d.template == "aoi_inspection":
+            v = val.get("inspect_time", 0.0)
             return v if v > 0.5 else NOMINAL_CYCLE_S[d.template]
         if d.template == "stamping_press":
             r = val.get("stroke_rate", 0.0)
@@ -184,7 +203,7 @@ class ProductionLine:
         if d.template == "semi_process_chamber":
             w = val.get("throughput", 0.0)
             return 3600.0 / w if w > 1.0 else NOMINAL_CYCLE_S[d.template]
-        return None
+        return NOMINAL_CYCLE_S.get(d.template)   # 焊接 / 雷切:額定節拍(引擎常數,無節拍 tag)
 
     def kpi(self, sim_t: float) -> dict:
         """線層 KPI(教瓶頸分析與 Little's Law 用):
@@ -318,9 +337,9 @@ class LineManager:
                 opcua_node=f"{folder}/ir_{name}", mqtt_field=f"ir_{name}", fn=fn, scale=1.0))
             addr += 1
 
-    def gate(self) -> None:
+    def gate(self, dt_sim: float = 0.0) -> None:
         for line in self.lines:
-            line.gate()
+            line.gate(dt_sim)
 
     def advance(self, dt_sim: float) -> None:
         for line in self.lines:

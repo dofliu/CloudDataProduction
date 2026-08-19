@@ -58,7 +58,7 @@ cloud-production-data/
 │   ├── signals.py             # 訊號模型(health→觀測,含熱滯後/雜訊)
 │   ├── sensor_faults.py       # 感測器故障層(stuck/drift/bias/dropout)
 │   ├── device.py              # Device = tags + drivers + health components
-│   ├── templates/             # 產業型別庫(11 種,見 docs/03;_stroke_font.py = CNC 刻字筆畫字型)
+│   ├── templates/             # 產業型別庫(15 種,見 docs/03;_stroke_font.py = CNC 刻字筆畫字型)
 │   ├── line.py                # 產線物料流:line: 宣告的公司,工件在站間真實傳遞
 │   ├── mes.py                 # MES:工單驅動設備運轉
 │   ├── course.py              # 每週課程情境:把 course_weeks.yaml 的條件套到跑著的引擎
@@ -75,6 +75,7 @@ cloud-production-data/
 │   ├── ws.py
 │   ├── auth.py                # 教師 token / 學生認領的權限判定
 │   ├── catalog.py             # 公開設備目錄(學生規格書)
+│   ├── commissioning.py       # 整合建廠自動上線:點位表(JSON/CSV/MD)+ 三協定試連自測
 │   ├── tickets.py             # 工單:結案要選對處置動作,選錯扣工時且不會修好
 │   ├── maintenance.py         # 預防保養:停機換壽命(停機計入可用率損失)
 │   ├── alarm_rules.py         # 學生託管告警規則:平台代跑,對 ground-truth 算 F1 / lead time
@@ -95,7 +96,7 @@ cloud-production-data/
 ├── mcp/                       # MCP server(打 REST API)
 │   └── server.py
 ├── tools/                     # 教材與運維工具(headless,不需要活廠)
-│   ├── make_offline_pack.py   # 離線備援包:11 種產業各一台、一週乾淨基線(W4 Plan B)
+│   ├── make_offline_pack.py   # 離線備援包:每種產業各一台、一週乾淨基線(W4 Plan B)
 │   ├── make_week_packs.py     # 每週凍結資料包:逐週預產 + 產後驗證 + 教師答案卷
 │   ├── generate_dataset.py    # 階段二訓練資料集(快轉 run-to-failure)
 │   ├── make_assignment.py     # 作業出題:每學號 train + 私有 test + 答案金鑰
@@ -111,7 +112,7 @@ cloud-production-data/
 │   ├── default_park.yaml      # 示範版園區(37 廠 / 85 設備 / 6 產線)
 │   └── scripts/               # ★ 場景產生器(gen_class_park.py / gen_default_park.py)
 ├── web/                       # React + PixiJS + three.js 前端
-│   ├── src/world/             # 俯瞰(PixiJS)+ 廠內產線(three.js)+ 11 種機型 3D
+│   ├── src/world/             # 俯瞰(PixiJS)+ 廠內產線(three.js)+ 15 種機型 3D
 │   │   ├── deviceMotion.ts    # 資料橋:狀態正規化 / 退化度 / 補間 / L3 時間換算
 │   │   ├── processFlow.ts     # 製程角色 → 產線佈局(誰在上游、手臂伸去哪)
 │   │   └── MachineFx.tsx      # 共用視覺語彙:柱燈 / 冒煙 / 抖動 / 過熱輝光
@@ -127,6 +128,7 @@ cloud-production-data/
 ├── tests/test_levels.py         # 九關:自動判定查平台事實 / 人工勾選不能濫用 / 瓶頸關(CI)
 ├── tests/test_classroom_live.py # 倒數截止 / 首答留名 / 全班投票真的動到引擎(CI)
 ├── tests/test_supply_chain.py   # 上游停→下游餓料 / 下游停→上游阻塞 / 守恆(CI)
+├── tests/test_commissioning.py  # 整合建廠 A+B+C:白名單 / 熱上線配址 / 點位表不洩答案(CI)
 ├── tests/test_course_grading.py # 週次對齊大綱 / correlation 時間戳對齊 / production KPI(CI)
 ├── tests/test_week_packs.py     # 每週凍結包:產得出來 / 驗證擋得住 / 學生包不洩答案(CI)
 ├── .github/workflows/verify.yml   # CI:場景健全性 / 前端建置 / 動畫一致性

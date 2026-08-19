@@ -158,7 +158,7 @@ class World:
         for device in self.devices.values():
             device.set_sim_t(sim_t)
         self.mes.assign(sim_t)              # 設備 step 前:指派當前工單、設 has_work
-        self.lines.gate()                   # 產線閘門:無料 / 滿料 → 該站本拍待機
+        self.lines.gate(dt_sim)             # 產線閘門:無料 / 滿料 → 該站本拍待機(need 依 dt)
         self.supply.gate()                  # 供應鏈閘門:上游沒出貨 → 下游餓料;下游倉滿 → 上游阻塞
         for device in self.devices.values():
             device.step(dt_sim)

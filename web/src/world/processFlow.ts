@@ -23,6 +23,10 @@ const ROLE: Record<string, Role> = {
   injection_molding: "source",
   semi_process_chamber: "source",
   heat_treat_furnace: "source",
+  welding_cell: "source",
+  laser_cutter: "source",
+  aoi_inspection: "source",
+  packaging_machine: "source",
   robot_arm_6axis: "handler",
   agv_mobile_robot: "handler",
   conveyor: "transport",
@@ -46,6 +50,10 @@ const VERB: Record<string, string> = {
   air_compressor: "空壓供氣",
   energy_meter: "用電計量",
   wind_turbine: "風力發電",
+  welding_cell: "焊接接合",
+  laser_cutter: "雷射切割",
+  aoi_inspection: "AOI 檢測",
+  packaging_machine: "包裝出貨",
 };
 
 /** 各機種在產線視圖中的縮放(風機 20 m 高、電表 6 m,不縮會互相打架)。 */
@@ -54,6 +62,7 @@ export const LINE_SCALE: Record<string, number> = {
   heat_treat_furnace: 0.60, semi_process_chamber: 0.65, robot_arm_6axis: 0.75,
   air_compressor: 0.60, conveyor: 0.55, energy_meter: 0.55, agv_mobile_robot: 0.85,
   cnc_machining_center: 0.75,
+  aoi_inspection: 0.70, welding_cell: 0.62, laser_cutter: 0.65, packaging_machine: 0.65,
 };
 
 /**
@@ -81,6 +90,11 @@ const EXTENT_X: Record<string, [number, number]> = {
   wind_turbine: [2.4, 1.5],
   air_compressor: [3.3, 3.3],
   energy_meter: [1.5, 1.5],
+  // 新機種(2026-08):preview/measure.mjs 實測(含 LINE_SCALE + 0.3 餘隙)
+  aoi_inspection: [3.1, 3.1],
+  welding_cell: [4.1, 4.0],
+  laser_cutter: [3.1, 4.3],
+  packaging_machine: [3.2, 3.5],
 };
 const extentX = (t: string): [number, number] => EXTENT_X[t] ?? [3.0, 3.0];
 
@@ -136,9 +150,13 @@ export interface Layout {
 export function layoutLine(devices: { id: string; template: string }[]): Layout {
   const ORDER: Record<Role, number> = { source: 0, handler: 1, transport: 2, utility: 3 };
   const withRole = devices.map((d) => ({ ...d, role: roleOf(d.template) }));
-  const main = withRole
-    .filter((d) => d.role !== "utility")
-    .sort((a, b) => ORDER[a.role] - ORDER[b.role]);
+  // 輸入序已是「producer → 手臂 → producer」這種合法製程序(手臂夾在兩台 source 之間)
+  // 就依原序擺 —— 產線站序(line:)傳進來時不能被角色排序拆散,手臂要伸得到兩站之間。
+  const nonUtil = withRole.filter((d) => d.role !== "utility");
+  const alternating = nonUtil.length >= 3 && nonUtil.every((d, i) =>
+    (d.role === "handler") === (i % 2 === 1)) && nonUtil[nonUtil.length - 1].role !== "handler";
+  const main = alternating ? nonUtil
+    : nonUtil.sort((a, b) => ORDER[a.role] - ORDER[b.role]);
   const utils = withRole.filter((d) => d.role === "utility");
 
   const placed: Placed[] = [];

@@ -73,6 +73,7 @@ _COMPONENT_ACTION: Dict[str, str] = {
     "joint_bearing": "replace_bearing",
     "generator_bearing": "replace_bearing",
     "bearing_wear": "replace_bearing",
+    "stage_bearing": "replace_bearing",
     # 磨耗件
     "tool_wear": "replace_wear_part",
     "die_wear": "replace_wear_part",
@@ -83,12 +84,19 @@ _COMPONENT_ACTION: Dict[str, str] = {
     "gearbox_wear": "replace_wear_part",
     "reducer_wear": "replace_wear_part",
     "tension_loss": "replace_wear_part",
+    "wire_feeder_wear": "replace_wear_part",
+    "nozzle_wear": "replace_wear_part",
+    "protective_lens_fouling": "replace_wear_part",   # 雷射保護鏡片是耗材,污損即換
+    "film_feed_wear": "replace_wear_part",
+    "cutter_blade_wear": "replace_wear_part",
     # 濾網 / 流阻
     "filter_clog": "clean_filter",
+    "nozzle_clog": "clean_filter",           # 焊槍噴嘴飛濺堆積:清潔即恢復氣護
     # 流體系統(液壓 / 真空 / 潤滑 / 氣密)
     "seal_leak": "service_fluid_system",
     "valve_wear": "service_fluid_system",
     "hydraulic_pump": "service_fluid_system",
+    "chiller_degradation": "service_fluid_system",   # 雷射冷卻迴路
     "vacuum_pump_wear": "service_fluid_system",
     "lube_pump_wear": "service_fluid_system",
     # 製程漂移(讀值真的變了,不是感測器騙人)
@@ -96,10 +104,14 @@ _COMPONENT_ACTION: Dict[str, str] = {
     "heating_element_aging": "recalibrate_process",
     "mfc_drift": "recalibrate_process",
     "process_drift": "recalibrate_process",
+    "lens_contamination": "recalibrate_process",     # AOI 鏡頭清潔 + 光學重校
     # 電氣
     "capacitor_aging": "replace_electrical",
     "insulation_degradation": "replace_electrical",
     "battery_capacity_fade": "replace_electrical",
+    "led_aging": "replace_electrical",
+    "torch_cable_aging": "replace_electrical",
+    "sealer_heater_aging": "replace_electrical",
 }
 
 # 關鍵字後援:新模板取了沒登記的元件名時,盡量還是猜得到對症動作,

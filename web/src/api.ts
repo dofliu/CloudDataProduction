@@ -201,6 +201,10 @@ export const injectFault = (body: FaultBody) => post("/api/faults", body, true);
 
 // 自然語言建廠(教師面):一句話 → 即時長出新公司
 export const createFactory = (description: string) => post("/api/factory", { description }, true);
+// 整合建廠(A+B+C 結構化):自動配點位 / 接產線 / 熱上線 / 點位表 / 試連自測
+export interface ComposeSpec { template: string; count: number }
+export const composeFactory = (devices: ComposeSpec[], name?: string, selftest = true) =>
+  post("/api/factory/compose", { devices, name, selftest }, true);
 export const resetDevice = (id: string) => post(`/api/devices/${id}/reset`, undefined, true);
 // 教師「重置課堂資料」:清認領 / 工單 / 預測 / OEE、設備修回健康(換班 / 下堂課歸零)
 export interface SessionResetScope { claims?: boolean; tickets?: boolean; predictions?: boolean; oee?: boolean; devices?: boolean; }

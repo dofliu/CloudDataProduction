@@ -515,6 +515,85 @@ def check_tag_invariants(world: World, park: dict, samples: int = 240, dt_step: 
             viol.append(f"{did}: Δshots={ds} 預測 {exp_shots:.1f}")
     report("injection_molding:shot_count 增速 ≈ 1/cycle_time", viol, n)
 
+    # welding_cell:弧開弧關一致(送絲與電弧同開同關);weld_count 增速 ≈ (0.55+0.45h)/SEAM_S
+    viol, n = [], 0
+    for did in by_tmpl.get("welding_cell", []):
+        sam = series[did]
+        n += 1
+        h = 0.5 * (h0[did].get("wire_feeder_wear", 1.0) + h1[did].get("wire_feeder_wear", 1.0))
+        exp_welds = sum(dt / 16.0 * (0.55 + 0.45 * h)
+                        for s in sam[1:] if s["_state"] == "running")
+        for s in sam:
+            # 同一拍讀到的送絲與電流必須同開同關:送絲 >3 m/min = 弧開,電流必 >100 A;
+            # 送絲 <0.5 = 弧關,電流必 <15 A(波動上界 30 + 雜訊 3σ 遠低於 100 的裕度)
+            if s["wire_feed_rate"] > 3.0 and s["arc_current"] < 100.0:
+                viol.append(f"{did}: 送絲 {s['wire_feed_rate']:.1f} 但電流 {s['arc_current']:.0f}A")
+                break
+            if s["wire_feed_rate"] < 0.5 and s["arc_current"] > 15.0:
+                viol.append(f"{did}: 送絲停但電流 {s['arc_current']:.0f}A")
+                break
+        dwld = sam[-1]["weld_count"] - sam[0]["weld_count"]
+        # 完成率因子用窗中點健康度(窗內退化讓因子單調小漂)→ 3% + 2
+        if exp_welds > 0 and abs(dwld - exp_welds) > 0.03 * exp_welds + 2.0:
+            viol.append(f"{did}: Δwelds={dwld} 預測 {exp_welds:.1f}")
+    report("welding_cell:送絲↔電弧同開關;weld_count 增速 ≈ 完成率因子", viol, n)
+
+    # laser_cutter:雷射與切速同開同關;cut_count 增速 ≈ (0.55+0.45h)/CUT_S
+    viol, n = [], 0
+    for did in by_tmpl.get("laser_cutter", []):
+        sam = series[did]
+        n += 1
+        h = 0.5 * (h0[did].get("protective_lens_fouling", 1.0) + h1[did].get("protective_lens_fouling", 1.0))
+        exp_cuts = sum(dt / 24.0 * (0.55 + 0.45 * h)
+                       for s in sam[1:] if s["_state"] == "running")
+        for s in sam:
+            # 切速 >5 mm/s = 雷射開,功率必 >1000 W(額定 3000、降額下限 60%);
+            # 切速 <0.5 = 關,功率必 <150 W(關閉時只剩雜訊 |N(0,2)|)
+            if s["cut_speed"] > 5.0 and s["laser_power"] < 1000.0:
+                viol.append(f"{did}: 切速 {s['cut_speed']:.1f} 但功率 {s['laser_power']:.0f}W")
+                break
+            if s["cut_speed"] < 0.5 and s["laser_power"] > 150.0:
+                viol.append(f"{did}: 切速停但功率 {s['laser_power']:.0f}W")
+                break
+        dc = sam[-1]["cut_count"] - sam[0]["cut_count"]
+        if exp_cuts > 0 and abs(dc - exp_cuts) > 0.03 * exp_cuts + 2.0:
+            viol.append(f"{did}: Δcuts={dc} 預測 {exp_cuts:.1f}")
+    report("laser_cutter:雷射↔切速同開關;cut_count 增速 ≈ 完成率因子", viol, n)
+
+    # aoi_inspection:inspected_count 增速 ≈ Σ dt/inspect_time(逐拍用學生讀得到的節拍 tag)
+    viol, n = [], 0
+    for did in by_tmpl.get("aoi_inspection", []):
+        sam = series[did]
+        n += 1
+        exp_ins = sum(dt / max(1.0, s["inspect_time"])
+                      for s in sam[1:] if s["_state"] == "running")
+        di = sam[-1]["inspected_count"] - sam[0]["inspected_count"]
+        # inspect_time 雜訊 0.1s/15s < 1%、計數頭尾截尾 ±1 → 3% + 2
+        if exp_ins > 0 and abs(di - exp_ins) > 0.03 * exp_ins + 2.0:
+            viol.append(f"{did}: Δinspected={di} 預測 {exp_ins:.1f}")
+    report("aoi_inspection:inspected_count 增速 ≈ 1/inspect_time", viol, n)
+
+    # packaging_machine:index_rate ≡ 60/cycle_time(同拍自洽);package_count ≈ Σ dt/cycle_time
+    viol, n = [], 0
+    for did in by_tmpl.get("packaging_machine", []):
+        sam = series[did]
+        n += 1
+        exp_packs = 0.0
+        for i, s in enumerate(sam):
+            if s["_state"] != "running":
+                continue
+            pred = 60.0 / max(1.0, s["cycle_time"])
+            # 兩 tag 雜訊獨立:index σ0.08 + 傳導 60/c²·σc ≈ 0.02 → 3σ 合計 0.4
+            if abs(s["index_rate"] - pred) > 0.4:
+                viol.append(f"{did}: index={s['index_rate']:.2f} ppm 由 cycle_time 算 {pred:.2f}")
+                break
+            if i > 0:
+                exp_packs += dt / max(1.0, s["cycle_time"])
+        dp = sam[-1]["package_count"] - sam[0]["package_count"]
+        if exp_packs > 0 and abs(dp - exp_packs) > 0.03 * exp_packs + 2.0:
+            viol.append(f"{did}: Δpacks={dp} 預測 {exp_packs:.1f}")
+    report("packaging_machine:index_rate ≡ 60/cycle_time;package_count ≈ 1/cycle_time", viol, n)
+
     # conveyor:待機帶速必為 0;停帶(run_enable=0)時帳上件數不得前進(主動探針)
     viol, n = [], 0
     for did in by_tmpl.get("conveyor", []):

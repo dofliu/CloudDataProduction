@@ -68,6 +68,9 @@ jobs:
       - name: verify_supply_chain
         run: python3 tests/test_supply_chain.py
 
+      - name: 整合建廠自動上線(compose / 點位表 / 守恆)
+        run: python3 tests/test_commissioning.py
+
   # ── 前端型別 + 建置 ──────────────────────────────────────
   web:
     name: 前端 tsc + build

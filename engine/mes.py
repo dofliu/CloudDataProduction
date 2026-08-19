@@ -29,6 +29,10 @@ PRODUCER_TEMPLATES = {
     "stamping_press",
     "heat_treat_furnace",
     "semi_process_chamber",
+    "welding_cell",
+    "laser_cutter",
+    "aoi_inspection",
+    "packaging_machine",
 }
 
 # 標準單件工時(模擬秒 / 件)。只用來把「訂單數量」換算成生產耗時,讓 /api/orders 的
@@ -40,6 +44,10 @@ STD_CYCLE_S: Dict[str, float] = {
     "stamping_press": 12.0,
     "heat_treat_furnace": 600.0,
     "semi_process_chamber": 300.0,
+    "welding_cell": 30.0,
+    "laser_cutter": 40.0,
+    "aoi_inspection": 20.0,
+    "packaging_machine": 15.0,
 }
 DEFAULT_CYCLE_S = 90.0
 

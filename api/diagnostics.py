@@ -29,12 +29,12 @@ def _sample_tag(device: Device):
 
 
 # ── Modbus ──────────────────────────────────────────────────
-async def check_modbus(world: World, host: str, port: int) -> list[dict]:
+async def check_modbus(world: World, host: str, port: int, only: set | None = None) -> list[dict]:
     from pymodbus.client import AsyncModbusTcpClient
     from pymodbus.constants import Endian
     from pymodbus.payload import BinaryPayloadDecoder
 
-    devices = list(world.devices.values())
+    devices = [d for d in world.devices.values() if only is None or d.id in only]
     client = AsyncModbusTcpClient(host, port=port)
     try:
         await asyncio.wait_for(client.connect(), timeout=3)
@@ -100,10 +100,10 @@ async def check_modbus_multiport(world: World, host: str, port_map: dict) -> lis
 
 
 # ── OPC-UA ──────────────────────────────────────────────────
-async def check_opcua(world: World, endpoint: str) -> list[dict]:
+async def check_opcua(world: World, endpoint: str, only: set | None = None) -> list[dict]:
     from asyncua import Client
 
-    devices = list(world.devices.values())
+    devices = [d for d in world.devices.values() if only is None or d.id in only]
     client = Client(endpoint)
     try:
         await asyncio.wait_for(client.connect(), timeout=4)
@@ -133,10 +133,10 @@ async def check_opcua(world: World, endpoint: str) -> list[dict]:
 
 
 # ── MQTT ────────────────────────────────────────────────────
-async def check_mqtt(world: World, host: str, port: int) -> list[dict]:
+async def check_mqtt(world: World, host: str, port: int, only: set | None = None) -> list[dict]:
     from amqtt.client import MQTTClient
 
-    devices = list(world.devices.values())
+    devices = [d for d in world.devices.values() if only is None or d.id in only]
     prefixes = {d.id: (d.protocols.get("mqtt", {}) or {}).get("topic_prefix", f"park/{d.company_id}/{d.id}")
                 for d in devices}
 
@@ -182,11 +182,11 @@ async def check_mqtt(world: World, host: str, port: int) -> list[dict]:
 
 
 # ── 彙整 ────────────────────────────────────────────────────
-async def run_diagnostics(world: World, host: str, ports: dict) -> dict:
+async def run_diagnostics(world: World, host: str, ports: dict, only: set | None = None) -> dict:
     modbus, opcua, mqtt = await asyncio.gather(
-        check_modbus(world, host, int(ports.get("modbus", 502))),
-        check_opcua(world, f"opc.tcp://{host}:{int(ports.get('opcua', 4840))}/clouddata/"),
-        check_mqtt(world, host, int(ports.get("mqtt", 1883))),
+        check_modbus(world, host, int(ports.get("modbus", 502)), only=only),
+        check_opcua(world, f"opc.tcp://{host}:{int(ports.get('opcua', 4840))}/clouddata/", only=only),
+        check_mqtt(world, host, int(ports.get("mqtt", 1883)), only=only),
         return_exceptions=True,
     )
 

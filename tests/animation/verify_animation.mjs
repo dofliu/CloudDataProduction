@@ -631,6 +631,59 @@ console.log("\n[15] AGV · fast(×120)—— 連續播放(不等收斂):車體�
     `max ${rec.worst.toFixed(3)} m · 全程頁內取樣 ${rec.count} 幀 · ${n} 幀連續播放`);
 }
 
+// ── 16~19. 新產業四機種 · slow(×1)—— L1 位置回歸(2026-08)──
+// 這四台的模型都沒有外層縮放:引擎 mm ÷ 50 = 世界單位 → 契約斜率 0.02。
+console.log("\n[16] AOI 光學檢測站 · slow(×1)—— 相機頭世界座標 ↔ camera_pos_x / camera_pos_y");
+{
+  const rows = (await sweep("aoi_inspection", "slow", { stride: 6, probes: ["aoi_camera"] })).filter((r) => r.probes.aoi_camera);
+  const cam = col(rows, (r) => r.probes.aoi_camera);
+  // 容許 8 mm:蛇形行程 ±150 mm,8 mm 是 2.7%(與 CNC 同一標準的量級)
+  checkLinear("AOI camera_pos_x → 相機世界 X", col(rows, (r) => r.tags.camera_pos_x), col(cam, (p) => p.x), 0.02, "mm",
+              { minSpan: 80, maxErrAllowed: 8, minR2: 0.99 });
+  checkLinear("AOI camera_pos_y → 相機世界 Z", col(rows, (r) => r.tags.camera_pos_y), col(cam, (p) => p.z), 0.02, "mm",
+              { minSpan: 40, maxErrAllowed: 8, minR2: 0.98 });
+  const cross = linreg(col(rows, (r) => r.tags.camera_pos_x), col(cam, (p) => p.z));
+  check("AOI 軸向未對調(camera_pos_x 不影響世界 Z)", cross.r2 < 0.5, `交叉 R²=${cross.r2.toFixed(4)}(應遠小於 1)`);
+}
+
+console.log("\n[17] 焊接工作站 · slow(×1)—— 焊槍世界座標 ↔ torch_pos_x / torch_pos_y");
+{
+  const rows = (await sweep("welding_cell", "slow", { stride: 6, probes: ["torch"] })).filter((r) => r.probes.torch);
+  const torch = col(rows, (r) => r.probes.torch);
+  checkLinear("焊接 torch_pos_x → 焊槍世界 X", col(rows, (r) => r.tags.torch_pos_x), col(torch, (p) => p.x), 0.02, "mm",
+              { minSpan: 100, maxErrAllowed: 10, minR2: 0.99 });
+  // torch_pos_y 是二元訊號(±60 奇偶道交替),與 CNC pos_z 同款判 rms
+  checkLinear("焊接 torch_pos_y → 焊槍世界 Z(道別)", col(rows, (r) => r.tags.torch_pos_y), col(torch, (p) => p.z), 0.02, "mm",
+              { minSpan: 60, rmsAllowed: 8 });
+  // 弧開弧關必須跟著 arc_current(>100 A),不是自己猜相位 —— 抽最後一幀直接讀弧光球
+  const arcAgree = rows.filter((r) => {
+    const on = r.tags.arc_current > 100;
+    return on === (r.tags.wire_feed_rate > 3);   // 引擎不變量:送絲與電弧同開關(畫面判準同一條)
+  }).length;
+  check("焊接 電弧判準與引擎一致(arc_current↔wire_feed 同開關)", arcAgree === rows.length,
+    `${arcAgree}/${rows.length} 幀一致`);
+}
+
+console.log("\n[18] 雷射切割機 · slow(×1)—— 切割頭世界座標 ↔ head_pos_x / head_pos_y");
+{
+  const rows = (await sweep("laser_cutter", "slow", { stride: 6, probes: ["laser_head"] })).filter((r) => r.probes.laser_head);
+  const head = col(rows, (r) => r.probes.laser_head);
+  checkLinear("雷切 head_pos_x → 切割頭世界 X", col(rows, (r) => r.tags.head_pos_x), col(head, (p) => p.x), 0.02, "mm",
+              { minSpan: 80, maxErrAllowed: 10, minR2: 0.98 });
+  checkLinear("雷切 head_pos_y → 切割頭世界 Z", col(rows, (r) => r.tags.head_pos_y), col(head, (p) => p.z), 0.02, "mm",
+              { minSpan: 60, maxErrAllowed: 10, minR2: 0.98 });
+  const cross = linreg(col(rows, (r) => r.tags.head_pos_x), col(head, (p) => p.z));
+  check("雷切 軸向未對調(head_pos_x 不影響世界 Z)", cross.r2 < 0.5, `交叉 R²=${cross.r2.toFixed(4)}(應遠小於 1)`);
+}
+
+console.log("\n[19] 包裝機 · slow(×1)—— 上封口鉗世界高度 ↔ jaw_gap");
+{
+  const rows = (await sweep("packaging_machine", "slow", { stride: 4, probes: ["jaw"] })).filter((r) => r.probes.jaw);
+  // 上鉗 y = JAW_MID + (jaw_gap/80)·0.8 → 斜率 0.8/80 = 0.01
+  checkLinear("包裝 jaw_gap → 上鉗世界 Y", col(rows, (r) => r.tags.jaw_gap), col(rows, (r) => r.probes.jaw.y), 0.01, "mm",
+              { minSpan: 40, maxErrAllowed: 6, minR2: 0.98 });
+}
+
 console.log(`\npage errors: ${pageErrors.length ? [...new Set(pageErrors)].join(" | ") : "none"}`);
 const failed = results.filter((r) => !r.ok);
 console.log(`\n總計 ${results.length} 項,通過 ${results.length - failed.length},失敗 ${failed.length}`);

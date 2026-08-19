@@ -35,6 +35,8 @@ TEMPLATES = [
     "cnc_machining_center", "robot_arm_6axis", "conveyor", "agv_mobile_robot",
     "air_compressor", "stamping_press", "injection_molding", "wind_turbine",
     "energy_meter", "semi_process_chamber", "heat_treat_furnace",
+    # 2026-08 新產業四機種(附加在尾端:seed 依索引推導,前面的裝置 seed 不動)
+    "aoi_inspection", "welding_cell", "laser_cutter", "packaging_machine",
 ]
 
 WARMUP_SIM_S = 10 * 3600.0      # 暖機到模擬日 10:00(兩班制設備已開工)

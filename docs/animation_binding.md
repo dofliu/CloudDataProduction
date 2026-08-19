@@ -219,6 +219,68 @@
 
 ---
 
+### 4.14 `aoi_inspection` — AOI 光學檢測站(2026-08 新增)
+
+| 視覺元素 | 引擎欄位 | 等級 | 映射 |
+|----------|----------|------|------|
+| 相機龍門 X(左右) | `camera_pos_x` (mm, ±150) | L1 | `/50` → 模型單位;蛇形掃描 |
+| 相機龍門 Y(前後) | `camera_pos_y` (mm, ±100) | L1 | `/50`;逐列步進 |
+| 掃描節拍 | `inspect_time` (s, 15→21 隨軸承磨損變長) | L3 | 牆鐘週期 = `inspect_time / multiplier`,夾住並標示;倍率 ≈1 時直接鎖遙測座標 |
+| 環形光源亮度 / 檢測光斑 | `light_intensity` (%, 100→68) | L1 | emissive ∝ 值(led_aging 一眼可見) |
+| 鏡頭霧化 | `focus_score` (score, 96→41) | L2 | 反向:分數掉 → 鏡片變濁(lens_contamination) |
+| 誤判警示 | `false_call_rate` (%, 0.6→20+) | L2 | 良率指標(檢測站「說不準」的代價) |
+| 累積檢數 | `inspected_count` | L1 | |
+| 機台抖動 | `vibration_rms` (0.3→11) | L2 | |
+
+> 掃描蛇形參數式與 `engine/templates/aoi_inspection.py::_scan_xy` 逐行對應
+> (5 列、±150 × ±100,偶數列往右奇數列往左)—— 前端只在 L3 慢放時本地跑同一條曲線。
+
+### 4.15 `welding_cell` — 焊接機器人工作站(2026-08 新增)
+
+| 視覺元素 | 引擎欄位 | 等級 | 映射 |
+|----------|----------|------|------|
+| 焊槍 X(沿焊道) | `torch_pos_x` (mm, ±200) | L1 | `/50`;電弧段勻速前進、回程快退 |
+| 焊槍 Y(道別) | `torch_pos_y` (mm, ±60) | L1 | `/50`;奇偶道交替 |
+| 電弧開關 | `arc_current` (A, >100 = 弧開) | L1 | 遙測說有弧才畫弧光,不自己猜相位 |
+| 焊道節拍 | SEAM_S = 16 s(常數) | L3 | 牆鐘週期 = `16 / multiplier`,夾住並標示 |
+| 飛濺粒子密度 | `spatter_rate` (%, 0.8→15) | L2 | nozzle_clog + feeder 磨損的品質視覺 |
+| 送絲 / 氣流讀數 | `wire_feed_rate`、`gas_flow` | L1 | 弧開時掉 → 對應退化線警示 |
+| 電弧電壓讀數 | `arc_voltage` (V, 24→30) | L1 | torch_cable_aging 緩升 |
+| 焊槍發熱輝光 | `torch_temp` (°C, 60→340) | L2 | |
+| 累積焊道數 | `weld_count` | L1 | |
+| 機台抖動 | `vibration_rms` (0.4→11) | L2 | |
+
+### 4.16 `laser_cutter` — 雷射切割機(2026-08 新增)
+
+| 視覺元素 | 引擎欄位 | 等級 | 映射 |
+|----------|----------|------|------|
+| 切割頭 X / Y | `head_pos_x` (±150)、`head_pos_y` (±100 mm) | L1 | `/50`;沿矩形輪廓(引擎 `_rect_xy` 同一條參數式) |
+| 光束開關 | `laser_power` (W, >1000 = 出光) | L1 | 與引擎不變量檢定同一條界線 |
+| 切割節拍 | CUT_S = 24 s(常數) | L3 | 牆鐘週期 = `24 / multiplier`,夾住並標示 |
+| 切割頭發熱輝光 | `lens_temp` (°C, 45→110) | L2 | protective_lens_fouling 的主視覺 |
+| 冷卻水溫警示 | `chiller_temp` (°C, 22→36;>30 亮黃) | L1 | chiller_degradation |
+| 切速讀數 | `cut_speed` (mm/s, 35→19) | L1 | 鏡片污損 → 降速補償 |
+| 切口火花密度 / 顏色 | `dross_rate` (%, 0.5→12) | L2 | nozzle_wear 的品質視覺 |
+| 輔助氣壓讀數 | `assist_gas_pressure` (bar) | L1 | |
+| 累積切件數 | `cut_count` | L1 | |
+| 機台抖動 | `vibration_rms` | L2 | |
+
+### 4.17 `packaging_machine` — 包裝機(2026-08 新增)
+
+| 視覺元素 | 引擎欄位 | 等級 | 映射 |
+|----------|----------|------|------|
+| 封口鉗開度 | `jaw_gap` (mm, 80 全開 → 0 閉合) | L1 | `/50`;上下鉗對開(引擎 `40·(1+cos ph)` 同一條參數式) |
+| 封口節拍 | `cycle_time` (s, 15→19 隨加熱器老化變長) | L3 | 牆鐘週期 = `cycle_time / multiplier`,夾住並標示 |
+| 封口鉗輝光 / 低溫警示 | `seal_temp` (°C, 145 設定點;<128 亮黃) | L2+L1 | 到不了設定點 = sealer_heater_aging |
+| 膜卷轉動 / 出料前進 | `index_rate` (ppm, 4→3.2) | L3 | 與封口節拍同倍率 |
+| 膜張力讀數 | `film_tension` (N, 45 ± 波動) | L1 | film_feed_wear → 波動變大 |
+| 成品包外觀 | `reject_rate` (%, 0.4→15) | L2 | 皺摺變色(品質視覺) |
+| 元件電流讀數 | `motor_current` (A) | L1 | |
+| 累積包數 | `package_count` | L1 | |
+| 機台抖動 | `vibration_rms` | L2 | |
+
+---
+
 ### 4.12 廠內產線佈局(跨設備)
 
 單台設備畫得再準,擺成一排各做各的,學生仍然看不出「這條線在做什麼」。

@@ -31,6 +31,10 @@ _TEMPLATE_KEYWORDS = {
     "meter": "energy_meter",
     "沖壓": "stamping_press", "沖床": "stamping_press", "press": "stamping_press", "鈑金": "stamping_press",
     "熱處理": "heat_treat_furnace", "爐": "heat_treat_furnace", "furnace": "heat_treat_furnace", "退火": "heat_treat_furnace",
+    "aoi": "aoi_inspection", "光學檢測": "aoi_inspection", "檢測站": "aoi_inspection", "檢測機": "aoi_inspection",
+    "焊接": "welding_cell", "焊": "welding_cell", "weld": "welding_cell",
+    "雷射": "laser_cutter", "激光": "laser_cutter", "laser": "laser_cutter", "切割機": "laser_cutter",
+    "包裝": "packaging_machine", "封口": "packaging_machine", "裝箱": "packaging_machine", "packaging": "packaging_machine",
 }
 
 # 各 template 的預設退化元件(讓新設備會自然退化,與場景一致)
@@ -66,11 +70,29 @@ _DEFAULT_DEGRADATION = {
         "heating_element_aging": {"rate": 0.0000009, "trajectory": "exponential", "k": 2.6, "sigma": 0.1, "init_health": 0.94},
         "insulation_degradation": {"rate": 0.0000013, "trajectory": "linear", "sigma": 0.12, "init_health": 1.0, "causes_device_fault": False},
     },
+    "aoi_inspection": {
+        "stage_bearing": {"rate": 0.0000010, "trajectory": "exponential", "k": 3.0, "sigma": 0.1, "init_health": 0.94},
+        "lens_contamination": {"rate": 0.0000015, "trajectory": "linear", "sigma": 0.15, "init_health": 1.0, "causes_device_fault": False},
+    },
+    "welding_cell": {
+        "wire_feeder_wear": {"rate": 0.0000011, "trajectory": "exponential", "k": 3.0, "sigma": 0.1, "init_health": 0.93},
+        "nozzle_clog": {"rate": 0.0000017, "trajectory": "linear", "sigma": 0.15, "init_health": 1.0, "causes_device_fault": False},
+    },
+    "laser_cutter": {
+        "protective_lens_fouling": {"rate": 0.0000010, "trajectory": "exponential", "k": 3.0, "sigma": 0.1, "init_health": 0.93},
+        "nozzle_wear": {"rate": 0.0000015, "trajectory": "linear", "sigma": 0.15, "init_health": 1.0, "causes_device_fault": False},
+    },
+    "packaging_machine": {
+        "sealer_heater_aging": {"rate": 0.0000009, "trajectory": "exponential", "k": 2.8, "sigma": 0.1, "init_health": 0.94},
+        "film_feed_wear": {"rate": 0.0000015, "trajectory": "linear", "sigma": 0.15, "init_health": 1.0, "causes_device_fault": False},
+    },
 }
 _PREFIX = {"cnc_machining_center": "cnc", "air_compressor": "comp",
            "agv_mobile_robot": "agv", "robot_arm_6axis": "arm",
            "semi_process_chamber": "chamber", "energy_meter": "em",
-           "stamping_press": "press", "heat_treat_furnace": "furnace"}
+           "stamping_press": "press", "heat_treat_furnace": "furnace",
+           "aoi_inspection": "aoi", "welding_cell": "weld",
+           "laser_cutter": "laser", "packaging_machine": "pack"}
 
 # LLM 路徑用:全 8 template 的 id 前綴 + 給模型的白話說明(讓它把自由描述映到最接近的型別)。
 # 不放 degradation —— 省略時各 template 會用自己的預設 + 個體差異抖動(見 templates/_common.build_components)。
@@ -79,6 +101,8 @@ _ALL_PREFIX = {
     "robot_arm_6axis": "arm", "injection_molding": "im", "semi_process_chamber": "chamber",
     "energy_meter": "em", "stamping_press": "press", "heat_treat_furnace": "furnace",
     "wind_turbine": "wt",
+    "aoi_inspection": "aoi", "welding_cell": "weld",
+    "laser_cutter": "laser", "packaging_machine": "pack",
 }
 _TEMPLATE_DESC = {
     "cnc_machining_center": "CNC 加工中心 / 工具機(主軸、刀具磨耗、軸承振動)",
@@ -91,6 +115,10 @@ _TEMPLATE_DESC = {
     "stamping_press": "沖壓機 / 沖床 / 鈑金(噸位、離合器/煞車、模具磨耗→毛邊)",
     "heat_treat_furnace": "熱處理爐 / 退火爐(爐溫、加熱元件老化、保溫/密封→均勻性)",
     "wind_turbine": "風力發電機(風速-功率曲線、齒輪箱)",
+    "aoi_inspection": "AOI 光學檢測站(相機龍門掃描、鏡頭污染 / 光源衰減→誤判率)",
+    "welding_cell": "焊接機器人工作站(電弧沿焊道、送絲輪磨損、噴嘴堵→飛濺)",
+    "laser_cutter": "雷射切割機(XY 龍門沿輪廓、保護鏡片污損、冷卻迴路)",
+    "packaging_machine": "包裝機 / 封口機(產線終站,封口加熱器老化→不良率)",
 }
 _DUTY = ("continuous", "single_shift", "two_shift")
 
@@ -145,20 +173,32 @@ def _parse_multi(text: str) -> list[tuple[str, int]]:
                     if re.search(ch + r"\s*[台臺套部支座]?\s*$", head):
                         count = n
                         break
-            hits.append((s, tmpl, max(1, min(20, count))))
+            hits.append((s, e, tmpl, max(1, min(20, count)), mm is not None or count > 1))
     hits.sort()
-    # 「機械手臂」會同時命中「機械手臂」與「手臂」等子字串 —— used_spans 已擋掉重疊;
-    # 這裡再壓掉同位置重複的 template
+    # 「機械手臂」會同時命中「機械手臂」與「手臂」等子字串 —— used_spans 已擋掉重疊。
+    # 但**不重疊的同義詞**仍會重複命中(「雷射切割機」= 雷射 + 切割機、「CNC 加工中心」
+    # = cnc + 加工中心):同 template 且中間沒有分隔詞 / 數量詞的相鄰命中,是同一台的
+    # 不同講法,合併成一筆(取有明確數量的那筆)。
+    _SEP = re.compile(r"[、,,;;/+]|和|與|跟|另|加上|\d|[一二兩三四五六七八九十]")
     out: list[tuple[str, int]] = []
-    for _, tmpl, count in hits:
-        out.append((tmpl, count))
+    prev_end, prev_tmpl = None, None
+    for s0, e0, tmpl, count, explicit in hits:
+        if (out and tmpl == prev_tmpl and prev_end is not None
+                and not _SEP.search(low[prev_end:s0])):
+            if explicit:                       # 後一筆才帶數量詞(少見)→ 用它
+                out[-1] = (tmpl, count)
+        else:
+            out.append((tmpl, count))
+        prev_end, prev_tmpl = e0, tmpl
     return out
 
 
 # 產線推導(與 scenarios/scripts/gen_class_park.py 的規則一致):
 # producer + 手臂 + (producer 或輸送帶)就接成引擎物料流(engine/line.py)。
 _LINE_PRODUCERS = {"cnc_machining_center", "injection_molding",
-                   "stamping_press", "semi_process_chamber"}
+                   "stamping_press", "semi_process_chamber",
+                   "welding_cell", "laser_cutter",
+                   "aoi_inspection", "packaging_machine"}
 
 
 def _derive_line(devices: list[dict]) -> list[str] | None:
@@ -172,6 +212,54 @@ def _derive_line(devices: list[dict]) -> list[str] | None:
     if len(producers) == 1 and convs:
         return [producers[0], arms[0], convs[0]]
     return None
+
+
+def compose_company(specs: list, name: str | None = None) -> dict:
+    """結構化整合建廠(A+B+C 自動上線的入口,docs/06)。
+
+    specs:[{"template": ..., "count": n}, ...] 或 [(template, n), ...] ——
+    **順序就是製程順序**(建得成線時 line: 依此排)。與 NL 路徑同一套白名單 / 夾限 /
+    id 配置,只是輸入是結構化的:教師在控制台勾選設備組合,不必寫描述句。
+    template 不在白名單 → ValueError(上層轉 422)。
+    """
+    from engine.templates import available_templates
+    whitelist = set(available_templates())
+
+    norm: list[tuple[str, int]] = []
+    for item in specs or []:
+        if isinstance(item, dict):
+            tmpl, count = item.get("template"), item.get("count", 1)
+        else:
+            tmpl, count = item[0], (item[1] if len(item) > 1 else 1)
+        if tmpl not in whitelist:
+            raise ValueError(f"未知設備 template:{tmpl}。可用:{sorted(whitelist)}")
+        norm.append((tmpl, max(1, min(20, int(count or 1)))))
+    if not norm:
+        raise ValueError("devices 不可為空:至少要一台設備")
+
+    devices = []
+    seq: dict[str, int] = {}
+    for template, count in norm:
+        prefix = _PREFIX.get(template, template[:4])
+        for _ in range(count):
+            seq[template] = seq.get(template, 0) + 1
+            devices.append({
+                "id": f"{prefix}-ai{seq[template]:02d}",
+                "template": template,
+                "duty_cycle": {"profile": "continuous"},
+                "degradation": {k: dict(v) for k, v in _DEFAULT_DEGRADATION.get(template, {}).items()},
+            })
+
+    summary = "、".join(f"{c} 台 {t}" for t, c in norm)
+    cfg = {
+        "name": name or "整合建廠(結構化)",
+        "industry": norm[0][0],
+        "devices": devices,
+        "_summary": f"{name or '整合建廠'}:{summary}",
+        "_via": "compose",
+    }
+    cfg.setdefault("line", _derive_line(devices))
+    return cfg
 
 
 def generate_factory(description: str, existing_company_ids: list[str] | None = None) -> dict:

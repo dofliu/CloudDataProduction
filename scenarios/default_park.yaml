@@ -403,3 +403,39 @@ park:
       devices:
         - {id: t11-d084, template: cnc_machining_center}
         - {id: t11-d085, template: semi_process_chamber}
+
+    - id: x01-f1
+      name: "焊接工作站示範廠(新產業展示)"
+      industry: welding
+      product: "焊接自動化工作站"
+      product_icon: "🔥"
+      intro: "新產業**合成**示範工廠;主力產品:焊接自動化工作站。製程:管件在焊接工作站沿焊道電弧熔填,六軸手臂上下料,輸送帶送出焊件。產線:焊接機器人工作站(x01-d086) → 六軸機械手臂(x01-d087) → 輸送帶(x01-d088) —— 工件在引擎內真實流動,上游完工、手臂搬運、下游才有料可加工(緩衝可讀 FC04 line_in/out_buffer)。所有數據皆為模擬產生,非真實場域量測。"
+      line: [x01-d086, x01-d087, x01-d088]   # 產線物料流(engine/line.py)
+      devices:
+        - {id: x01-d086, template: welding_cell}
+        - {id: x01-d087, template: robot_arm_6axis}
+        - {id: x01-d088, template: conveyor}
+
+    - id: x01-f2
+      name: "雷切包裝示範廠(新產業展示)"
+      industry: laser_cutting
+      product: "鈑金雷切包裝線"
+      product_icon: "🔆"
+      intro: "新產業**合成**示範工廠;主力產品:鈑金雷切包裝線。製程:板材在雷射切割機沿輪廓下料,六軸手臂取件,包裝機封裝出貨。產線:雷射切割機(x01-d089) → 六軸機械手臂(x01-d090) → 包裝機(x01-d091) —— 工件在引擎內真實流動,上游完工、手臂搬運、下游才有料可加工(緩衝可讀 FC04 line_in/out_buffer)。所有數據皆為模擬產生,非真實場域量測。"
+      line: [x01-d089, x01-d090, x01-d091]   # 產線物料流(engine/line.py)
+      devices:
+        - {id: x01-d089, template: laser_cutter}
+        - {id: x01-d090, template: robot_arm_6axis}
+        - {id: x01-d091, template: packaging_machine}
+
+    - id: x01-f3
+      name: "光學檢測示範廠(新產業展示)"
+      industry: inspection
+      product: "CNC 加工全檢線"
+      product_icon: "🔍"
+      intro: "新產業**合成**示範工廠;主力產品:CNC 加工全檢線。製程:工件在 CNC 加工中心銑削成形,六軸手臂送檢,AOI 光學檢測站逐件全檢。產線:CNC 加工中心(x01-d092) → 六軸機械手臂(x01-d093) → AOI 光學檢測站(x01-d094) —— 工件在引擎內真實流動,上游完工、手臂搬運、下游才有料可加工(緩衝可讀 FC04 line_in/out_buffer)。所有數據皆為模擬產生,非真實場域量測。"
+      line: [x01-d092, x01-d093, x01-d094]   # 產線物料流(engine/line.py)
+      devices:
+        - {id: x01-d092, template: cnc_machining_center}
+        - {id: x01-d093, template: robot_arm_6axis}
+        - {id: x01-d094, template: aoi_inspection}

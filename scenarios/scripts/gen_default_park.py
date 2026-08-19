@@ -74,6 +74,36 @@ def build() -> list[dict]:
             if line:
                 company["line"] = line
             companies.append(company)
+
+    # 新產業示範廠(2026-08 追加:焊接 / 雷切+包裝 / AOI)。附加在尾端 ——
+    # 既有廠的 device id / unit_id 零位移;id 用 x01 前綴,不掛任何老師姓名。
+    NEW_DEMOS = [
+        ("x01-f1", "焊接工作站示範廠(新產業展示)", "welding", "焊接自動化工作站", "🔥",
+         "管件在焊接工作站沿焊道電弧熔填,六軸手臂上下料,輸送帶送出焊件。",
+         ["welding_cell", "robot_arm_6axis", "conveyor"]),
+        ("x01-f2", "雷切包裝示範廠(新產業展示)", "laser_cutting", "鈑金雷切包裝線", "🔆",
+         "板材在雷射切割機沿輪廓下料,六軸手臂取件,包裝機封裝出貨。",
+         ["laser_cutter", "robot_arm_6axis", "packaging_machine"]),
+        ("x01-f3", "光學檢測示範廠(新產業展示)", "inspection", "CNC 加工全檢線", "🔍",
+         "工件在 CNC 加工中心銑削成形,六軸手臂送檢,AOI 光學檢測站逐件全檢。",
+         ["cnc_machining_center", "robot_arm_6axis", "aoi_inspection"]),
+    ]
+    for cid, name, industry, product, icon, story, tmpls in NEW_DEMOS:
+        devices = []
+        for tmpl in tmpls:
+            dev_no += 1
+            devices.append({"id": f"x01-d{dev_no:03d}", "template": tmpl})
+        line = derive_line(devices)
+        company = {
+            "id": cid, "name": name, "industry": industry,
+            "product": product, "product_icon": icon,
+            "intro": (f"新產業**合成**示範工廠;主力產品:{product}。製程:{story}"
+                      f"{line_note(line, devices)}所有數據皆為模擬產生,非真實場域量測。"),
+            "devices": devices,
+        }
+        if line:
+            company["line"] = line
+        companies.append(company)
     return companies
 
 

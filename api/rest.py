@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from typing import List, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -28,6 +29,7 @@ from .polls import PollManager
 from .submissions import SubmissionStore
 from .classroom import ClassroomManager
 from .diagnostics import run_diagnostics
+from .commissioning import points_csv, points_doc, points_markdown
 from .oee import OeeEngine
 from .predictions import PredictionStore
 from .scenarios import ScenarioManager
@@ -124,6 +126,18 @@ class PasswordRequest(BaseModel):
 class FactoryRequest(BaseModel):
     description: Optional[str] = None    # 自然語言建廠
     yaml: Optional[str] = None           # 或直接給公司設定 YAML
+
+
+class ComposeDeviceSpec(BaseModel):
+    template: str
+    count: int = 1
+
+
+class ComposeRequest(BaseModel):
+    """整合建廠(A+B+C 自動上線):結構化設備組合,順序 = 製程順序。"""
+    devices: list[ComposeDeviceSpec]
+    name: Optional[str] = None
+    selftest: bool = True                # 上線後 loopback 試連(只測新廠那幾台)
 
 
 class PredictionRequest(BaseModel):
@@ -954,6 +968,64 @@ def create_app(
         result["via"] = company_cfg.get("_via")          # llm / rule(給前端顯示走哪條)
         result["summary"] = company_cfg.get("_summary")
         return result
+
+    @app.post("/api/factory/compose", dependencies=[Depends(require_teacher)])
+    async def compose_factory(req: ComposeRequest):
+        """整合建廠一條龍:配置 → 自動接線 → 熱上線 → 點位表 → 試連自測(api/commissioning.py)。"""
+        from ai.factory_generator import compose_company
+        try:
+            company_cfg = compose_company([d.model_dump() for d in req.devices], name=req.name)
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        result = world.add_company(company_cfg)
+        cid = result["company"]
+        result["via"] = "compose"
+        result["summary"] = company_cfg.get("_summary")
+        result["line"] = company_cfg.get("line")
+        result["points"] = points_doc(world, cid, host=public_host)
+        result["points_download"] = {
+            "json": f"/api/commissioning/{cid}",
+            "csv": f"/api/commissioning/{cid}?format=csv",
+            "markdown": f"/api/commissioning/{cid}?format=md",
+        }
+        if req.selftest:
+            # 只測新公司那幾台(loopback 真連線)。adapter 是「下一拍 snapshot 廣播」才
+            # 動態掛上,而廣播有節流(broadcast_interval_s,課堂場景 5s)—— 不猜固定延遲,
+            # 輪詢到三協定全通或超過一個廣播週期為止,回傳最後一次量測(通不通誠實回報)。
+            import asyncio as _asyncio
+            import time as _time
+            deadline = _time.monotonic() + max(3.0, float(getattr(world, "broadcast_interval_s", 0.0)) + 3.0)
+            only = set(result["devices"])
+            while True:
+                st = await run_diagnostics(world, host="127.0.0.1", ports=world.ports, only=only)
+                if all(p["summary"]["reachable"] == p["summary"]["total"]
+                       for p in st["protocols"].values()) or _time.monotonic() > deadline:
+                    break
+                await _asyncio.sleep(1.0)
+            result["selftest"] = st
+        return result
+
+    @app.get("/api/commissioning/{company_id}")
+    def commissioning_points(company_id: str, format: str = "json"):
+        """點位表下載(公開唯讀 —— 內容與 /api/catalog 同級,只含學生面資訊)。"""
+        doc = points_doc(world, company_id, host=public_host)
+        if doc is None:
+            raise HTTPException(404, f"無此公司:{company_id}")
+        if format == "csv":
+            return Response(points_csv(doc), media_type="text/csv; charset=utf-8",
+                            headers={"Content-Disposition": f'attachment; filename="{company_id}_points.csv"'})
+        if format in ("md", "markdown"):
+            return Response(points_markdown(doc), media_type="text/markdown; charset=utf-8",
+                            headers={"Content-Disposition": f'attachment; filename="{company_id}_points.md"'})
+        return doc
+
+    @app.post("/api/commissioning/{company_id}/selftest", dependencies=[Depends(require_teacher)])
+    async def commissioning_selftest(company_id: str):
+        """對單一公司重跑三協定 loopback 試連(不掃全園區)。"""
+        ids = {d.id for d in world.devices.values() if d.company_id == company_id}
+        if not ids:
+            raise HTTPException(404, f"無此公司或公司沒有設備:{company_id}")
+        return await run_diagnostics(world, host="127.0.0.1", ports=world.ports, only=ids)
 
     # 情境腳本(災難日):列出公開,執行需 teacher token
     @app.get("/api/scenarios")

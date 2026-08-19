@@ -19,6 +19,10 @@ from .semi_process_chamber import build as _build_semi
 from .stamping_press import build as _build_press
 from .wind_turbine import build as _build_wind
 from .conveyor import build as _build_conveyor
+from .aoi_inspection import build as _build_aoi
+from .welding_cell import build as _build_welding
+from .laser_cutter import build as _build_laser
+from .packaging_machine import build as _build_packaging
 
 # template 名稱 → builder
 _REGISTRY: Dict[str, Callable] = {
@@ -33,6 +37,10 @@ _REGISTRY: Dict[str, Callable] = {
     "heat_treat_furnace": _build_furnace,
     "wind_turbine": _build_wind,
     "conveyor": _build_conveyor,
+    "aoi_inspection": _build_aoi,
+    "welding_cell": _build_welding,
+    "laser_cutter": _build_laser,
+    "packaging_machine": _build_packaging,
 }
 
 

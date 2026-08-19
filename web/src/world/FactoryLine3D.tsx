@@ -25,6 +25,10 @@ import { AirCompressorModel } from "./AirCompressor3D";
 import { EnergyMeterModel } from "./EnergyMeter3D";
 import { ProcessChamberModel } from "./ProcessChamber3D";
 import { HeatTreatFurnaceModel } from "./HeatTreatFurnace3D";
+import { AoiInspectionModel } from "./AoiInspection3D";
+import { WeldingCellModel } from "./WeldingCell3D";
+import { LaserCutterModel } from "./LaserCutter3D";
+import { PackagingMachineModel } from "./PackagingMachine3D";
 
 import { ARM_REACH_X, LINE_SCALE, layoutLine } from "./processFlow";
 
@@ -42,6 +46,10 @@ const MODELS: Record<string, ModelComp> = {
   energy_meter: EnergyMeterModel,
   semi_process_chamber: ProcessChamberModel,
   heat_treat_furnace: HeatTreatFurnaceModel,
+  aoi_inspection: AoiInspectionModel,
+  welding_cell: WeldingCellModel,
+  laser_cutter: LaserCutterModel,
+  packaging_machine: PackagingMachineModel,
 };
 
 /**
@@ -191,8 +199,17 @@ export default function FactoryLine3D({
     for (const s of line?.stations ?? []) m[s.device] = s;
     return m;
   }, [line]);
-  // 依製程角色排出一條看得懂的線(上游 → 搬運 → 出料),而不是等距一列各做各的
-  const layout = React.useMemo(() => layoutLine(devices), [devices]);
+  // 依製程角色排出一條看得懂的線(上游 → 搬運 → 出料),而不是等距一列各做各的。
+  // 有 line: 宣告時**以站序為準**:producer → 手臂 → producer(如雷切 → 手臂 → 包裝)
+  // 若只按角色排,兩台 producer 會被排在一起、手臂甩到最外側 —— 手臂就伸不到兩站之間。
+  const orderedDevices = React.useMemo(() => {
+    if (!line?.stations?.length) return devices;
+    const inLine = line.stations.map((s) => s.device);
+    const byId = Object.fromEntries(devices.map((d) => [d.id, d]));
+    const seq = inLine.map((id) => byId[id]).filter(Boolean) as typeof devices;
+    return [...seq, ...devices.filter((d) => !inLine.includes(d.id))];
+  }, [devices, line]);
+  const layout = React.useMemo(() => layoutLine(orderedDevices), [orderedDevices]);
   // 手臂上下游的緩衝方塊要擺在手臂**真正的取放點**上(processFlow 對位的同一組數字),
   // 手臂才是「伸到堆料處取件、轉身放到下一站」,而不是各畫各的。
   const handoff = React.useMemo(() => {

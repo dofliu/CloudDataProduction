@@ -4,7 +4,7 @@ import {
   CourseWeek, CourseStatus, GradebookRow,
   setTeacherToken, getTeacherToken, setClock,
   injectFault, resetDevice, getHealth, getTickets, ackTicket, resolveTicket, getScores, getPredictionScores,
-  getScenarios, runScenario, stopScenario, createFactory, resetSession,
+  getScenarios, runScenario, stopScenario, createFactory, composeFactory, resetSession,
   getCourseWeeks, getCourseStatus, applyCourseWeek, getGradebook,
   UserRow, listUsers, createUsers, resetUserPassword, deleteUser,
   StudentOverviewRow, getStudentsOverview, StudentDetail, getStudentDetail,
@@ -37,6 +37,22 @@ export default function TeacherView({
   const [scenStatus, setScenStatus] = useState<ScenarioStatus | null>(null);
   const [scenName, setScenName] = useState("disaster_day");
   const [factoryDesc, setFactoryDesc] = useState("建一間有 3 台機械手臂的公司");
+  // 整合建廠(A+B+C):結構化設備組合(順序 = 製程順序)
+  const COMPOSE_TEMPLATES = [
+    ["cnc_machining_center", "CNC 加工中心"], ["stamping_press", "沖壓機"],
+    ["injection_molding", "射出成型機"], ["semi_process_chamber", "製程腔體"],
+    ["heat_treat_furnace", "熱處理爐"], ["welding_cell", "焊接工作站"],
+    ["laser_cutter", "雷射切割機"], ["aoi_inspection", "AOI 檢測站"],
+    ["packaging_machine", "包裝機"], ["robot_arm_6axis", "六軸手臂"],
+    ["conveyor", "輸送帶"], ["agv_mobile_robot", "AGV"],
+    ["air_compressor", "空壓機"], ["energy_meter", "智慧電表"], ["wind_turbine", "風機"],
+  ] as const;
+  const [composeName, setComposeName] = useState("");
+  const [composeRows, setComposeRows] = useState<{ template: string; count: number }[]>([
+    { template: "laser_cutter", count: 1 }, { template: "robot_arm_6axis", count: 1 },
+    { template: "packaging_machine", count: 1 },
+  ]);
+  const [composeLinks, setComposeLinks] = useState<{ json: string; csv: string; markdown: string } | null>(null);
   const [courseWeeks, setCourseWeeks] = useState<CourseWeek[]>([]);
   const [courseStatus, setCourseStatus] = useState<CourseStatus | null>(null);
   const [gradebook, setGradebook] = useState<GradebookRow[]>([]);
@@ -178,6 +194,29 @@ export default function TeacherView({
     }
   };
 
+  // 整合建廠(A+B+C):結構化組合 → 自動配點位 / 接線 / 上線 / 點位表 / 自測
+  const doCompose = async () => {
+    const devices = composeRows.filter((r) => r.count > 0);
+    if (!devices.length) { setMsg("整合建廠:至少選一台設備"); return; }
+    try {
+      setMsg("整合建廠中(配置 → 接線 → 上線 → 點位表 → 試連)…");
+      const r = await composeFactory(devices, composeName || undefined, true);
+      const st = r?.selftest?.protocols;
+      const stTxt = st
+        ? `試連:Modbus ${st.modbus?.summary?.reachable}/${st.modbus?.summary?.total} · ` +
+          `OPC-UA ${st.opcua?.summary?.reachable}/${st.opcua?.summary?.total} · ` +
+          `MQTT ${st.mqtt?.summary?.reachable}/${st.mqtt?.summary?.total}`
+        : "";
+      const line = r?.line ? `產線:${r.line.join(" → ")} · ` : "";
+      setMsg(`✅ 已上線 ${r.company}(${r.devices.length} 台)· ${line}${stTxt}`);
+      setComposeLinks(r?.points_download ?? null);
+      onParkChanged();
+    } catch (e: any) {
+      const hint = String(e.message).includes("401") ? "先填 dev-teacher-token 並儲存" : "";
+      setMsg(`整合建廠失敗:${e.message} ${hint}`);
+    }
+  };
+
   const clk = (m: number) => { setClock({ multiplier: m }); setClockMult(m); };
 
   return (
@@ -282,6 +321,40 @@ export default function TeacherView({
             </div>
             <div className="hint" style={{ margin: "6px 0 0" }}>
               設了 Gemini key → 🤖 AI 解析自由描述、可<b>多型別混搭</b>;否則規則式(單一型別 + 數量)。建立後即時長出新公司(三協定免重啟)。
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-title">🧩 整合建廠(A+B+C 自動上線)</div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
+              <input className="inp" value={composeName} onChange={(e) => setComposeName(e.target.value)}
+                     placeholder="公司名(可空,自動命名)" style={{ minWidth: 200 }} />
+              <button className="btn ghost" onClick={() => setComposeRows((r) => [...r, { template: "cnc_machining_center", count: 1 }])}>＋ 加一站</button>
+            </div>
+            {composeRows.map((row, i) => (
+              <div key={i} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
+                <span className="hint" style={{ width: 38 }}>站 {i + 1}</span>
+                <select className="inp" value={row.template}
+                        onChange={(e) => setComposeRows((rs) => rs.map((r, j) => j === i ? { ...r, template: e.target.value } : r))}>
+                  {COMPOSE_TEMPLATES.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+                </select>
+                <input className="inp" type="number" min={1} max={20} value={row.count} style={{ width: 62 }}
+                       onChange={(e) => setComposeRows((rs) => rs.map((r, j) => j === i ? { ...r, count: parseInt(e.target.value) || 1 } : r))} />
+                <button className="btn ghost" onClick={() => setComposeRows((rs) => rs.filter((_, j) => j !== i))}>✕</button>
+              </div>
+            ))}
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <button className="btn" style={{ background: "var(--ok)", color: "#fffaf0" }} onClick={doCompose}>🚀 上線</button>
+              {composeLinks && (
+                <span className="hint">
+                  點位表:<a href={composeLinks.json} target="_blank" rel="noreferrer">JSON</a> ·{" "}
+                  <a href={composeLinks.csv}>CSV</a> · <a href={composeLinks.markdown}>連線指引(MD)</a>
+                </span>
+              )}
+            </div>
+            <div className="hint" style={{ margin: "6px 0 0" }}>
+              順序 = 製程順序:producer + 手臂 + producer/輸送帶會<b>自動接產線物料流</b>;
+              上線後自動配 unit_id / OPC-UA folder / MQTT topic,並用三協定真連回來自測(交機不是宣稱,是量出來的)。
             </div>
           </div>
 

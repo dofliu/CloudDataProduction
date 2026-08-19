@@ -22,6 +22,10 @@ import AirCompressor3D from "../src/world/AirCompressor3D";
 import EnergyMeter3D from "../src/world/EnergyMeter3D";
 import ProcessChamber3D from "../src/world/ProcessChamber3D";
 import HeatTreatFurnace3D from "../src/world/HeatTreatFurnace3D";
+import AoiInspection3D from "../src/world/AoiInspection3D";
+import WeldingCell3D from "../src/world/WeldingCell3D";
+import LaserCutter3D from "../src/world/LaserCutter3D";
+import PackagingMachine3D from "../src/world/PackagingMachine3D";
 import FactoryLine3D from "../src/world/FactoryLine3D";
 
 type Case = { title: string; template: string; state: string; tags: Record<string, number>;
@@ -106,6 +110,31 @@ const CASES: Case[] = [
     tags: { tonnage: 0.2, stroke_rate: 0, ram_position: 0, die_temp: 34, motor_current: 3,
             vibration_rms: 0.15, lubrication_pressure: 1.2, burr_rate: 4, stroke_count: 40000 },
     coils: { run_enable: false } },
+  // ── 新產業四機種(2026-08):索引 24 起,LINE_COMBOS 依賴前面的索引不動 ──
+  { title: "AOI · 掃描中", template: "aoi_inspection", state: "running",
+    tags: { camera_pos_x: 60, camera_pos_y: -50, light_intensity: 99, focus_score: 95,
+            false_call_rate: 0.7, inspect_time: 15.2, vibration_rms: 0.4, inspected_count: 1240 } },
+  { title: "AOI · 鏡頭污染 + 光源衰減", template: "aoi_inspection", state: "running",
+    tags: { camera_pos_x: -30, camera_pos_y: 0, light_intensity: 81, focus_score: 66,
+            false_call_rate: 9.4, inspect_time: 16.8, vibration_rms: 2.1, inspected_count: 45210 } },
+  { title: "焊接 · 電弧沿焊道", template: "welding_cell", state: "running",
+    tags: { torch_pos_x: 40, torch_pos_y: -60, arc_current: 181, arc_voltage: 24.2, wire_feed_rate: 7.9,
+            gas_flow: 14.8, torch_temp: 315, spatter_rate: 1.1, vibration_rms: 0.5, weld_count: 860 } },
+  { title: "焊接 · 噴嘴堵 + 送絲磨損", template: "welding_cell", state: "running",
+    tags: { torch_pos_x: -120, torch_pos_y: 60, arc_current: 152, arc_voltage: 25.1, wire_feed_rate: 6.1,
+            gas_flow: 10.2, torch_temp: 322, spatter_rate: 9.6, vibration_rms: 5.8, weld_count: 30400 } },
+  { title: "雷切 · 沿輪廓出光", template: "laser_cutter", state: "running",
+    tags: { head_pos_x: 150, head_pos_y: 20, laser_power: 2985, lens_temp: 46, chiller_temp: 22.4,
+            assist_gas_pressure: 12.1, cut_speed: 34.6, dross_rate: 0.8, vibration_rms: 0.4, cut_count: 2210 } },
+  { title: "雷切 · 鏡片污損 + 冷卻劣化", template: "laser_cutter", state: "running",
+    tags: { head_pos_x: -80, head_pos_y: -100, laser_power: 2440, lens_temp: 88, chiller_temp: 33.5,
+            assist_gas_pressure: 11.4, cut_speed: 24.8, dross_rate: 6.2, vibration_rms: 0.5, cut_count: 51300 } },
+  { title: "包裝 · 封口循環", template: "packaging_machine", state: "running",
+    tags: { jaw_gap: 12, seal_temp: 144.6, film_tension: 45.3, index_rate: 3.95, cycle_time: 15.2,
+            reject_rate: 0.6, motor_current: 7.1, vibration_rms: 0.5, package_count: 6100 } },
+  { title: "包裝 · 加熱器老化(封不牢)", template: "packaging_machine", state: "running",
+    tags: { jaw_gap: 66, seal_temp: 118.2, film_tension: 41.0, index_rate: 3.28, cycle_time: 18.3,
+            reject_rate: 7.8, motor_current: 9.4, vibration_rms: 3.2, package_count: 88400 } },
 ];
 
 const SCENES: Record<string, React.ComponentType<any>> = {
@@ -113,6 +142,8 @@ const SCENES: Record<string, React.ComponentType<any>> = {
   agv_mobile_robot: AgvMobileRobot3D, conveyor: Conveyor3D, stamping_press: StampingPress3D,
   wind_turbine: WindTurbine3D, air_compressor: AirCompressor3D, energy_meter: EnergyMeter3D,
   semi_process_chamber: ProcessChamber3D, heat_treat_furnace: HeatTreatFurnace3D,
+  aoi_inspection: AoiInspection3D, welding_cell: WeldingCell3D,
+  laser_cutter: LaserCutter3D, packaging_machine: PackagingMachine3D,
 };
 
 // 用場景預設的 sim 倍率,才看得到真實課堂的視覺換算行為
@@ -151,6 +182,12 @@ const LINE_COMBOS: Record<string, number[]> = {
   agv: [0, 4, 6],
   // 單機 + 廠務:不該畫料道,廠務要退到後排
   solo: [0, 14, 16],
+  // 焊接 → 手臂 → 輸送帶(c66 的配方)
+  weld: [26, 2, 6],
+  // 雷切 → 手臂 → 包裝(c67:包裝機當產線終站)
+  laserpack: [28, 2, 30],
+  // 射出 → 手臂 → AOI 全檢(c68)
+  aoi: [10, 2, 24],
   // 全部混一起,壓力測試
   mixed: [0, 2, 6, 8, 10, 18, 20],
 };

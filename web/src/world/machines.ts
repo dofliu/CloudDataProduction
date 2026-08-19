@@ -435,10 +435,99 @@ export function mAGV(g: Graphics, ox: number, oy: number, t: number, running: bo
 }
 
 // 各機台的中心偏移(anchor=地面原點角,調到坐落在站位中央)
+
+export function mAoi(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
+  ishadow(g, ox + 0.1 * MTW, oy + 1.0 * MTH, 44, 20, 0.36);
+  isoBox3(g, ox, oy, 1.8, 1.4, 16, { top: 0xb0a488, left: 0x93866a, right: 0xa39678 });   // 檢測平台
+  // 龍門立柱 + 橫樑
+  isoBox3(g, ox - 0.2 * MTW, oy + 0.15 * MTH, 0.25, 0.25, 40, { top: 0x9a8f78, left: 0x7d7460, right: 0x8d8268 });
+  isoBox3(g, ox + 1.55 * MTW, oy + 1.9 * MTH, 0.25, 0.25, 40, { top: 0x9a8f78, left: 0x7d7460, right: 0x8d8268 });
+  const bx0 = ox - 0.05 * MTW, by0 = oy + 0.2 * MTH - 40, bx1 = ox + 1.6 * MTW, by1 = oy + 1.95 * MTH - 40;
+  g.moveTo(bx0, by0).lineTo(bx1, by1).stroke({ width: 4, color: 0xa89a78 });
+  // 待檢工件矩陣
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++)
+    g.rect(ox + (0.2 + i * 0.5) * MTW - (0.3 + j * 0.6) * MTW, oy + (0.2 + i * 0.5) * MTH + (0.3 + j * 0.6) * MTH - 17, 9, 6).fill(0x6f855a);
+  // 相機頭沿橫樑掃描(蛇形以來回近似),環形光斑打在正下方
+  const u = running ? (Math.sin(t * 1.2) + 1) / 2 : 0;
+  const cx = bx0 + (bx1 - bx0) * u, cy = by0 + (by1 - by0) * u;
+  g.rect(cx - 4, cy - 2, 8, 12).fill(0x5c6a70).stroke({ width: 1, color: 0x47535a });
+  if (running) {
+    emissive(g, cx, cy + 12, 3, 0xbfe6ff, 0.9);
+    iglow(g, cx, cy + 40, 12, "rgba(190,230,255,0.5)");           // 桌面檢測光斑
+    g.moveTo(cx, cy + 12).lineTo(cx, cy + 38).stroke({ width: 2, color: 0xbfe6ff, alpha: 0.35 });
+  }
+}
+
+export function mWeld(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
+  ishadow(g, ox + 0.1 * MTW, oy + 1.0 * MTH, 44, 20, 0.38);
+  isoBox3(g, ox, oy, 2.0, 1.2, 14, { top: 0x9a9484, left: 0x7d7868, right: 0x8d8874 });   // 焊接工作檯
+  // 兩道工件(焊道)
+  for (const k of [0.35, 0.85])
+    g.poly([ox + 0.1 * MTW - k * MTW, oy + 0.1 * MTH + k * MTH - 15, ox + 1.8 * MTW - k * MTW, oy + 1.8 * MTH + k * MTH - 15,
+            ox + 1.8 * MTW - k * MTW, oy + 1.8 * MTH + k * MTH - 11, ox + 0.1 * MTW - k * MTW, oy + 0.1 * MTH + k * MTH - 11])
+      .fill(0xa8b0b6).stroke({ width: 0.6, color: 0x7d8288 });
+  // 焊槍沿焊道走 + 電弧閃光 + 飛濺
+  const u = running ? (t * 0.35) % 1 : 0;
+  const k = (Math.floor(t * 0.35) % 2) ? 0.85 : 0.35;
+  const wx = ox + (0.15 + 1.6 * u) * MTW - k * MTW, wy = oy + (0.15 + 1.6 * u) * MTH + k * MTH - 13;
+  g.moveTo(wx, wy - 24).lineTo(wx + 4, wy - 4).stroke({ width: 3, color: 0x6b5842 });     // 焊槍
+  if (running) {
+    const flick = 0.6 + 0.4 * Math.sin(t * 40);
+    emissive(g, wx + 4, wy - 2, 3.5, 0xdff2ff, flick);
+    iglow(g, wx + 4, wy - 2, 14, `rgba(190,230,255,${0.5 * flick})`);
+    sparks(g, wx + 4, wy - 2, t, 7, { up: -1.2, spread: 3.4, reach: 14, grav: 12, speed: 2.6 });
+  }
+  // 氣瓶
+  isoBox3(g, ox + 1.9 * MTW, oy + 1.5 * MTH, 0.3, 0.3, 26, { top: 0x6f9a80, left: 0x577a64, right: 0x638a72 });
+}
+
+export function mLaser(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
+  ishadow(g, ox + 0.1 * MTW, oy + 1.0 * MTH, 46, 20, 0.36);
+  isoBox3(g, ox, oy, 2.0, 1.5, 14, { top: 0x9aa0a4, left: 0x7d8286, right: 0x8d9296 });   // 切割床
+  // 板材
+  g.poly([ox + 0.1 * MTW - 0.15 * MTW, oy + 0.1 * MTH + 0.15 * MTH - 15, ox + 1.9 * MTW - 0.15 * MTW, oy + 1.9 * MTH + 0.15 * MTH - 15,
+          ox + 1.9 * MTW - 1.35 * MTW, oy + 1.9 * MTH + 1.35 * MTH - 15, ox + 0.1 * MTW - 1.35 * MTW, oy + 0.1 * MTH + 1.35 * MTH - 15])
+    .fill(0xc4c8ca).stroke({ width: 0.7, color: 0x8d9296 });
+  // 龍門橫樑(沿深度來回)+ 切割頭(沿橫樑來回)
+  const v = running ? (Math.sin(t * 0.9) + 1) / 2 : 0;
+  const u = running ? (Math.sin(t * 2.3) + 1) / 2 : 0;
+  const gx0 = ox + (0.05 - (0.2 + v * 1.1) ) * MTW, gy0 = oy + (0.05 + 0.2 + v * 1.1) * MTH - 30;
+  const gx1 = gx0 + 1.9 * MTW, gy1 = gy0 + 1.9 * MTH;
+  g.moveTo(gx0, gy0).lineTo(gx1, gy1).stroke({ width: 4, color: 0x8a8f92 });
+  const hx = gx0 + (gx1 - gx0) * u, hy = gy0 + (gy1 - gy0) * u;
+  g.rect(hx - 3, hy - 4, 6, 10).fill(0x47535a);
+  if (running) {
+    g.moveTo(hx, hy + 6).lineTo(hx, hy + 16).stroke({ width: 1.6, color: 0xff5a30, alpha: 0.9 });   // 光束
+    emissive(g, hx, hy + 16, 2.5, 0xffb060, 0.9);
+    sparks(g, hx, hy + 16, t, 6, { up: -1.4, spread: 3.0, reach: 10, grav: 10, speed: 3 });
+  }
+}
+
+export function mPack(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
+  ishadow(g, ox + 0.1 * MTW, oy + 1.0 * MTH, 44, 20, 0.38);
+  isoBox3(g, ox, oy, 2.2, 1.2, 18, { top: 0xb2a586, left: 0x93866a, right: 0xa39678 });   // 機座 / 入料段
+  // 膜卷(轉動)
+  const rx = ox - 0.7 * MTW, ry = oy + 0.7 * MTH - 40;
+  g.circle(rx, ry, 8).fill(0xe6dcc4).stroke({ width: 1.2, color: 0xa89a78 });
+  const rot = running ? t * 2 : 0;
+  for (let i = 0; i < 2; i++) { const a = rot + i * Math.PI; g.moveTo(rx, ry).lineTo(rx + Math.cos(a) * 7, ry + Math.sin(a) * 7).stroke({ width: 1, color: 0xa89a78 }); }
+  g.moveTo(rx + 6, ry + 4).lineTo(ox + 0.5 * MTW, oy + 0.5 * MTH - 26).stroke({ width: 2.5, color: 0xe6dcc4, alpha: 0.6 });   // 膜片
+  // 封口鉗:上下開合(週期),閉合時發熱光
+  const cyc = running ? (Math.cos(t * 2.4) + 1) / 2 : 1;   // 0 = 閉合
+  const jx = ox + 0.55 * MTW, jy = oy + 0.55 * MTH - 22;
+  g.rect(jx - 9, jy - 9 - cyc * 8, 18, 5).fill(0xb08a5a).stroke({ width: 0.8, color: 0x8a6b42 });
+  g.rect(jx - 9, jy + 4 + cyc * 8, 18, 5).fill(0xb08a5a).stroke({ width: 0.8, color: 0x8a6b42 });
+  if (running && cyc < 0.25) iglow(g, jx, jy, 12, "rgba(255,150,70,0.55)");
+  // 出料:成品包沿右側送出
+  if (running) { const e = (t * 0.9) % 1; g.rect(ox + (0.9 + e * 1.0) * MTW, oy + (0.9 + e * 1.0) * MTH - 20, 9, 7).fill(0xe8dcc0).stroke({ width: 0.7, color: 0xa89a78 }); }
+  g.rect(ox + 1.9 * MTW, oy + 1.9 * MTH - 20, 9, 7).fill(0xe8dcc0).stroke({ width: 0.7, color: 0xa89a78 });
+}
+
 export const MOFF: Record<string, P2> = {
   cnc_machining_center: [-38, -12], injection_molding: [-30, -8], robot_arm_6axis: [2, 4],
   air_compressor: [-32, -4], wind_turbine: [8, 30], semi_process_chamber: [-30, -8],
   energy_meter: [-16, 0], stamping_press: [-18, 6], heat_treat_furnace: [-30, -8], agv_mobile_robot: [6, 2],
+  aoi_inspection: [-24, -6], welding_cell: [-26, -6], laser_cutter: [-26, -6], packaging_machine: [-28, -6],
 };
 export function drawStation(g: Graphics, tmpl: string, t: Record<string, number>, running: boolean, animT: number, _col: number, fault: boolean) {
   const [ox, oy] = MOFF[tmpl] ?? [-20, 0];
@@ -453,6 +542,10 @@ export function drawStation(g: Graphics, tmpl: string, t: Record<string, number>
     case "stamping_press": mPress(g, ox, oy, animT, running); break;
     case "heat_treat_furnace": mFurnace(g, ox, oy, animT, running); break;
     case "agv_mobile_robot": mAGV(g, ox, oy, animT, running); break;
+    case "aoi_inspection": mAoi(g, ox, oy, animT, running); break;
+    case "welding_cell": mWeld(g, ox, oy, animT, running); break;
+    case "laser_cutter": mLaser(g, ox, oy, animT, running); break;
+    case "packaging_machine": mPack(g, ox, oy, animT, running); break;
     default: isoBox3(g, ox, oy, 1.6, 1.4, 24, { top: 0xc8b48e, left: 0xa08a6a, right: 0xac9674 });
   }
 }

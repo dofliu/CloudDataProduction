@@ -20,6 +20,10 @@ import AirCompressor3D from "./AirCompressor3D";
 import EnergyMeter3D from "./EnergyMeter3D";
 import ProcessChamber3D from "./ProcessChamber3D";
 import HeatTreatFurnace3D from "./HeatTreatFurnace3D";
+import AoiInspection3D from "./AoiInspection3D";
+import WeldingCell3D from "./WeldingCell3D";
+import LaserCutter3D from "./LaserCutter3D";
+import PackagingMachine3D from "./PackagingMachine3D";
 
 const SCENES: Record<string, React.ComponentType<MachineProps>> = {
   cnc_machining_center: CncMachine3D,
@@ -33,6 +37,10 @@ const SCENES: Record<string, React.ComponentType<MachineProps>> = {
   energy_meter: EnergyMeter3D,
   semi_process_chamber: ProcessChamber3D,
   heat_treat_furnace: HeatTreatFurnace3D,
+  aoi_inspection: AoiInspection3D,
+  welding_cell: WeldingCell3D,
+  laser_cutter: LaserCutter3D,
+  packaging_machine: PackagingMachine3D,
 };
 
 const KIND_NAME: Record<string, string> = {
@@ -40,6 +48,8 @@ const KIND_NAME: Record<string, string> = {
   semi_process_chamber: "製程腔體", heat_treat_furnace: "熱處理爐", wind_turbine: "風力發電機",
   agv_mobile_robot: "AGV 搬運車", air_compressor: "空壓機", stamping_press: "沖壓機",
   injection_molding: "射出成型機", energy_meter: "智慧電表",
+  aoi_inspection: "AOI 光學檢測站", welding_cell: "焊接機器人工作站",
+  laser_cutter: "雷射切割機", packaging_machine: "包裝機",
 };
 const KIND_DESC: Record<string, string> = {
   cnc_machining_center: "三軸位置接 pos_x/y/z · 主軸轉速接 spindle_speed · 火花密度接 tool_wear",
@@ -53,6 +63,10 @@ const KIND_DESC: Record<string, string> = {
   stamping_press: "滑塊高度接 ram_position · 工件毛邊接 burr_rate · 潤滑燈接 lubrication_pressure",
   injection_molding: "循環相位接 injection_pressure · 料管顏色接 barrel_temp_1..4",
   energy_meter: "三相電壓 / 電流分相顯示 · 功因為唯一退化指標",
+  aoi_inspection: "相機龍門接 camera_pos_x/y · 光源亮度接 light_intensity · 鏡頭霧化接 focus_score",
+  welding_cell: "焊槍位置接 torch_pos_x/y · 電弧由 arc_current 判定 · 飛濺密度接 spatter_rate",
+  laser_cutter: "切割頭接 head_pos_x/y · 光束由 laser_power 判定 · 頭部輝光接 lens_temp",
+  packaging_machine: "封口鉗開度接 jaw_gap · 鉗口輝光接 seal_temp · 膜卷轉速接 index_rate",
 };
 const TH = { ok: "#5a9e5a", warn: "#d9a441", pred: "#d47a3f", fault: "#c85a4a" };
 

@@ -85,7 +85,7 @@ def build_week(root: Path, scenario: str, week: int, spec: dict, seed: int,
     week_seed = seed + week * 1009                     # 每週不同但確定性的種子
     world = World.from_yaml(root / scenario, seed=week_seed)
 
-    # 各 template 挑一台(確定性),涵蓋 11 種產業
+    # 各 template 挑一台(確定性),涵蓋全部產業型別
     by_tmpl: dict = {}
     for d in sorted(world.devices.values(), key=lambda x: x.id):
         by_tmpl.setdefault(d.template, d)
@@ -104,7 +104,13 @@ def build_week(root: Path, scenario: str, week: int, spec: dict, seed: int,
         kind = str(faults.get("kind", "equipment"))
         ftype = str(faults.get("type", "gradual"))
         sev = float(faults.get("severity", 0.8))
-        producers = [d for d in devs if _fault_component(d) is not None]
+        # 被產線餵料的站(mid / sink)不當注入對象:退化只在運轉時累積(stress=0 when
+        # idle),這些站的稼動被上游節拍卡住(餓料待機),注入的退化在觀測窗內物理上
+        # 長不到可偵測的量 —— 不是把驗證門檻調低,是不要出「無解的題」。
+        line_fed = {st.device.id for ln in world.lines.lines
+                    for st in ln.stations if st.role in ("mid", "sink")}
+        producers = [d for d in devs
+                     if _fault_component(d) is not None and d.id not in line_fed]
         targets = producers[::2]                       # 半數注入、半數留乾淨對照
         onset_s = onset_day * 86400.0
         for d in targets:

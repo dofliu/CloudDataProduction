@@ -6,7 +6,7 @@
 # 人要調整優先序,直接改 tasks: 的順序或 status 即可 —— 排程 session 一律照本檔做事。
 
 version: 1
-updated: "2026-08-03"
+updated: "2026-08-19"
 maintainer_note: "任務做完 / 開了 PR,務必在同一個 PR 裡把本檔的 status 與 pr 欄位一起更新,否則下次醒來會重做。"
 
 # ── 排程 session 的行為準則 ──────────────────────────────
@@ -173,7 +173,7 @@ tasks:
 
   - id: T3-line-flow-kpi
     title: "產線層 KPI(線平衡率 / 瓶頸站利用率 / WIP 曲線)"
-    status: in_review
+    status: done          # PR #44 已合併(2026-08-04)
     pr: "https://github.com/dofliu/CloudDataProduction/pull/44"
     outcome: >
       已實作:engine/line.py 的 view() 加 kpi 區塊(wip / bottleneck / line_balance /
@@ -193,6 +193,22 @@ tasks:
     done_when: ["KPI 可由 API 讀到,且與 lines 帳自洽(加總對得起來)", "新增測試涵蓋一條會塞住的線"]
     verify: ["python3 tests/test_line_flow.py"]
     files: ["api/oee.py", "engine/line.py", "web/src/world/"]
+
+  - id: T11-new-industries-commissioning
+    title: "新產業四機種(AOI / 焊接 / 雷切 / 包裝)+ 整合建廠自動上線(A+B+C)"
+    status: in_review
+    pr: "https://github.com/dofliu/CloudDataProduction/pull/51"
+    autonomy: self    # 2026-08-19 使用者指定的方向(設備多樣化 + 自動上線流程)
+    size: XL
+    outcome: >
+      ① 產業型別庫 11 → 15 種,每種完整垂直切片(引擎物理 / 維修手冊 / 產線計數 /
+      NL 關鍵字 / 2D+3D 動畫 L1 綁定 / CI 不變量 / 動畫回歸 +10 項 = 48 項全過)。
+      場景尾端附加(c66~c69 自成雷切→焊接→檢測→包裝供應鏈),既有 id 零位移。
+      ② api/commissioning.py:POST /api/factory/compose(結構化組合 → 白名單 → 自動配址
+      → 自動接線 → 熱上線)+ 點位表 JSON/CSV/MD 下載 + 三協定 loopback 試連自測
+      (實測 3/3/3);教師控制台「🧩 整合建廠」卡。CI:tests/test_commissioning.py。
+      ③ 順手修三個真缺陷:產線 tick 粒度守恆漏洞(gate 改 need=ceil(dt/節拍))、
+      週包不再挑產線餵料站當注入對象(不出無解題)、NL 同義詞重複命中合併。
 
   - id: T4-bottleneck-exercises
     title: "餓料 / 堵料的課堂情境與自動批改(找出瓶頸站、算節拍不匹配損失)"

@@ -33,6 +33,10 @@ const HEAT_SPEC: Record<string, { tag: string[]; lo: number; hi: number }> = {
   heat_treat_furnace: { tag: ["furnace_temp"], lo: 30, hi: 900 },
   conveyor: { tag: [], lo: 0, hi: 1 },
   energy_meter: { tag: [], lo: 0, hi: 1 },
+  aoi_inspection: { tag: [], lo: 0, hi: 1 },
+  welding_cell: { tag: ["torch_temp"], lo: 60, hi: 340 },
+  laser_cutter: { tag: ["lens_temp"], lo: 45, hi: 110 },
+  packaging_machine: { tag: ["seal_temp"], lo: 100, hi: 150 },
 };
 
 /** 各機種的「指標型退化」tag 與其正常→劣化區間,用於 wear(良率 / 品質線索)。 */
@@ -47,6 +51,10 @@ const WEAR_SPEC: Record<string, { tag: string; lo: number; hi: number }> = {
   energy_meter: { tag: "power_factor", lo: 0.95, hi: 0.7 },   // 反向:功因下滑 = 電容老化
   conveyor: { tag: "motor_current", lo: 5, hi: 7 },
   robot_arm_6axis: { tag: "vibration_rms", lo: 0.8, hi: 12 },
+  aoi_inspection: { tag: "false_call_rate", lo: 0.6, hi: 20 },
+  welding_cell: { tag: "spatter_rate", lo: 0.8, hi: 15 },
+  laser_cutter: { tag: "dross_rate", lo: 0.5, hi: 12 },
+  packaging_machine: { tag: "reject_rate", lo: 0.4, hi: 15 },
 };
 
 export interface DeviceMotion {

@@ -96,6 +96,7 @@ cloud-production-data/
 ├── mcp/                       # MCP server(打 REST API)
 │   └── server.py
 ├── tools/                     # 教材與運維工具(headless,不需要活廠)
+│   ├── make_device_atlas.py   # 設備動畫圖鑑:preview 截圖 + 綁定契約 → docs/設備動畫圖鑑.md
 │   ├── make_offline_pack.py   # 離線備援包:每種產業各一台、一週乾淨基線(W4 Plan B)
 │   ├── make_week_packs.py     # 每週凍結資料包:逐週預產 + 產後驗證 + 教師答案卷
 │   ├── generate_dataset.py    # 階段二訓練資料集(快轉 run-to-failure)
@@ -142,6 +143,9 @@ cloud-production-data/
 **凍結包**(`tools/make_week_packs.py` / `make_offline_pack.py` 離線預產,平台在不在線
 都不影響已發教材)。凍結包一律:學生包不含 ground-truth、教師答案卷分開存、manifest 記
 seed + engine commit,且**產後要驗**(注入的東西在觀測窗內真的找得到,驗不過就拒產)。
+
+**`docs/設備動畫圖鑑.md` 與 `docs/images/device_atlas/` 也是產生的** ——
+由 `tools/make_device_atlas.py` 依 preview 截圖與綁定契約重產,不要手改。
 
 **要改動畫先讀 `docs/animation_binding.md`**(綁定契約)。那份文件是動畫的唯一依據:
 每個會動的部位都必須對應一支具體 tag,前端不重算引擎已算過的物理,做了時間換算要標倍率。

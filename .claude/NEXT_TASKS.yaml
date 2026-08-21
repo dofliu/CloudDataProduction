@@ -8,6 +8,8 @@
 version: 1
 updated: "2026-08-21"
 maintainer_note: "任務做完 / 開了 PR,務必在同一個 PR 裡把本檔的 status 與 pr 欄位一起更新,否則下次醒來會重做。"
+status_values: "todo(待做)/ in_review(PR 開著)/ done(已合併)/ blocked(卡在外部)/ paused(方向轉了,這學期不做)"
+focus: "2026-08-21 起:資料鏈補完(T13→T14→T15)。設備動畫線告一段落 —— 見 docs/資料盤點_生產數據完整性.md"
 
 # ── 排程 session 的行為準則 ──────────────────────────────
 routine_protocol:
@@ -53,6 +55,7 @@ verify:
     - "python3 tests/test_levels.py"
     - "python3 tests/test_classroom_live.py"
     - "python3 tests/test_supply_chain.py"
+    - "python3 tests/test_commissioning.py"
   web:
     - "cd web && npm ci && npm run build"
   animation:        # 改 3D / 動畫綁定才需要(要瀏覽器,約十分鐘)
@@ -62,6 +65,62 @@ verify:
 
 # ── 佇列本體(由上而下就是優先序)──────────────────────
 tasks:
+
+  # ── 2026-08-21 使用者定調:設備動畫告一段落,重心回到生產數據本身 ──
+  # 盤點結果見 docs/資料盤點_生產數據完整性.md(數字由 tools/audit_data_coverage.py 產生)。
+  # 一句話:訊號層很完整,資料層不完整 —— 事情發生過,但沒有落地成可查詢的資料。
+
+  - id: T13-data-chain-landing
+    title: "資料鏈落地:停機原因碼 + 事件表 + 逐件生產紀錄(含良/不良計數)"
+    status: todo
+    autonomy: ask_first        # 動到引擎資料契約(新 tag / 新資料表),依 ask_first_when
+    size: XL
+    why: >
+      課程教「雲端生產數據」,但學生現在算不出良率(沒有良/不良計數)、做不出停機 Pareto
+      (餓料/滿料/無工單/班外全落成同一個 idle)、算不出 MTBF(事件沒進 historian)、
+      追溯不了一件不良品(產線只記件數,工件沒有 id)。這三件事互相咬合,分開做要做兩次。
+    outcome_definition: >
+      ① 設備待機/停機帶 stop_reason(starved / blocked / no_order / off_shift / maintenance /
+      fault:<component>),引擎本來就知道這些狀態,只是沒對外表達;
+      ② _detect_events() 多接一個訂閱者寫進 historian 的 events 表,開 /api/history/events;
+      ③ 產線工件從「只有數量」升級為「有 id 的個體」(進站/完工時間、良或不良、不良類型),
+      不良由現有誠實訊號決定而非另外亂數;同時補 CNC 與射出成型缺的品質訊號,讓
+      「產出 = 良品 + 不良品」對得起帳。完成後學生能自算 OEE 三要素、停機 Pareto、良率相關、追溯。
+    ask_first_about:
+      - "不良要逐件記,還是每小時彙總?(逐件才能追溯,但資料量與 API 形狀都會變)"
+      - "工件 id / 批號要不要進 Modbus 點位?(會擠壓位址空間,學生既有連線程式可能要改)"
+      - "CNC 與射出的品質訊號要用什麼物理量?(尺寸偏差 / 表面粗糙度 / 短射率…教學上想教哪個)"
+    files: ["engine/device.py", "engine/line.py", "engine/templates/", "historian/writer.py",
+            "api/rest.py", "tests/test_line_flow.py"]
+    verify: ["python tests/animation/verify_scenario.py", "python tests/test_line_flow.py",
+             "python tools/audit_data_coverage.py"]
+
+  - id: T14-data-access-layer
+    title: "取數介面升級:多設備 / 多 tag / 降採樣 / 匯出(或唯讀 SQL)"
+    status: todo
+    autonomy: ask_first        # 會改到學生已經在用的 API 形狀
+    size: L
+    blocked_by: []
+    why: >
+      /api/history 一次只能查「一台設備的一支 tag」(上限 5 萬列、無降採樣、無 CSV)。
+      要做一條產線的跨設備相關分析,學生得打幾十次 API 再自己對齊時間戳。對一門
+      「雲端生產數據」課,取數這一段本身就是教材,值得做像樣一點 —— 也才對得上
+      技術棧選 TimescaleDB 的初衷(SQL 對學生分析友善)。
+    outcome_definition: >
+      /api/history 支援多設備 / 多 tag / 時間桶降採樣(1s / 1min / 1h 平均)/ CSV 匯出;
+      或更直接:開唯讀 SQL 端點或唯讀 DB 帳號讓學生用 SQL 撈。既有單設備單 tag 呼叫零回歸。
+    files: ["api/rest.py", "historian/writer.py", "student_kit/"]
+
+  - id: T15-energy-attribution
+    title: "能耗歸屬與廠級彙總(kWh/件、每小時產量-能耗-稼動-不良)"
+    status: todo
+    autonomy: ask_first        # 要改場景結構(電表掛在哪些設備下)
+    size: M
+    blocked_by: ["T13-data-chain-landing"]
+    why: >
+      20 台電表有 kWh,但電表沒有對應到設備或產線,「單位產品能耗」算不出來 ——
+      而這正是能源 KPI / 碳盤查最基本的一題。有了 T13 的良品計數才談得上「每良品耗多少電」。
+    files: ["scenarios/scripts/gen_class_park.py", "engine/world.py", "api/oee.py"]
 
   - id: T0-motion-precision
     title: "移動件到位精準化:AGV 沿路徑鎖定 + 補間到位貼齊 + 到位斷言"
@@ -264,7 +323,7 @@ tasks:
 
   - id: T8-overview-animation-contract
     title: "把動畫綁定契約落實到 PixiJS 俯瞰層"
-    status: todo
+    status: paused        # 2026-08-21:設備動畫線告一段落,除非教學需要不再往這條線加東西
     autonomy: ask_first        # 動到 animation_binding.md 契約範圍
     size: M
     why: "animation_binding.md 目前只規範廠內 3D;俯瞰層(公司量體 / 燈號 / 煙囪)仍是純裝飾動畫。"

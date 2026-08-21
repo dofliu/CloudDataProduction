@@ -90,6 +90,7 @@ class _Station:
         self.on_belt: List[float] = []      # terminal 輸送帶:帶上各工件的剩餘輸送秒數
         self.prev_count: Optional[int] = None   # 累積量 tag 上次讀值(None=尚未初始化)
         self.need_items = 1                 # 本拍要完成幾件(= ceil(dt/節拍);gate() 更新)
+        self.make_items = 1                 # 本拍做得出幾件(出料緩衝下限;gate() 更新)
         self.count_tag = None               # 累積量 tag 物件(快取)
         tag_name = COUNT_TAGS.get(device.template) or (
             "cycle_count" if device.template in HANDLER_TEMPLATES else None)
@@ -126,7 +127,15 @@ class ProductionLine:
                 st.need_items = max(1, math.ceil(dt_sim / max(1e-6, cyc) - 1e-9)) if dt_sim > 0 else 1
                 d.line_has_input = st.in_buf >= st.need_items
             if st.role in ("source", "mid"):
-                d.line_output_blocked = st.out_buf >= OUT_CAP
+                # 出料緩衝至少要裝得下**這一拍做得出來的量**。先前固定 OUT_CAP=3:
+                # 節拍 22 s 的站在 dt=120 s 的粗 tick 下一拍能做 5 件,做到第 3 件就被判
+                # 「滿料阻塞」停機 —— 那是 tick 粒度造成的假瓶頸,不是工廠事實
+                # (實測:感應加熱爐因此有 58% 的時間掛在 blocked,退化累積不起來,
+                #  週包產生器就因為「注入的故障長不到可偵測量」而拒產)。
+                # dt ≤ 節拍時 make_items = 1 ≤ OUT_CAP,與先前完全等價(零回歸)。
+                cyc_out = self._cycle_s(st) or NOMINAL_CYCLE_S.get(d.template, 45.0)
+                st.make_items = max(1, math.ceil(dt_sim / max(1e-6, cyc_out) - 1e-9)) if dt_sim > 0 else 1
+                d.line_output_blocked = st.out_buf >= max(OUT_CAP, st.make_items)
             if st.role == "handler":
                 # 手臂:被授予搬運才動。line_carry = 在手件數(配額由 advance() 授予/收回)
                 d.line_carry = sum(lk["in_hand"] for lk in self.links if lk["handler"] is st)

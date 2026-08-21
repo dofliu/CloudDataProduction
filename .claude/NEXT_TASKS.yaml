@@ -74,7 +74,7 @@ tasks:
   - id: T13-data-chain-landing
     title: "資料鏈落地:停機原因碼 + 事件表 + 逐件生產紀錄(含良/不良計數)"
     status: in_review
-    pr: "PENDING"
+    pr: "https://github.com/dofliu/CloudDataProduction/pull/55"
     decisions: >
       2026-08-21 使用者拍板三個設計決定:① 逐件明細**與**每小時彙總都做(明細 2 天、彙總永久);
       ② 工件序號**不進 Modbus**(真工廠序號在 MES 不在 PLC,學生既有程式零回歸);

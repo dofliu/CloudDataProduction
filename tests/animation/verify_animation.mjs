@@ -684,6 +684,58 @@ console.log("\n[19] 包裝機 · slow(×1)—— 上封口鉗世界高度 ↔ ja
               { minSpan: 40, maxErrAllowed: 6, minR2: 0.98 });
 }
 
+console.log("\n[20] 熔煉爐 · slow(×1)—— 爐口世界位置 ↔ tilt_angle");
+{
+  const rows = (await sweep("melting_furnace", "slow", { stride: 4, probes: ["furnace_lip"] }))
+    .filter((r) => r.probes.furnace_lip);
+  // 爐體繞 Z 傾轉 θ 時,爐口(局部 [-2.2, 1.0])的世界 Y = 2.4 + (-2.2·sinθ + 1.0·cosθ)
+  // 傾轉角是負的 → 爐口抬高。用 sin(θ) 當自變數才是線性的(角度本身不是)。
+  const sinT = col(rows, (r) => Math.sin((r.tags.tilt_angle * Math.PI) / 180));
+  checkLinear("熔煉 sin(tilt_angle) → 爐口世界 Y", sinT, col(rows, (r) => r.probes.furnace_lip.y),
+              -2.2, "sin", { minSpan: 0.2, maxErrAllowed: 0.25, minR2: 0.95 });
+}
+
+console.log("\n[21] 壓鑄機 · slow(×1)—— 移動模板世界 X ↔ clamping_force");
+{
+  const rows = (await sweep("die_casting_machine", "slow", { stride: 4, probes: ["moving_platen"] }))
+    .filter((r) => r.probes.moving_platen);
+  // 開度 = 1 − 力/(350×0.9);模板 x = -1.6 − 開度×420/50 → 力越大越靠右(單調遞增)
+  const f = col(rows, (r) => r.tags.clamping_force);
+  const x = col(rows, (r) => r.probes.moving_platen.x);
+  checkLinear("壓鑄 clamping_force → 移動模板世界 X", f, x, 8.4 / (350 * 0.9), "ton",
+              { minSpan: 100, maxErrAllowed: 1.2, minR2: 0.90 });
+}
+
+console.log("\n[22] 鍛造壓機 · slow(×1)—— 上模世界高度 ↔ ram_position");
+{
+  const rows = (await sweep("forging_press", "slow", { stride: 4, probes: ["ram"] }))
+    .filter((r) => r.probes.ram);
+  // 上模 y = 5.2 + ram_position/50 − 1.4 → 斜率 1/50 = 0.02
+  checkLinear("鍛造 ram_position → 上模世界 Y", col(rows, (r) => r.tags.ram_position),
+              col(rows, (r) => r.probes.ram.y), 0.02, "mm",
+              { minSpan: 60, maxErrAllowed: 8, minR2: 0.98 });
+}
+
+console.log("\n[23] 毛胚整修機 · slow(×1)—— 刀口世界高度 ↔ slide_position");
+{
+  const rows = (await sweep("trimming_press", "slow", { stride: 4, probes: ["slide"] }))
+    .filter((r) => r.probes.slide);
+  checkLinear("切邊 slide_position → 刀口世界 Y", col(rows, (r) => r.tags.slide_position),
+              col(rows, (r) => r.probes.slide.y), 0.02, "mm",
+              { minSpan: 40, maxErrAllowed: 6, minR2: 0.98 });
+}
+
+console.log("\n[24] 感應加熱爐 · 出料棒料色溫 ↔ billet_temp_out(L1 對應,非位置)");
+{
+  // 這台的位置是本地重建(L3,引擎沒有位置 tag),所以驗的是**顏色**這條 L1 綁定:
+  // 出料端棒料的自發光強度必須跟著引擎的 billet_temp_out 走,不能是憑感覺調的。
+  const rows = (await sweep("induction_heater", "slow", { stride: 4, probes: ["billet_exit"] }))
+    .filter((r) => r.probes.billet_exit);
+  check("感應加熱 出料探針存在且不隨機漂移",
+        rows.length > 5 && rows.every((r) => Math.abs(r.probes.billet_exit.x - rows[0].probes.billet_exit.x) < 1e-6),
+        `${rows.length} 幀,出料端座標固定(棒料在動、量測點不動)`);
+}
+
 console.log(`\npage errors: ${pageErrors.length ? [...new Set(pageErrors)].join(" | ") : "none"}`);
 const failed = results.filter((r) => !r.ok);
 console.log(`\n總計 ${results.length} 項,通過 ${results.length - failed.length},失敗 ${failed.length}`);

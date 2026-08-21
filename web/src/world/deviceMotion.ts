@@ -37,6 +37,11 @@ const HEAT_SPEC: Record<string, { tag: string[]; lo: number; hi: number }> = {
   welding_cell: { tag: ["torch_temp"], lo: 60, hi: 340 },
   laser_cutter: { tag: ["lens_temp"], lo: 45, hi: 110 },
   packaging_machine: { tag: ["seal_temp"], lo: 100, hi: 150 },
+  melting_furnace: { tag: ["shell_temp"], lo: 90, hi: 240 },
+  die_casting_machine: { tag: ["die_temp_moving"], lo: 190, hi: 260 },
+  induction_heater: { tag: ["coil_temp"], lo: 45, hi: 140 },
+  forging_press: { tag: ["die_temp"], lo: 250, hi: 380 },
+  trimming_press: { tag: [], lo: 0, hi: 1 },
 };
 
 /** 各機種的「指標型退化」tag 與其正常→劣化區間,用於 wear(良率 / 品質線索)。 */
@@ -55,6 +60,11 @@ const WEAR_SPEC: Record<string, { tag: string; lo: number; hi: number }> = {
   welding_cell: { tag: "spatter_rate", lo: 0.8, hi: 15 },
   laser_cutter: { tag: "dross_rate", lo: 0.5, hi: 12 },
   packaging_machine: { tag: "reject_rate", lo: 0.4, hi: 15 },
+  melting_furnace: { tag: "slag_ratio", lo: 0.6, hi: 8 },
+  die_casting_machine: { tag: "shrinkage_rate", lo: 0.35, hi: 7 },
+  induction_heater: { tag: "billet_temp_out", lo: 1180, hi: 1050 },   // 反向:出料溫度掉 = 耦合走樣
+  forging_press: { tag: "underfill_rate", lo: 0.4, hi: 9 },
+  trimming_press: { tag: "burr_height", lo: 0.02, hi: 0.45 },
 };
 
 export interface DeviceMotion {

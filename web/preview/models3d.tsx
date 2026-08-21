@@ -26,6 +26,11 @@ import AoiInspection3D from "../src/world/AoiInspection3D";
 import WeldingCell3D from "../src/world/WeldingCell3D";
 import LaserCutter3D from "../src/world/LaserCutter3D";
 import PackagingMachine3D from "../src/world/PackagingMachine3D";
+import MeltingFurnace3D from "../src/world/MeltingFurnace3D";
+import DieCastingMachine3D from "../src/world/DieCastingMachine3D";
+import InductionHeater3D from "../src/world/InductionHeater3D";
+import ForgingPress3D from "../src/world/ForgingPress3D";
+import TrimmingPress3D from "../src/world/TrimmingPress3D";
 import FactoryLine3D from "../src/world/FactoryLine3D";
 
 type Case = { title: string; template: string; state: string; tags: Record<string, number>;
@@ -135,6 +140,47 @@ const CASES: Case[] = [
   { title: "包裝 · 加熱器老化(封不牢)", template: "packaging_machine", state: "running",
     tags: { jaw_gap: 66, seal_temp: 118.2, film_tension: 41.0, index_rate: 3.28, cycle_time: 18.3,
             reject_rate: 7.8, motor_current: 9.4, vibration_rms: 3.2, package_count: 88400 } },
+  // ── 鑄造 / 鍛造上游(2026-08-21)──────────────────────────
+  { title: "熔煉 · 出湯傾轉", template: "melting_furnace", state: "running",
+    tags: { tilt_angle: -38, bath_level: 42, melt_temp: 1447, shell_temp: 131, slag_ratio: 0.9,
+            electrode_current: 792, power_input: 540, melt_cycle_time: 72.4, energy_kwh: 21600,
+            tap_count: 4180 } },
+  { title: "熔煉 · 爐襯磨蝕 + 爐渣堆積", template: "melting_furnace", state: "running",
+    tags: { tilt_angle: 0, bath_level: 88, melt_temp: 1387, shell_temp: 233, slag_ratio: 6.8,
+            electrode_current: 731, power_input: 685, melt_cycle_time: 112.9, energy_kwh: 48600,
+            tap_count: 51200 } },
+  { title: "壓鑄 · 鎖模射出", template: "die_casting_machine", state: "running",
+    tags: { clamping_force: 347, shot_speed: 4.18, intensify_press: 878, die_temp_fixed: 219,
+            die_temp_moving: 220, vacuum_level: 67, cycle_time: 68.4, shrinkage_rate: 0.38,
+            porosity_rate: 0.72, vibration_rms: 1.9, cast_count: 3120 } },
+  { title: "壓鑄 · 模具熱疲勞 + 真空劣化", template: "die_casting_machine", state: "running",
+    tags: { clamping_force: 121, shot_speed: 0, intensify_press: 60, die_temp_fixed: 205,
+            die_temp_moving: 242, vacuum_level: 232, cycle_time: 84.8, shrinkage_rate: 6.0,
+            porosity_rate: 6.3, vibration_rms: 9.1, cast_count: 44800 } },
+  { title: "感應加熱 · 棒料出料 1180 °C", template: "induction_heater", state: "running",
+    tags: { billet_temp_out: 1181, coil_temp: 78, coil_current: 1439, output_power: 252,
+            frequency: 7.8, power_factor: 0.95, leakage_current: 2.0, cooling_flow: 93,
+            billet_count: 8400, energy_kwh: 1035 } },
+  { title: "感應加熱 · 絕緣劣化 + 結垢降額", template: "induction_heater", state: "running",
+    tags: { billet_temp_out: 1072, coil_temp: 147, coil_current: 976, output_power: 174,
+            frequency: 7.9, power_factor: 0.76, leakage_current: 39.7, cooling_flow: 57,
+            billet_count: 92000, energy_kwh: 17340 } },
+  { title: "鍛造 · 下死點成形", template: "forging_press", state: "running",
+    tags: { ram_position: -176, forging_tonnage: 1520, die_temp: 353, billet_temp_in: 1173,
+            descale_pressure: 178, ram_deviation: 0.08, stroke_rate: 4.9, underfill_rate: 0.5,
+            scale_defect_rate: 0.4, vibration_rms: 2.6, forge_count: 11500 } },
+  { title: "鍛造 · 鍛模磨耗 + 除鱗噴嘴堵", template: "forging_press", state: "running",
+    tags: { ram_position: -42, forging_tonnage: 118, die_temp: 355, billet_temp_in: 1168,
+            descale_pressure: 79, ram_deviation: 1.42, stroke_rate: 3.6, underfill_rate: 7.6,
+            scale_defect_rate: 8.2, vibration_rms: 11.7, forge_count: 148000 } },
+  { title: "切邊 · 飛邊切除", template: "trimming_press", state: "running",
+    tags: { slide_position: -84, trim_force: 214, burr_height: 0.03, ejector_stroke: 24.6,
+            motor_current: 12.4, cycle_time: 9.2, deform_rate: 0.3, vibration_rms: 1.5,
+            trim_count: 21400 } },
+  { title: "切邊 · 刀口鈍化(毛刺超規)", template: "trimming_press", state: "running",
+    tags: { slide_position: -12, trim_force: 336, burr_height: 0.35, ejector_stroke: 18.9,
+            motor_current: 18.1, cycle_time: 11.7, deform_rate: 5.2, vibration_rms: 9.4,
+            trim_count: 176000 } },
 ];
 
 const SCENES: Record<string, React.ComponentType<any>> = {
@@ -144,6 +190,9 @@ const SCENES: Record<string, React.ComponentType<any>> = {
   semi_process_chamber: ProcessChamber3D, heat_treat_furnace: HeatTreatFurnace3D,
   aoi_inspection: AoiInspection3D, welding_cell: WeldingCell3D,
   laser_cutter: LaserCutter3D, packaging_machine: PackagingMachine3D,
+  melting_furnace: MeltingFurnace3D, die_casting_machine: DieCastingMachine3D,
+  induction_heater: InductionHeater3D, forging_press: ForgingPress3D,
+  trimming_press: TrimmingPress3D,
 };
 
 // 用場景預設的 sim 倍率,才看得到真實課堂的視覺換算行為

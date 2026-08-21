@@ -9,7 +9,7 @@ version: 1
 updated: "2026-08-21"
 maintainer_note: "任務做完 / 開了 PR,務必在同一個 PR 裡把本檔的 status 與 pr 欄位一起更新,否則下次醒來會重做。"
 status_values: "todo(待做)/ in_review(PR 開著)/ done(已合併)/ blocked(卡在外部)/ paused(方向轉了,這學期不做)"
-focus: "2026-08-21 起:資料鏈補完(T13→T14→T15)。設備動畫線告一段落 —— 見 docs/資料盤點_生產數據完整性.md"
+focus: "2026-08-21:資料鏈補完(T13 done → T14 → T15)+ 手工具製程機型補完(T16 → T17,使用者指定)"
 
 # ── 排程 session 的行為準則 ──────────────────────────────
 routine_protocol:
@@ -70,6 +70,42 @@ tasks:
   # ── 2026-08-21 使用者定調:設備動畫告一段落,重心回到生產數據本身 ──
   # 盤點結果見 docs/資料盤點_生產數據完整性.md(數字由 tools/audit_data_coverage.py 產生)。
   # 一句話:訊號層很完整,資料層不完整 —— 事情發生過,但沒有落地成可查詢的資料。
+
+  - id: T16-casting-forging-machines
+    title: "鑄造 / 鍛造上游 5 機種(熔煉爐 / 壓鑄機 / 感應加熱爐 / 鍛造壓機 / 毛胚整修機)"
+    status: in_review
+    pr: "PENDING"
+    autonomy: self    # 2026-08-21 使用者指定(手工具製程流程圖的前段)
+    size: XL
+    why: >
+      使用者提供的「手工具製程主要流程圖」前段(原料與成形)在現有 15 機型裡是空的:
+      鑄造與鍛造是台灣手工具業的核心製程,教學上不能只有機械加工與檢測包裝。
+    outcome: >
+      產業型別庫 15 → 20 種。每種完整垂直切片:引擎物理(隱藏健康 + 相關訊號 + quality_fn
+      逐件判良)、維修手冊對症(新增 reline_refractory / clear_blockage 兩個動作)、
+      產線計數與節拍、NL 建廠關鍵字、2D sprite + 3D 動畫(綁定表 §4.18–4.22)、
+      動畫回歸 +5 項。場景尾端附加課堂版 c70/c71 與示範版 x01-f4/f5,各一條 5 站產線,
+      既有 device id / unit_id / 供應鏈 41 段零位移。
+    known_limit: >
+      c70(熔煉)與 c71(鍛造)**刻意不接供應鏈** —— 引擎供應鏈是 1 件換 1 件,
+      但一籃熔湯連鑄下去可以出很多支棒料;硬接會讓鍛造廠一天餓料 4.5 小時、
+      感應加熱爐利用率剩 10%,那是模型單位的假象不是工廠事實。要嘛供應鏈支援產出比
+      (資料契約改動,另案),要嘛等 B 批手工具廠上線再接(節拍本來就對得上)。
+    files: ["engine/templates/melting_furnace.py", "engine/templates/die_casting_machine.py",
+            "engine/templates/induction_heater.py", "engine/templates/forging_press.py",
+            "engine/templates/trimming_press.py", "web/src/world/", "scenarios/scripts/"]
+
+  - id: T17-handtool-line-machines
+    title: "手工具後段 5 機種(研磨拋光 / 清洗乾燥 / 電鍍表面處理 / 扭力測試 / 零件組裝)"
+    status: todo
+    autonomy: self    # 與 T16 同一批使用者指定
+    size: XL
+    blocked_by: ["T16-casting-forging-machines"]
+    why: >
+      補完「手工具製程主要流程圖」的後兩段(加工與表面處理 / 組裝檢驗包裝)。
+      配上既有的 CNC、熱處理爐、AOI、包裝機,截圖那條產線就能完整跑起來。
+      屆時鍛造胚料 → 手工具組裝的節拍對得上,T16 留下的供應鏈缺口也一併補上。
+    files: ["engine/templates/", "web/src/world/", "scenarios/scripts/"]
 
   - id: T13-data-chain-landing
     title: "資料鏈落地:停機原因碼 + 事件表 + 逐件生產紀錄(含良/不良計數)"

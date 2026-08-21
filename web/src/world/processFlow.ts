@@ -27,6 +27,11 @@ const ROLE: Record<string, Role> = {
   laser_cutter: "source",
   aoi_inspection: "source",
   packaging_machine: "source",
+  melting_furnace: "source",
+  die_casting_machine: "source",
+  induction_heater: "source",
+  forging_press: "source",
+  trimming_press: "source",
   robot_arm_6axis: "handler",
   agv_mobile_robot: "handler",
   conveyor: "transport",
@@ -54,6 +59,11 @@ const VERB: Record<string, string> = {
   laser_cutter: "雷射切割",
   aoi_inspection: "AOI 檢測",
   packaging_machine: "包裝出貨",
+  melting_furnace: "熔煉出湯",
+  die_casting_machine: "壓鑄成形",
+  induction_heater: "感應加熱",
+  forging_press: "熱模鍛造",
+  trimming_press: "切邊整修",
 };
 
 /** 各機種在產線視圖中的縮放(風機 20 m 高、電表 6 m,不縮會互相打架)。 */
@@ -63,6 +73,10 @@ export const LINE_SCALE: Record<string, number> = {
   air_compressor: 0.60, conveyor: 0.55, energy_meter: 0.55, agv_mobile_robot: 0.85,
   cnc_machining_center: 0.75,
   aoi_inspection: 0.70, welding_cell: 0.62, laser_cutter: 0.65, packaging_machine: 0.65,
+  // 鑄造 / 鍛造上游(2026-08-21):熔煉爐與鍛造壓機都是大機台(鍛壓機 9 m 高),
+  // 不縮會把整條線的比例壓垮。
+  melting_furnace: 0.55, die_casting_machine: 0.50, induction_heater: 0.58,
+  forging_press: 0.42, trimming_press: 0.62,
 };
 
 /**
@@ -95,6 +109,12 @@ const EXTENT_X: Record<string, [number, number]> = {
   welding_cell: [4.1, 4.0],
   laser_cutter: [3.1, 4.3],
   packaging_machine: [3.2, 3.5],
+  // 鑄造 / 鍛造上游(2026-08-21):preview/measure.mjs 實測(含 LINE_SCALE + 0.3 餘隙)
+  melting_furnace: [3.0, 2.4],
+  die_casting_machine: [3.3, 2.9],
+  induction_heater: [3.3, 3.3],
+  forging_press: [1.8, 1.8],
+  trimming_press: [2.0, 1.8],
 };
 const extentX = (t: string): [number, number] => EXTENT_X[t] ?? [3.0, 3.0];
 

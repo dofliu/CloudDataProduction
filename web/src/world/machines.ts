@@ -523,11 +523,123 @@ export function mPack(g: Graphics, ox: number, oy: number, t: number, running: b
   g.rect(ox + 1.9 * MTW, oy + 1.9 * MTH - 20, 9, 7).fill(0xe8dcc0).stroke({ width: 0.7, color: 0xa89a78 });
 }
 
+
+// ── 鑄造 / 鍛造上游(2026-08-21:手工具製程流程圖的「原料與成形」段)──────────
+// 2D 俯瞰只求「一眼認得出是哪一台、有沒有在動」;精確的 tag 綁定在 3D 那層
+// (docs/animation_binding.md §4.18–4.22),這裡不重算引擎物理。
+
+/** 熔煉爐:爐體週期傾轉出湯,熔湯白熾、爐口冒熱氣。 */
+export function mMelting(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
+  ishadow(g, ox + 0.3 * MTW, oy + 1.3 * MTH, 50, 24, 0.4);
+  const cyc = running ? (t * 0.16) % 1 : 0;
+  const tap = cyc > 0.88 ? Math.sin(((cyc - 0.88) / 0.12) * Math.PI) : 0;   // 出湯段
+  isoBox3(g, ox, oy, 1.9, 1.7, 20, { top: 0x8a7452, left: 0x6b5842, right: 0x7a6650 });  // 基座
+  const cx = ox + 0.75 * MTW, cy = oy + 0.8 * MTH - 20;
+  // 爐體(傾轉:出湯時整個爐向左倒)
+  const tilt = tap * 12;
+  g.ellipse(cx - tilt, cy - 12, 20, 12).fill(0x77685a).stroke({ width: 1.5, color: 0x5a4d42 });
+  g.rect(cx - 20 - tilt, cy - 12, 40, 20).fill(0x6b5f52);
+  if (running) {
+    g.ellipse(cx - tilt, cy - 12, 15, 8).fill({ color: 0xffb347, alpha: 0.95 });          // 熔湯液面
+    iglow(g, cx - tilt, cy - 12, 22, "rgba(255,140,40,0.45)");
+    emissive(g, cx - tilt, cy - 14, 6, 0xffd27a, 0.7);
+  }
+  // 出湯流 + 受湯包
+  if (tap > 0.25) {
+    g.moveTo(cx - tilt - 18, cy - 8).lineTo(cx - 34, cy + 14).stroke({ width: 3 + 2 * tap, color: 0xffa53c });
+    emissive(g, cx - 34, cy + 14, 5, 0xff8a30, 0.8);
+  }
+  g.ellipse(cx - 34, cy + 18, 12, 7).fill(0x544c45).stroke({ width: 1, color: 0x3d372f });
+  // 電極(三支)
+  for (let i = -1; i <= 1; i++) g.rect(cx - tilt + i * 9 - 1.5, cy - 34, 3, 22).fill(0x2b2b2b);
+}
+
+/** 壓鑄機:模板開合 + 射出衝頭前進,真空燈在側。 */
+export function mDieCast(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
+  ishadow(g, ox + 0.2 * MTW, oy + 1.2 * MTH, 54, 24, 0.4);
+  const cyc = running ? (t * 0.22) % 1 : 0.5;
+  const open = !running ? 1 : cyc < 0.15 ? 1 - cyc / 0.15 : cyc < 0.75 ? 0 : (cyc - 0.75) / 0.25;
+  isoBox3(g, ox, oy, 2.4, 1.4, 16, { top: 0xa99372, left: 0x8a7658, right: 0x9a8464 });
+  const by = oy + 0.7 * MTH - 16;
+  g.rect(ox + 1.5 * MTW, by - 26, 10, 30).fill(0x9aa7ad).stroke({ width: 1, color: 0x6b757c });   // 固定模板
+  g.rect(ox + 1.5 * MTW - 26 - open * 16, by - 26, 10, 30).fill(0x9aa7ad).stroke({ width: 1, color: 0x6b757c }); // 移動模板
+  for (const dy of [-22, -6]) g.moveTo(ox + 0.3 * MTW, by + dy).lineTo(ox + 2.1 * MTW, by + dy).stroke({ width: 1.6, color: 0x7a8890 });
+  // 射出衝頭(短暫前進)
+  const shot = running && cyc >= 0.28 && cyc < 0.36;
+  g.rect(ox + 2.1 * MTW + (shot ? -6 : 0), by - 16, 16, 5).fill(0x9aa7ad);
+  if (running && cyc >= 0.3 && cyc < 0.55) iglow(g, ox + 1.6 * MTW, by - 12, 14, "rgba(255,140,50,0.5)");
+  g.circle(ox + 0.6 * MTW, by - 32, 3).fill(running ? 0x3fbf7f : 0x6b757c);   // 真空指示燈
+}
+
+/** 感應加熱爐:棒料由左向右穿過線圈,出料端紅熱。 */
+export function mInduction(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
+  ishadow(g, ox + 0.4 * MTW, oy + 1.2 * MTH, 52, 22, 0.4);
+  isoBox3(g, ox, oy, 2.4, 1.0, 14, { top: 0xa99372, left: 0x8a7658, right: 0x9a8464 });
+  const y = oy + 0.5 * MTH - 14;
+  g.rect(ox - 4, y, 76, 3).fill(0x39434a);                                    // 輸送軌
+  for (let i = -1; i <= 1; i++) {                                             // 線圈三圈
+    const x = ox + 34 + i * 8;
+    g.ellipse(x, y - 4, 3, 9).stroke({ width: 2.2, color: running ? 0xd98b3a : 0x8a7658 });
+  }
+  if (running) iglow(g, ox + 34, y - 4, 16, "rgba(255,150,60,0.4)");
+  // 棒料:四支等距前進,過線圈後轉紅
+  for (let i = 0; i < 4; i++) {
+    const p = running ? ((t * 0.35 + i / 4) % 1) : (i / 4);
+    const x = ox - 2 + p * 74;
+    const hot = p < 0.42 ? 0 : p < 0.58 ? (p - 0.42) / 0.16 : 1;
+    const col = hot > 0.05 ? 0xff8a30 : 0x8f8f92;
+    g.rect(x, y - 6, 12, 4).fill({ color: col, alpha: 0.95 });
+    if (running && hot > 0.5) emissive(g, x + 6, y - 4, 4, 0xff9a3c, 0.55 * hot);
+  }
+  g.rect(ox - 12, y - 22, 12, 26).fill(0x7a6650).stroke({ width: 1, color: 0x5a4d42 });   // 電源櫃
+}
+
+/** 鍛造壓機:滑塊上下,下死點撞擊時火花四濺。 */
+export function mForging(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
+  ishadow(g, ox + 0.1 * MTW, oy + 1.0 * MTH, 46, 22, 0.4);
+  const cyc = running ? (t * 0.5) % 1 : 0.5;
+  const down = !running ? 0.12 : 0.5 * (1 - Math.cos(cyc * 2 * Math.PI));
+  const impact = running && down > 0.9;
+  const shake = impact ? Math.sin(t * 55) * 1.4 : 0;
+  isoBox3(g, ox, oy - shake, 0.7, 1.7, 56, { top: 0xa99372, left: 0x9a8464, right: 0xac9674 });   // 立柱
+  isoBox3(g, ox, oy - 58 - shake, 2.2, 1.7, 12, { top: 0xd8c6a8, left: 0xb4a082, right: 0xc4b090 });  // 頂樑
+  const sy = oy - 44 + down * 24;
+  isoBox3(g, ox + 0.3 * MTW, sy - shake, 1.4, 1.2, 14, { top: 0xc4b090, left: 0x9a8464, right: 0xb4a082 });  // 滑塊
+  isoBox3(g, ox + 0.35 * MTW, oy + 0.9 * MTH - 12, 1.2, 1.0, 10, { top: 0xa8763a, left: 0x8a5a2a, right: 0x9a6a32 });  // 下模
+  // 熱鍛件(恆亮橘)
+  const wx = ox + 0.85 * MTW, wy = oy + 0.9 * MTH - 18;
+  if (running) { emissive(g, wx, wy, 6, 0xff7a30, 0.75); iglow(g, wx, wy, 14, "rgba(255,120,40,0.4)"); }
+  // 撞擊火花
+  if (impact) for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + t, r = 8 + (i % 3) * 5;
+    g.circle(wx + Math.cos(a) * r, wy + Math.sin(a) * r * 0.5, 1.3).fill({ color: 0xffd27a, alpha: 0.85 });
+  }
+}
+
+/** 毛胚整修機:滑塊切邊,切下的飛邊落到側邊料箱。 */
+export function mTrimming(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
+  ishadow(g, ox + 0.1 * MTW, oy + 1.1 * MTH, 42, 20, 0.4);
+  const cyc = running ? (t * 0.7) % 1 : 0.5;
+  const down = !running ? 0.1 : 0.5 * (1 - Math.cos(cyc * 2 * Math.PI));
+  isoBox3(g, ox, oy, 1.8, 1.3, 14, { top: 0xa99372, left: 0x8a7658, right: 0x9a8464 });
+  isoBox3(g, ox - 0.15 * MTW, oy - 40, 0.5, 1.2, 42, { top: 0xb4a082, left: 0x9a8464, right: 0xac9674 });  // C 型機架
+  const sy = oy - 30 + down * 18;
+  isoBox3(g, ox + 0.35 * MTW, sy, 1.1, 1.0, 10, { top: 0xc4b090, left: 0x9a8464, right: 0xb4a082 });   // 滑塊
+  g.rect(ox + 0.45 * MTW, sy + 12, 20, 3).fill(0x9aa7ad);                     // 刀口
+  if (running && down > 0.85) emissive(g, ox + 0.85 * MTW, oy + 0.7 * MTH - 14, 5, 0xffd27a, 0.5);
+  // 工件 + 落下的飛邊
+  g.rect(ox + 0.6 * MTW, oy + 0.7 * MTH - 14, 14, 5).fill(0xc8b48e).stroke({ width: 0.7, color: 0x9a8464 });
+  if (running) { const f = (t * 0.9) % 1; g.rect(ox + 1.5 * MTW, oy + 0.6 * MTH - 10 + f * 16, 8, 2).fill({ color: 0x8f8062, alpha: 1 - f }); }
+  g.rect(ox + 1.4 * MTW, oy + 1.0 * MTH - 6, 16, 9).fill(0x6b5f52).stroke({ width: 1, color: 0x4a4238 });  // 飛邊料箱
+}
+
 export const MOFF: Record<string, P2> = {
   cnc_machining_center: [-38, -12], injection_molding: [-30, -8], robot_arm_6axis: [2, 4],
   air_compressor: [-32, -4], wind_turbine: [8, 30], semi_process_chamber: [-30, -8],
   energy_meter: [-16, 0], stamping_press: [-18, 6], heat_treat_furnace: [-30, -8], agv_mobile_robot: [6, 2],
   aoi_inspection: [-24, -6], welding_cell: [-26, -6], laser_cutter: [-26, -6], packaging_machine: [-28, -6],
+  melting_furnace: [-28, -8], die_casting_machine: [-32, -6], induction_heater: [-34, -4],
+  forging_press: [-18, 6], trimming_press: [-16, 4],
 };
 export function drawStation(g: Graphics, tmpl: string, t: Record<string, number>, running: boolean, animT: number, _col: number, fault: boolean) {
   const [ox, oy] = MOFF[tmpl] ?? [-20, 0];
@@ -546,6 +658,11 @@ export function drawStation(g: Graphics, tmpl: string, t: Record<string, number>
     case "welding_cell": mWeld(g, ox, oy, animT, running); break;
     case "laser_cutter": mLaser(g, ox, oy, animT, running); break;
     case "packaging_machine": mPack(g, ox, oy, animT, running); break;
+    case "melting_furnace": mMelting(g, ox, oy, animT, running); break;
+    case "die_casting_machine": mDieCast(g, ox, oy, animT, running); break;
+    case "induction_heater": mInduction(g, ox, oy, animT, running); break;
+    case "forging_press": mForging(g, ox, oy, animT, running); break;
+    case "trimming_press": mTrimming(g, ox, oy, animT, running); break;
     default: isoBox3(g, ox, oy, 1.6, 1.4, 24, { top: 0xc8b48e, left: 0xa08a6a, right: 0xac9674 });
   }
 }

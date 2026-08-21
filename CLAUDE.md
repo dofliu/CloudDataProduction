@@ -58,7 +58,7 @@ cloud-production-data/
 │   ├── signals.py             # 訊號模型(health→觀測,含熱滯後/雜訊)
 │   ├── sensor_faults.py       # 感測器故障層(stuck/drift/bias/dropout)
 │   ├── device.py              # Device = tags + drivers + health components
-│   ├── templates/             # 產業型別庫(15 種,見 docs/03;_stroke_font.py = CNC 刻字筆畫字型)
+│   ├── templates/             # 產業型別庫(20 種,見 docs/03;_stroke_font.py = CNC 刻字筆畫字型)
 │   ├── line.py                # 產線物料流:line: 宣告的公司,工件在站間真實傳遞
 │   ├── mes.py                 # MES:工單驅動設備運轉
 │   ├── course.py              # 每週課程情境:把 course_weeks.yaml 的條件套到跑著的引擎
@@ -148,8 +148,10 @@ seed + engine commit,且**產後要驗**(注入的東西在觀測窗內真的找
 **`docs/設備動畫圖鑑.md` 與 `docs/images/device_atlas/` 也是產生的** ——
 由 `tools/make_device_atlas.py` 依 preview 截圖與綁定契約重產,不要手改。
 
-**目前的重心是資料,不是動畫(2026-08-21 定調)** —— 設備動畫與機型擴充告一段落,除非教學上
-真的需要新機型,不要再往那條線加東西。現在要補的是**資料鏈**:停機原因碼、事件表、逐件生產
+**目前的重心是資料,不是動畫(2026-08-21 定調)** —— 動畫的**技法**告一段落(綁定契約 + 48 項
+自動驗證已經夠用);但**機型**仍會因教學需要而補:同日使用者依「手工具製程主要流程圖」指定
+補鑄造 / 鍛造 / 手工具後段共 10 種(T16 已做、T17 待做)。新增機型一律走完整垂直切片
+(引擎物理 → 逐件判良 → 產線計數 → 2D/3D 動畫 → CI 不變量 → 動畫回歸),不要只加個殼。現在要補的是**資料鏈**:停機原因碼、事件表、逐件生產
 紀錄與良/不良計數、取數介面。實測盤點與缺口見 `docs/資料盤點_生產數據完整性.md`
 (數字跑 `python tools/audit_data_coverage.py` 重產),工作項見佇列 T13–T15。
 

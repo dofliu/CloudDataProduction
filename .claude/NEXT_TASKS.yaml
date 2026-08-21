@@ -6,7 +6,7 @@
 # 人要調整優先序,直接改 tasks: 的順序或 status 即可 —— 排程 session 一律照本檔做事。
 
 version: 1
-updated: "2026-08-19"
+updated: "2026-08-21"
 maintainer_note: "任務做完 / 開了 PR,務必在同一個 PR 裡把本檔的 status 與 pr 欄位一起更新,否則下次醒來會重做。"
 
 # ── 排程 session 的行為準則 ──────────────────────────────
@@ -196,7 +196,7 @@ tasks:
 
   - id: T11-new-industries-commissioning
     title: "新產業四機種(AOI / 焊接 / 雷切 / 包裝)+ 整合建廠自動上線(A+B+C)"
-    status: in_review
+    status: done          # PR #51 已合併(2026-08-20)
     pr: "https://github.com/dofliu/CloudDataProduction/pull/51"
     autonomy: self    # 2026-08-19 使用者指定的方向(設備多樣化 + 自動上線流程)
     size: XL
@@ -209,6 +209,20 @@ tasks:
       (實測 3/3/3);教師控制台「🧩 整合建廠」卡。CI:tests/test_commissioning.py。
       ③ 順手修三個真缺陷:產線 tick 粒度守恆漏洞(gate 改 need=ceil(dt/節拍))、
       週包不再挑產線餵料站當注入對象(不出無解題)、NL 同義詞重複命中合併。
+
+  - id: T12-device-atlas
+    title: "設備動畫圖鑑(15 機型健康 ↔ 劣化圖文對照)+ 產生器"
+    status: done          # PR #52 已合併(2026-08-21)
+    pr: "https://github.com/dofliu/CloudDataProduction/pull/52"
+    autonomy: self    # 2026-08-20 使用者指定(全設備動畫截圖的圖文文件)
+    size: M
+    outcome: >
+      tools/make_device_atlas.py 由 web/preview 的真實渲染產生 docs/設備動畫圖鑑.md
+      與 docs/images/device_atlas/(40 張 webp,共 0.57 MB):每台一組健康 ↔ 劣化截圖
+      (CNC 另有故障閂鎖、沖壓與風機另有教師停機態,共 32 張機台情境)+ 動畫綁定表
+      (視覺元素 → 引擎欄位 → L1/L2/L3)+ 退化線與徵兆,外加 8 種產線佈局視圖。
+      **產出物不手改**(同 scenarios/scripts/gen_*.py 慣例):重跑冪等、缺圖直接擋下。
+    files: ["tools/make_device_atlas.py", "docs/設備動畫圖鑑.md", "docs/images/device_atlas/"]
 
   - id: T4-bottleneck-exercises
     title: "餓料 / 堵料的課堂情境與自動批改(找出瓶頸站、算節拍不匹配損失)"

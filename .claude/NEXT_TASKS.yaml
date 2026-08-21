@@ -74,7 +74,7 @@ tasks:
   - id: T16-casting-forging-machines
     title: "鑄造 / 鍛造上游 5 機種(熔煉爐 / 壓鑄機 / 感應加熱爐 / 鍛造壓機 / 毛胚整修機)"
     status: in_review
-    pr: "PENDING"
+    pr: "https://github.com/dofliu/CloudDataProduction/pull/56"
     autonomy: self    # 2026-08-21 使用者指定(手工具製程流程圖的前段)
     size: XL
     why: >

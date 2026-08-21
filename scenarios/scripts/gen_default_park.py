@@ -87,6 +87,18 @@ def build() -> list[dict]:
         ("x01-f3", "光學檢測示範廠(新產業展示)", "inspection", "CNC 加工全檢線", "🔍",
          "工件在 CNC 加工中心銑削成形,六軸手臂送檢,AOI 光學檢測站逐件全檢。",
          ["cnc_machining_center", "robot_arm_6axis", "aoi_inspection"]),
+        # 鑄造 / 鍛造上游(2026-08-21):手工具製程流程圖的「原料與成形」段。
+        ("x01-f4", "熔煉鑄造示範廠(新產業展示)", "casting", "鋁合金壓鑄毛胚", "🔥",
+         "回爐料在熔煉爐熔成 1450 °C 熔湯、每 72 秒出一籃,六軸手臂送進壓鑄機成形,"
+         "再由手臂搬上輸送帶出貨。熔煉爐是全線瓶頸,壓鑄機的稼動會誠實反映等湯的時間。",
+         ["melting_furnace", "robot_arm_6axis", "die_casting_machine",
+          "robot_arm_6axis", "conveyor"]),
+        ("x01-f5", "熱模鍛造示範廠(新產業展示)", "forging", "手工具鍛造胚料", "🔨",
+         "棒料在感應加熱爐加熱到 1180 °C,六軸手臂送進鍛造壓機一擊成形,"
+         "再送到毛胚整修機切除飛邊。加熱溫度不足的棒料會鍛出摺疊裂紋 —— "
+         "出料溫度是這條線的第一個品質關卡。",
+         ["induction_heater", "robot_arm_6axis", "forging_press",
+          "robot_arm_6axis", "trimming_press"]),
     ]
     for cid, name, industry, product, icon, story, tmpls in NEW_DEMOS:
         devices = []

@@ -439,3 +439,31 @@ park:
         - {id: x01-d092, template: cnc_machining_center}
         - {id: x01-d093, template: robot_arm_6axis}
         - {id: x01-d094, template: aoi_inspection}
+
+    - id: x01-f4
+      name: "熔煉鑄造示範廠(新產業展示)"
+      industry: casting
+      product: "鋁合金壓鑄毛胚"
+      product_icon: "🔥"
+      intro: "新產業**合成**示範工廠;主力產品:鋁合金壓鑄毛胚。製程:回爐料在熔煉爐熔成 1450 °C 熔湯、每 72 秒出一籃,六軸手臂送進壓鑄機成形,再由手臂搬上輸送帶出貨。熔煉爐是全線瓶頸,壓鑄機的稼動會誠實反映等湯的時間。產線:熔煉爐(x01-d095) → 六軸機械手臂(x01-d096) → 壓鑄機(x01-d097) → 六軸機械手臂(x01-d098) → 輸送帶(x01-d099) —— 工件在引擎內真實流動,上游完工、手臂搬運、下游才有料可加工(緩衝可讀 FC04 line_in/out_buffer)。所有數據皆為模擬產生,非真實場域量測。"
+      line: [x01-d095, x01-d096, x01-d097, x01-d098, x01-d099]   # 產線物料流(engine/line.py)
+      devices:
+        - {id: x01-d095, template: melting_furnace}
+        - {id: x01-d096, template: robot_arm_6axis}
+        - {id: x01-d097, template: die_casting_machine}
+        - {id: x01-d098, template: robot_arm_6axis}
+        - {id: x01-d099, template: conveyor}
+
+    - id: x01-f5
+      name: "熱模鍛造示範廠(新產業展示)"
+      industry: forging
+      product: "手工具鍛造胚料"
+      product_icon: "🔨"
+      intro: "新產業**合成**示範工廠;主力產品:手工具鍛造胚料。製程:棒料在感應加熱爐加熱到 1180 °C,六軸手臂送進鍛造壓機一擊成形,再送到毛胚整修機切除飛邊。加熱溫度不足的棒料會鍛出摺疊裂紋 —— 出料溫度是這條線的第一個品質關卡。產線:感應加熱爐(x01-d100) → 六軸機械手臂(x01-d101) → 鍛造壓機(x01-d102) → 六軸機械手臂(x01-d103) → 毛胚整修機(x01-d104) —— 工件在引擎內真實流動,上游完工、手臂搬運、下游才有料可加工(緩衝可讀 FC04 line_in/out_buffer)。所有數據皆為模擬產生,非真實場域量測。"
+      line: [x01-d100, x01-d101, x01-d102, x01-d103, x01-d104]   # 產線物料流(engine/line.py)
+      devices:
+        - {id: x01-d100, template: induction_heater}
+        - {id: x01-d101, template: robot_arm_6axis}
+        - {id: x01-d102, template: forging_press}
+        - {id: x01-d103, template: robot_arm_6axis}
+        - {id: x01-d104, template: trimming_press}

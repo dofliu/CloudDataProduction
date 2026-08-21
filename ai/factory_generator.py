@@ -35,6 +35,19 @@ _TEMPLATE_KEYWORDS = {
     "焊接": "welding_cell", "焊": "welding_cell", "weld": "welding_cell",
     "雷射": "laser_cutter", "激光": "laser_cutter", "laser": "laser_cutter", "切割機": "laser_cutter",
     "包裝": "packaging_machine", "封口": "packaging_machine", "裝箱": "packaging_machine", "packaging": "packaging_machine",
+    # 鑄造 / 鍛造上游(2026-08-21)。長詞在前:「熔煉爐」「感應加熱爐」要比單字「爐」先命中,
+    # 命中優先序見 _parse_multi(依關鍵字長度由長到短)。
+    "熔煉爐": "melting_furnace", "熔煉": "melting_furnace", "熔解": "melting_furnace",
+    "melting": "melting_furnace", "鑄造爐": "melting_furnace",
+    "壓鑄": "die_casting_machine", "壓鑄機": "die_casting_machine", "die casting": "die_casting_machine",
+    "diecast": "die_casting_machine", "鑄造機": "die_casting_machine",
+    "感應加熱爐": "induction_heater", "感應加熱": "induction_heater",
+    "感應爐": "induction_heater", "加熱爐": "induction_heater",
+    "induction": "induction_heater", "棒料加熱": "induction_heater",
+    "鍛造": "forging_press", "鍛壓": "forging_press", "鍛打": "forging_press", "forging": "forging_press",
+    "熱鍛": "forging_press",
+    "切邊": "trimming_press", "去毛邊": "trimming_press", "毛胚整修": "trimming_press",
+    "整修機": "trimming_press", "trimming": "trimming_press",
 }
 
 # 各 template 的預設退化元件(讓新設備會自然退化,與場景一致)
@@ -86,13 +99,36 @@ _DEFAULT_DEGRADATION = {
         "sealer_heater_aging": {"rate": 0.0000009, "trajectory": "exponential", "k": 2.8, "sigma": 0.1, "init_health": 0.94},
         "film_feed_wear": {"rate": 0.0000015, "trajectory": "linear", "sigma": 0.15, "init_health": 1.0, "causes_device_fault": False},
     },
+    "melting_furnace": {
+        "refractory_wear": {"rate": 0.0000008, "trajectory": "exponential", "k": 2.8, "sigma": 0.09, "init_health": 0.93},
+        "slag_buildup": {"rate": 0.0000012, "trajectory": "linear", "sigma": 0.13, "init_health": 1.0, "causes_device_fault": False},
+    },
+    "die_casting_machine": {
+        "hydraulic_accumulator": {"rate": 0.0000011, "trajectory": "exponential", "k": 2.7, "sigma": 0.1, "init_health": 0.93},
+        "die_thermal_fatigue": {"rate": 0.0000014, "trajectory": "linear", "sigma": 0.14, "init_health": 1.0, "causes_device_fault": False},
+    },
+    "induction_heater": {
+        "coil_insulation": {"rate": 0.0000010, "trajectory": "exponential", "k": 3.0, "sigma": 0.1, "init_health": 0.94},
+        "coupling_drift": {"rate": 0.0000013, "trajectory": "linear", "sigma": 0.15, "init_health": 1.0, "causes_device_fault": False},
+    },
+    "forging_press": {
+        "ram_guide_wear": {"rate": 0.0000011, "trajectory": "exponential", "k": 2.9, "sigma": 0.1, "init_health": 0.93},
+        "die_wear": {"rate": 0.0000017, "trajectory": "linear", "sigma": 0.15, "init_health": 1.0, "causes_device_fault": False},
+    },
+    "trimming_press": {
+        "slide_bearing_wear": {"rate": 0.0000012, "trajectory": "exponential", "k": 2.8, "sigma": 0.1, "init_health": 0.94},
+        "trim_die_edge": {"rate": 0.0000018, "trajectory": "linear", "sigma": 0.15, "init_health": 1.0, "causes_device_fault": False},
+    },
 }
 _PREFIX = {"cnc_machining_center": "cnc", "air_compressor": "comp",
            "agv_mobile_robot": "agv", "robot_arm_6axis": "arm",
            "semi_process_chamber": "chamber", "energy_meter": "em",
            "stamping_press": "press", "heat_treat_furnace": "furnace",
            "aoi_inspection": "aoi", "welding_cell": "weld",
-           "laser_cutter": "laser", "packaging_machine": "pack"}
+           "laser_cutter": "laser", "packaging_machine": "pack",
+           "melting_furnace": "melt", "die_casting_machine": "dc",
+           "induction_heater": "ind", "forging_press": "forge",
+           "trimming_press": "trim"}
 
 # LLM 路徑用:全 8 template 的 id 前綴 + 給模型的白話說明(讓它把自由描述映到最接近的型別)。
 # 不放 degradation —— 省略時各 template 會用自己的預設 + 個體差異抖動(見 templates/_common.build_components)。
@@ -103,6 +139,8 @@ _ALL_PREFIX = {
     "wind_turbine": "wt",
     "aoi_inspection": "aoi", "welding_cell": "weld",
     "laser_cutter": "laser", "packaging_machine": "pack",
+    "melting_furnace": "melt", "die_casting_machine": "dc", "induction_heater": "ind",
+    "forging_press": "forge", "trimming_press": "trim",
 }
 _TEMPLATE_DESC = {
     "cnc_machining_center": "CNC 加工中心 / 工具機(主軸、刀具磨耗、軸承振動)",
@@ -119,6 +157,11 @@ _TEMPLATE_DESC = {
     "welding_cell": "焊接機器人工作站(電弧沿焊道、送絲輪磨損、噴嘴堵→飛濺)",
     "laser_cutter": "雷射切割機(XY 龍門沿輪廓、保護鏡片污損、冷卻迴路)",
     "packaging_machine": "包裝機 / 封口機(產線終站,封口加熱器老化→不良率)",
+    "melting_furnace": "熔煉爐 / 鑄造熔解爐(1450 °C 熔湯、週期出湯,爐襯磨蝕→爐殼溫升、爐渣→夾渣)",
+    "die_casting_machine": "壓鑄機(熔湯成形,模具熱疲勞→縮孔、真空密封劣化→氣孔)",
+    "induction_heater": "感應加熱爐(鍛造前棒料加熱,線圈絕緣→漏電流、耦合走樣→出料溫度不足)",
+    "forging_press": "鍛造壓機 / 熱模鍛(滑塊行程與噸位、鍛模磨耗→欠肉、除鱗堵→壓入氧化皮)",
+    "trimming_press": "毛胚整修機 / 切邊機(切除飛邊,刀口鈍化→切斷力升、殘毛刺超規)",
 }
 _DUTY = ("continuous", "single_shift", "two_shift")
 
@@ -157,11 +200,17 @@ def _parse_multi(text: str) -> list[tuple[str, int]]:
     low = text.lower()
     hits: list[tuple[int, str, int]] = []       # (位置, template, count)
     used_spans: list[tuple[int, int]] = []
-    for kw, tmpl in _TEMPLATE_KEYWORDS.items():
+    # **長關鍵字優先**:「感應加熱爐」要比「爐」先認領位置,否則複合詞會被拆成兩台
+    # (感應加熱爐 = 感應加熱爐 + 熱處理爐)。同理「熔煉爐」vs「爐」。
+    for kw, tmpl in sorted(_TEMPLATE_KEYWORDS.items(), key=lambda kv: -len(kv[0])):
         for m in re.finditer(re.escape(kw), low):
             s, e = m.span()
             if any(not (e <= us or s >= ue) for us, ue in used_spans):
                 continue                        # 已被更早配對的關鍵字涵蓋(如「機械手臂」vs「手臂」)
+            # 「鍛造廠」「鑄造廠」是**公司名**不是設備:關鍵字後面緊接廠 / 公司 / 業 就跳過。
+            # (先前「一座鍛造廠,有 2 台鍛造壓機」會多建出一台憑空的鍛造壓機。)
+            if low[e:e + 1] in ("廠", "公司", "業", "商"):
+                continue
             used_spans.append((s, e))
             head = text[max(0, s - 8):s]        # 往前找數量詞
             count = 1
@@ -173,7 +222,20 @@ def _parse_multi(text: str) -> list[tuple[str, int]]:
                     if re.search(ch + r"\s*[台臺套部支座]?\s*$", head):
                         count = n
                         break
-            hits.append((s, e, tmpl, max(1, min(20, count)), mm is not None or count > 1))
+            explicit = mm is not None or count > 1
+            if not explicit:
+                # 往後找:「壓鑄機 2 台」這種把數量寫在設備後面的講法。只看緊接的片段,
+                # 遇到分隔詞就停 —— 否則「2 台 CNC、3 台手臂」會把 3 也算到 CNC 頭上。
+                tail = text[e:e + 6]
+                mt = re.match(r"\s*(\d+)\s*[台臺套部支座]", tail)
+                if mt:
+                    count, explicit = int(mt.group(1)), True
+                else:
+                    for ch, n in _CH_NUM.items():
+                        if re.match(r"\s*" + ch + r"\s*[台臺套部支座]", tail):
+                            count, explicit = n, True
+                            break
+            hits.append((s, e, tmpl, max(1, min(20, count)), explicit))
     hits.sort()
     # 「機械手臂」會同時命中「機械手臂」與「手臂」等子字串 —— used_spans 已擋掉重疊。
     # 但**不重疊的同義詞**仍會重複命中(「雷射切割機」= 雷射 + 切割機、「CNC 加工中心」
@@ -198,7 +260,9 @@ def _parse_multi(text: str) -> list[tuple[str, int]]:
 _LINE_PRODUCERS = {"cnc_machining_center", "injection_molding",
                    "stamping_press", "semi_process_chamber",
                    "welding_cell", "laser_cutter",
-                   "aoi_inspection", "packaging_machine"}
+                   "aoi_inspection", "packaging_machine",
+                   "melting_furnace", "die_casting_machine",
+                   "induction_heater", "forging_press", "trimming_press"}
 
 
 def _derive_line(devices: list[dict]) -> list[str] | None:

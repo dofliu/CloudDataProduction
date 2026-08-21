@@ -44,6 +44,11 @@ COUNT_TAGS: Dict[str, str] = {
     "laser_cutter": "cut_count",
     "aoi_inspection": "inspected_count",
     "packaging_machine": "package_count",
+    "melting_furnace": "tap_count",
+    "die_casting_machine": "cast_count",
+    "induction_heater": "billet_count",
+    "forging_press": "forge_count",
+    "trimming_press": "trim_count",
 }
 HANDLER_TEMPLATES = {"robot_arm_6axis"}
 TERMINAL_TEMPLATES = {"conveyor"}
@@ -68,6 +73,11 @@ NOMINAL_CYCLE_S: Dict[str, float] = {
     "laser_cutter": 24.0,
     "aoi_inspection": 15.0,
     "packaging_machine": 15.0,
+    "melting_furnace": 72.0,
+    "die_casting_machine": 65.0,
+    "induction_heater": 22.0,
+    "forging_press": 12.0,
+    "trimming_press": 9.0,
 }
 
 
@@ -191,9 +201,16 @@ class ProductionLine:
         學生自己讀 Modbus 也能算出同一個數字;讀不到有效值(待機)退回額定值。"""
         d = st.device
         val = {t.name: float(t.value) for t in d.tags}
-        if d.template in ("cnc_machining_center", "injection_molding", "packaging_machine"):
+        if d.template in ("cnc_machining_center", "injection_molding", "packaging_machine",
+                          "die_casting_machine", "trimming_press"):
             v = val.get("cycle_time", 0.0)
             return v if v > 0.5 else NOMINAL_CYCLE_S[d.template]
+        if d.template == "melting_furnace":
+            v = val.get("melt_cycle_time", 0.0)
+            return v if v > 0.5 else NOMINAL_CYCLE_S[d.template]
+        if d.template == "forging_press":
+            r = val.get("stroke_rate", 0.0)   # spm → 單件秒數
+            return 60.0 / r if r > 0.2 else NOMINAL_CYCLE_S[d.template]
         if d.template == "aoi_inspection":
             v = val.get("inspect_time", 0.0)
             return v if v > 0.5 else NOMINAL_CYCLE_S[d.template]

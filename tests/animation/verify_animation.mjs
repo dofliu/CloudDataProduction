@@ -700,8 +700,15 @@ console.log("\n[20] 熔煉爐 · slow(×1)—— 爐口世界位置 ↔ tilt_ang
   const span = Math.max(...col(rows, (r) => r.tags.tilt_angle)) - Math.min(...col(rows, (r) => r.tags.tilt_angle));
   // 容許 0.12 模型單位:補間平滑(契約 §3 的 delta-based approach)必然留一點落後,
   // 但接錯軸的量級是「整個爐口跑掉幾個單位」,兩者差一個數量級。
-  check("熔煉 tilt_angle → 爐口世界位置(旋轉公式重建)", maxDev <= 0.12 && span > 20,
-        `重建誤差 max ${maxDev.toFixed(4)} 模型單位(容許 ≤0.12)· tilt 變動 ${span.toFixed(1)}°`);
+  // 幅度門檻只要 8°:爐體**只在出湯段**傾轉(72 s 循環的最後 12%),slow 錄 40 sim 秒
+  // 只涵蓋得到部分出湯 —— 實測變動 14.5°。門檻設 20° 是我一開始估錯錄製窗,
+  // 不是動畫幅度不足(重建誤差 0.0000)。再加一條:要真的有傾到 5° 以上,
+  // 否則整段都停在直立位也會「誤差為 0」而矇混過關。
+  const maxTilt = Math.max(...col(rows, (r) => Math.abs(r.tags.tilt_angle)));
+  check("熔煉 tilt_angle → 爐口世界位置(旋轉公式重建)",
+        maxDev <= 0.12 && span > 8 && maxTilt > 5,
+        `重建誤差 max ${maxDev.toFixed(4)} 模型單位(容許 ≤0.12)· tilt 變動 ${span.toFixed(1)}°`
+        + ` · 最大傾轉 ${maxTilt.toFixed(1)}°`);
 }
 
 console.log("\n[21] 壓鑄機 · slow(×1)—— 移動模板世界 X ↔ clamping_force");

@@ -139,10 +139,18 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
              + 8.0 * (1.0 - health_of(comps, "led_aging")) ** 1.4
         return perf, float(np.clip(1.0 - fc / 40.0, 0.5, 1.0))
 
+    def quality_fn(op, comps, tag_by):
+        """檢測站的「不良」= 被它判退的件。鏡頭髒 / 光源衰減 → 誤判率升 → 判退的件變多,
+        但工件本身沒變差 —— 這正是「量測系統本身會劣化」的教學點:學生若只看 AOI 的
+        不良率,會以為上游製程惡化,實際上要修的是檢測站自己。"""
+        if not op["running"]:
+            return 0.0, "false_call"
+        return min(0.95, max(0.0, drv_false_call(op, comps, 0.0) / 100.0)), "false_call"
+
     device = Device(
         device_id=device_id, template="aoi_inspection", tags=tags,
         components=components, duty=duty, protocols=protocols, company_id=company_id,
-        oee_fn=oee_fn, pre_step_fn=pre_step,
+        oee_fn=oee_fn, quality_fn=quality_fn, pre_step_fn=pre_step,
     )
     tag_by_name["state"].driver = lambda op, c, dt: float(STATE_CODES.get(device.state, 0))
     return device

@@ -7,8 +7,11 @@ Device = tags(可觀測訊號)+ degradation components(隱藏健康)+ duty cycle
 from __future__ import annotations
 
 import math
+import zlib
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
+
+import numpy as np
 
 from .health import DegradationComponent
 from .repair import (
@@ -32,6 +35,44 @@ STATE_CODES: Dict[str, int] = {
     "charging": 7,    # AGV 充電中
     "blocked": 8,     # AGV 受阻
 }
+
+# 停機原因碼(docs/資料盤點_生產數據完整性.md 的 P1)。先前餓料 / 滿料 / 無工單 / 班外
+# 全都只落成一個 `idle`,學生做不出停機 Pareto ——「為什麼沒在產」才是生產分析的第一題。
+# 引擎本來就知道這些狀態(line_has_input / line_output_blocked / has_work / 班表 / 閂鎖),
+# 這裡只是把它**說出來**,不新增任何狀態(鐵則一)。
+STOP_REASON_CODES: Dict[str, int] = {
+    "running": 0,        # 正在產出
+    "off_shift": 1,      # 班外 / 週末 / 稼動空檔(duty 未排)
+    "no_order": 2,       # 班內但 MES 沒工單
+    "starved": 3,        # 產線上游沒料
+    "blocked": 4,        # 產線下游滿料,出不去
+    "teacher_stop": 5,   # 教師 run_enable 停機(計畫性停機)
+    "maintenance": 6,    # 維修 / 保養中
+    "fault": 7,          # 故障閂鎖
+    "idle_no_work": 8,   # 排程有排、料也有,但機構此刻沒在動(空帶輸送帶 / 待命的手臂)
+}
+
+# 各 producer template 的「完成一件」累積量 tag —— 逐件生產紀錄與產線帳本共用同一支,
+# 學生從 Modbus 讀到的數字就是帳本用的數字(鐵則二:同一份資料不做兩套)。
+PRODUCTION_COUNT_TAGS: Dict[str, str] = {
+    "cnc_machining_center": "part_count",
+    "injection_molding": "shot_count",
+    "stamping_press": "stroke_count",
+    "semi_process_chamber": "wafer_count",
+    "welding_cell": "weld_count",
+    "laser_cutter": "cut_count",
+    "aoi_inspection": "inspected_count",
+    "packaging_machine": "package_count",
+}
+
+# 一拍最多逐件展開幾件(保險絲)。超過就改用統計配額,避免極端 dt 下迴圈爆掉。
+_MAX_PIECES_PER_TICK = 500
+
+
+def _quality_seed(device_id: str) -> int:
+    """判良亂數的確定性種子。與訊號雜訊的種子刻意分流(同一台設備兩條獨立亂數流):
+    換品質模型不會連帶把振動 / 溫度那些既有資料整組改掉,凍結週包才不會失效。"""
+    return ((zlib.crc32(device_id.encode("utf-8")) & 0xFFFFFFFF) ^ 0x9E3779B9) % (2 ** 31)
 
 
 @dataclass
@@ -177,6 +218,7 @@ class Device:
         pre_step_fn: Optional[Callable] = None,
         oee_fn: Optional[Callable] = None,
         setpoints: Optional[List["SetPoint"]] = None,
+        quality_fn: Optional[Callable] = None,
     ):
         self.id = device_id
         self.template = template
@@ -197,6 +239,10 @@ class Device:
         self.pre_step_fn = pre_step_fn
         # 可選:OEE 瞬時訊號 oee_fn(op, components) → (performance, quality),各 0..1
         self.oee_fn = oee_fn
+        # 可選:逐件品質 quality_fn(op, components, tag_by_name) → (不良機率 0..1, 不良類型)。
+        # template 沒給就退回 oee_fn 的 quality —— 良率的 ground-truth 本來就在那裡,
+        # 這裡只是讓它變成**數得出來的良品 / 不良品**,而不是一個看不見的比例。
+        self.quality_fn = quality_fn
         # OEE 累積器(對 sim 時間積):運轉/停機時間、運轉時 perf/qual 的時間加權和
         self._oee_run = 0.0
         self._oee_down = 0.0
@@ -208,6 +254,8 @@ class Device:
         self.idle_stress = float(idle_stress)  # 待機時的微量退化(預設 0:不轉不磨)
 
         self.state: str = "idle"
+        # 為什麼沒在產(STOP_REASON_CODES 的鍵)。每 tick 重算,不是另存的狀態。
+        self.stop_reason: str = "off_shift"
         self._fault_latched: bool = False
         self._sim_t: float = 0.0
         # MES(Phase 1):有工單才開工。mes_enabled 由 MES 於建構時對 producer 設備設 True;
@@ -235,12 +283,56 @@ class Device:
         self._maint_kind: Optional[str] = None    # repair(故障處置)/ maintenance(預防保養)
         self.repair_log: List[dict] = []          # 這台被做過哪些處置(含失敗嘗試),供評分與回顧
 
+        # ── 逐件生產紀錄(docs/資料盤點 P1)────────────────────────
+        # producer 的累積量 tag 每進一位 = 完成一件。每一件當場判良 / 不良(機率取自
+        # quality_fn,而 quality_fn 讀的是同一份健康與品質訊號 —— 不良率不是另外亂數),
+        # 並產生一筆帶序號的明細。序號**不進 Modbus**:真工廠的序號在 MES 不在 PLC 暫存器,
+        # 學生既有的連線程式也就不必因此改位址(2026-08-21 使用者決定)。
+        self._count_tag_name: Optional[str] = PRODUCTION_COUNT_TAGS.get(template)
+        self._count_prev: Optional[int] = None      # 上一拍的累積量(None = 還沒建立基準)
+        self._piece_seq: int = 0
+        self.good_count: int = 0
+        self.reject_count: int = 0
+        self._pieces: List[dict] = []               # 本拍完成的逐件明細(world 每拍收走)
+        # 判良用的獨立亂數流:與訊號雜訊分開,才不會「換一個品質模型就整組資料變了」
+        self._qrng = np.random.default_rng(_quality_seed(device_id))
+        if self._count_tag_name is not None:
+            self._append_production_tags()
+        self._append_stop_reason_tag()
+
         # 唯讀衍生點位:離散輸入(狀態 bit,FC02)+ 輸入暫存器(狀態碼 / 量測鏡像,FC04)
         # + 命令線圈(FC01/05,教師可寫)。自 tags + state 自動產生,模板無需逐一宣告。
         self.discrete_inputs: List[DiscretePoint] = []
         self.input_registers: List[InputRegPoint] = []
         self.command_coils: List[CoilPoint] = []
         self._build_derived_points()
+
+    # ── 附加 tag(所有 template 共用,不必逐檔宣告)────────────
+    def _next_register(self) -> int:
+        """接在既有 tag 之後配址 —— **只往後長**,既有 tag 的位址一格都不動。
+        學生手上照舊位址寫的連線程式因此零回歸(每台設備各有自己的位址空間)。"""
+        return max((t.modbus_register + t.register_width for t in self.tags), default=0)
+
+    def _append_tag(self, name: str, unit: str, datatype: str, driver: Callable) -> "Tag":
+        folder = (self.protocols.get("opcua", {}) or {}).get(
+            "node_folder", f"{self.company_id}/{self.id}")
+        tag = Tag(name=name, unit=unit, datatype=datatype,
+                  modbus_register=self._next_register(),
+                  opcua_node=f"{folder}/{name}", mqtt_field=name, driver=driver)
+        self.tags.append(tag)
+        return tag
+
+    def _append_stop_reason_tag(self) -> None:
+        """停機原因碼:每台都有。有了它,「這條線上週損失的工時,哪一種原因佔最多?」
+        才是一句 SQL 而不是一個猜測。"""
+        self._append_tag("stop_reason_code", "enum", "int16",
+                         lambda op, c, dt: float(STOP_REASON_CODES.get(self.stop_reason, 0)))
+
+    def _append_production_tags(self) -> None:
+        """良品 / 不良品計數:producer 才有。**產出 = 良品 + 不良品**,對得起帳 ——
+        先前只有一支累積量與幾支「不良率」,學生連 OEE 的良率都算不出來。"""
+        self._append_tag("good_count", "count", "int32", lambda op, c, dt: float(self.good_count))
+        self._append_tag("reject_count", "count", "int32", lambda op, c, dt: float(self.reject_count))
 
     # ── 唯讀衍生點位(DI / IR)──────────────────────────────
     def _build_derived_points(self) -> None:
@@ -412,9 +504,111 @@ class Device:
                 tag.value = sf.apply(tag.value, self._sim_t, dt_sim)
 
         self._update_state(op)
+        # 為什麼沒在產(停機原因碼)。優先序由「最硬的理由」往下:壞了 > 在修 > 教師鎖停 >
+        # 缺料 / 塞住 > 沒工單 > 班外。放在 _update_state 之後,才能與**實際狀態**對得起來
+        # (例如空帶待機的輸送帶:op 說排程有排,但機構確實沒在動 → idle_no_work)。
+        # 全部都是引擎此刻已知的事實,不另存狀態(鐵則一)。
+        self.stop_reason = self._compute_stop_reason(op)
         self._accumulate_oee(dt_sim, op, scheduled)
+        # 逐件記帳要在感測器故障層之後、衍生點位之前:計數 tag 的當拍值底定了才數得準,
+        # 而 good_count / reject_count 也要在 _update_derived_points 前更新完(它們是 tag)。
+        self._record_pieces(op)
         self._update_derived_points()   # 狀態/量測底定後,更新衍生 DI/IR 值
         self._last_op = op              # 供 MES 判定本 tick 是否實際運轉(累積產量)
+
+    # ── 停機原因 ────────────────────────────────────────────
+    def _compute_stop_reason(self, op: dict) -> str:
+        """為什麼沒在產。這些條件 step() 上面剛判過一輪,這裡只是把結論命名。"""
+        if self._fault_latched or any(
+                c.failed and c.causes_device_fault for c in self.components.values()):
+            return "fault"
+        if self.in_maintenance:
+            return "maintenance"
+        if not self.coil("run_enable"):
+            return "teacher_stop"
+        if self.line_enabled and self.line_role in ("source", "mid", "sink", "terminal"):
+            if not self.line_has_input:
+                return "starved"
+            if self.line_output_blocked:
+                return "blocked"
+        if self.mes_enabled and not self.has_work:
+            # 班表有排、但手上沒單 → no_order;班表本來就沒排 → off_shift
+            return "no_order" if self.duty.operating_point(self._sim_t)["running"] else "off_shift"
+        if self.state in ("running", "moving"):
+            return "running"
+        # 排程有排、料也有、沒人擋 —— 但機構此刻就是沒在動:空帶待機的輸送帶、
+        # 沒被授予搬運的手臂、停等的 AGV。這不是故障也不是缺料,誠實給它自己的碼。
+        return "idle_no_work" if op["running"] else "off_shift"
+
+    # ── 逐件生產紀錄 ────────────────────────────────────────
+    def _record_pieces(self, op: dict) -> None:
+        """累積量 tag 每進一位 = 完成一件 → 判良 / 不良 → 產一筆明細。
+
+        不良機率取自 quality_fn(讀的是同一份健康與品質訊號),沒給就退回 oee_fn 的
+        quality —— 良率的 ground-truth 本來就在那裡,這裡只是讓它變成數得出來的件數。
+        """
+        if self._count_tag_name is None:
+            return
+        tag = next((t for t in self.tags if t.name == self._count_tag_name), None)
+        if tag is None:
+            return
+        now = int(tag.value)
+        if self._count_prev is None:        # 第一拍只建基準(場景可能帶初始計數)
+            self._count_prev = now
+            return
+        delta = now - self._count_prev
+        self._count_prev = now
+        if delta <= 0:                      # 計數器重置(reset / 換班)不倒扣
+            return
+
+        p_reject, defect = self._piece_quality(op)
+        if delta > _MAX_PIECES_PER_TICK:    # 保險絲:極端 dt 下改用統計配額,不逐件展開
+            rejects = int(self._qrng.binomial(delta, p_reject))
+            self.good_count += delta - rejects
+            self.reject_count += rejects
+            return
+        for _ in range(delta):
+            self._piece_seq += 1
+            good = bool(self._qrng.random() >= p_reject)
+            if good:
+                self.good_count += 1
+            else:
+                self.reject_count += 1
+            self._pieces.append({
+                "serial": f"{self.id}#{self._piece_seq:06d}",
+                "device": self.id,
+                "company": self.company_id,
+                "template": self.template,
+                "sim_t": round(self._sim_t, 2),
+                "good": good,
+                # 不良類型是**品質結果**(真工廠的 QC 就是知道),不是 ground-truth 的元件名 ——
+                # 學生看得到「什麼樣的不良」,但看不到「哪個元件在壞」。
+                "defect": None if good else defect,
+                "order": (self.mes_order or {}).get("id") if self.mes_enabled else None,
+            })
+
+    def _piece_quality(self, op: dict) -> tuple:
+        """(不良機率 0..1, 不良類型)。template 給 quality_fn 就用它,否則退回 oee_fn。"""
+        if self.quality_fn is not None:
+            try:
+                p, defect = self.quality_fn(op, self.components,
+                                            {t.name: t for t in self.tags})
+                return min(1.0, max(0.0, float(p))), str(defect)
+            except Exception:
+                pass
+        if self.oee_fn is not None:
+            try:
+                _perf, qual = self.oee_fn(op, self.components)
+                return min(1.0, max(0.0, 1.0 - float(qual))), "process_deviation"
+            except Exception:
+                pass
+        return 0.0, "process_deviation"
+
+    def drain_pieces(self) -> List[dict]:
+        """把本拍完成的逐件明細交出去(world 每拍收走 → historian)。引擎不留副本。"""
+        out = self._pieces
+        self._pieces = []
+        return out
 
     def _accumulate_oee(self, dt_sim: float, op: dict, scheduled: bool) -> None:
         """OEE 對排程重算(MES Phase 2):只在「排程要它產出」的時間計入 planned。

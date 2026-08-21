@@ -159,10 +159,14 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
              + 6.0 * (1.0 - h_feed) ** 1.5
         return perf, float(np.clip(1.0 - sp / 30.0, 0.5, 1.0))
 
+    def quality_fn(op, comps, tag_by):
+        """飛濺率即不良機率(同一支 driver 重算,不吃感測器層汙染)。"""
+        return min(0.95, max(0.0, drv_spatter(op, comps, 0.0) / 100.0)), "spatter"
+
     device = Device(
         device_id=device_id, template="welding_cell", tags=tags,
         components=components, duty=duty, protocols=protocols, company_id=company_id,
-        oee_fn=oee_fn, pre_step_fn=pre_step,
+        oee_fn=oee_fn, quality_fn=quality_fn, pre_step_fn=pre_step,
     )
     tag_by_name["state"].driver = lambda op, c, dt: float(STATE_CODES.get(device.state, 0))
     return device

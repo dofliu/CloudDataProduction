@@ -44,6 +44,10 @@ _TAG_SPEC = [
     ("pos_x",           "mm",    "float32"),
     ("pos_y",           "mm",    "float32"),
     ("pos_z",           "mm",    "float32"),
+    # 品質(2026-08-21 補):先前 CNC 只有 tool_wear —— 那是**設備狀態**不是產品品質,
+    # 學生因此連良率都算不出來。兩支都由 tool_wear / 主軸熱 / 振動推出,不是另外亂數。
+    ("dimension_deviation", "um",   "float32"),   # 尺寸偏差:刀鈍 + 熱伸長 → 漂出公差
+    ("surface_roughness",   "um",   "float32"),   # 表面粗糙度 Ra:刀鈍 + 振動 → 變粗
 ]
 
 
@@ -242,11 +246,53 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
     tag_by_name["pos_y"].driver = drv_pos_y
     tag_by_name["pos_z"].driver = drv_pos_z
 
+    # ── 品質:尺寸偏差與表面粗糙度 ────────────────────────────
+    # 兩者的物理來源不同,學生才有得判:尺寸偏差主要跟「刀具磨耗 + 主軸熱伸長」走
+    # (所以會有日內的暖機漂移),粗糙度主要跟「振動 + 刀鈍」走。同一台機兩支一起看,
+    # 才分得出「該換刀」還是「主軸軸承出問題」。
+    TOL_UM = 25.0          # 單邊公差(±25 µm):超出即判不良
+    BASE_SCRAP = 0.004     # 健康機台的隨機不良底線(素材變異 / 夾持誤差等未建模的原因)——
+                           # 真工廠不會有 100.00% 良率,給 0 反而是不誠實的資料
+    def _dim_dev_um(comps) -> float:
+        h_tool = health_of(comps, "tool_wear")
+        thermal = 0.35 * max(0.0, spindle_lag.T - AMBIENT_C)      # 熱伸長:µm/°C 量級
+        return (1.0 - h_tool) * 38.0 + thermal
+
+    def drv_dim_dev(op, comps, dt):
+        if not op["running"]:
+            return 0.0
+        return _dim_dev_um(comps) + gaussian_noise(nrng, 1.2)
+
+    def _roughness(comps) -> float:
+        h_tool = health_of(comps, "tool_wear")
+        h_b = health_of(comps, "spindle_bearing")
+        return 0.8 + 2.6 * (1.0 - h_tool) + 1.8 * (1.0 - h_b) ** 1.5
+
+    def drv_roughness(op, comps, dt):
+        if not op["running"]:
+            return 0.0
+        return max(0.05, _roughness(comps) + gaussian_noise(nrng, 0.05))
+
+    tag_by_name["dimension_deviation"].driver = drv_dim_dev
+    tag_by_name["surface_roughness"].driver = drv_roughness
+
     def oee_fn(op, comps):
         h_tool = health_of(comps, "tool_wear")
         perf = 45.0 / _cycle_time(h_tool)                 # 刀鈍 → 節拍變長 → 表現降
         qual = max(0.5, 1.0 - (1.0 - h_tool) * 0.45)      # 刀鈍 → 不良率升
         return perf, qual
+
+    def quality_fn(op, comps, tag_by):
+        """逐件判良:尺寸偏差先撞公差(µm 對 ±25 µm),粗糙度超規則另一種不良。
+        機率而非硬門檻 —— 量測本身有分散,邊緣附近會出現混合,這才像真的檢驗資料。"""
+        if not op["running"]:
+            return 0.0, "dimension_out_of_tol"
+        dev, ra = _dim_dev_um(comps), _roughness(comps)
+        p_dim = min(0.98, max(0.0, (dev - TOL_UM * 0.62) / (TOL_UM * 0.75)))
+        p_ra = min(0.60, max(0.0, (ra - 2.6) / 3.2))
+        both = p_dim + (1.0 - p_dim) * p_ra
+        p = BASE_SCRAP + (1.0 - BASE_SCRAP) * both
+        return p, ("dimension_out_of_tol" if p_dim >= p_ra else "surface_defect")
 
     setpoints = [
         SetPoint(name="spindle_rpm_setpoint", register=100, unit="rpm",
@@ -268,6 +314,7 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
         protocols=protocols,
         company_id=company_id,
         oee_fn=oee_fn,
+        quality_fn=quality_fn,
         setpoints=setpoints,
     )
 

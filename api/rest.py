@@ -315,6 +315,8 @@ def create_app(
         if mqtt is not None:
             world.subscribe(mqtt.on_snapshot)             # 同一 snapshot → MQTT topic
         world.subscribe(historian.on_snapshot)
+        world.subscribe_events(historian.on_event)       # 事件 → historian.events(MTBF / 停機 Pareto)
+        world.subscribe_production(historian.on_pieces)  # 逐件明細 → production + 每小時彙總
         world.subscribe(telemetry_mgr.on_message)        # telemetry → 瀏覽器
         world.subscribe_events(events_mgr.on_message)     # 事件 → 瀏覽器
         world.subscribe_events(tickets.on_event)          # 故障事件 → 自動開工單
@@ -527,6 +529,73 @@ def create_app(
             "degraded": historian.degraded,  # True 表示來自 in-memory fallback
             "points": rows,
         }
+
+    # ── 事件 / 逐件生產 / 每小時彙總(學生面公開唯讀)──────
+    #
+    # 這三支是「資料鏈」的取數入口(docs/資料盤點_生產數據完整性.md 的 P1)。
+    # 先前這些資料只存在於當下:事件廣播完就沒了、產線帳只有即時視圖 —— 學生因此
+    # 算不出 MTBF、做不出停機 Pareto、追溯不到一件不良品。
+    #
+    # ground-truth 一律不出現在這裡:事件不帶故障元件名、逐件明細只給品質結果
+    # (良 / 不良 / 不良類型),要看「哪個元件在壞」仍得走教師面的 /api/devices/{id}/health。
+    @app.get("/api/history/events")
+    async def get_events(
+        device: Optional[str] = Query(None, description="設備 id"),
+        company: Optional[str] = Query(None, description="公司 id"),
+        type: Optional[str] = Query(None, description="fault | state_change"),
+        stop_reason: Optional[str] = Query(None, description="停機原因碼(見 /api/catalog)"),
+        from_: Optional[float] = Query(None, alias="from", description="起始 wall epoch 秒"),
+        to: Optional[float] = Query(None, description="結束 wall epoch 秒"),
+        limit: int = Query(2000, ge=1, le=50000),
+    ):
+        if device is not None and device not in world.devices:
+            raise HTTPException(404, f"無此設備:{device}")
+        rows = await historian.query_events(device_id=device, company_id=company, ev_type=type,
+                                            stop_reason=stop_reason, t_from=from_, t_to=to,
+                                            limit=limit)
+        return {"count": len(rows), "degraded": historian.degraded, "events": rows}
+
+    @app.get("/api/production")
+    async def get_production(
+        device: Optional[str] = Query(None, description="設備 id"),
+        company: Optional[str] = Query(None, description="公司 id"),
+        serial: Optional[str] = Query(None, description="工件序號(追溯單一件)"),
+        good: Optional[bool] = Query(None, description="true=只看良品 / false=只看不良"),
+        defect: Optional[str] = Query(None, description="不良類型"),
+        from_: Optional[float] = Query(None, alias="from", description="起始 wall epoch 秒"),
+        to: Optional[float] = Query(None, description="結束 wall epoch 秒"),
+        limit: int = Query(2000, ge=1, le=50000),
+    ):
+        """逐件生產明細(追溯用)。明細保留期較短(見 .env 的 PRODUCTION_RETENTION_DAYS),
+        長期趨勢請用 /api/production/hourly。"""
+        if device is not None and device not in world.devices:
+            raise HTTPException(404, f"無此設備:{device}")
+        rows = await historian.query_production(device_id=device, company_id=company,
+                                                serial=serial, good=good, defect=defect,
+                                                t_from=from_, t_to=to, limit=limit)
+        return {"count": len(rows), "degraded": historian.degraded,
+                "retention_days": historian.production_retention_days, "pieces": rows}
+
+    @app.get("/api/production/hourly")
+    async def get_production_hourly(
+        device: Optional[str] = Query(None, description="設備 id"),
+        company: Optional[str] = Query(None, description="公司 id"),
+        from_: Optional[float] = Query(None, alias="from", description="起始 wall epoch 秒"),
+        to: Optional[float] = Query(None, description="結束 wall epoch 秒"),
+        limit: int = Query(5000, ge=1, le=50000),
+    ):
+        """每台每小時 × 每種結果的件數(defect="" 代表良品)。
+        良率 = 良品件數 / 總件數;不良 Pareto = 依 defect 分組加總。"""
+        if device is not None and device not in world.devices:
+            raise HTTPException(404, f"無此設備:{device}")
+        rows = await historian.query_production_hourly(device_id=device, company_id=company,
+                                                       t_from=from_, t_to=to, limit=limit)
+        good = sum(r["pieces"] for r in rows if not r["defect"])
+        total = sum(r["pieces"] for r in rows)
+        return {"count": len(rows), "degraded": historian.degraded,
+                "totals": {"pieces": total, "good": good, "reject": total - good,
+                           "yield": round(good / total, 4) if total else None},
+                "buckets": rows}
 
     # ── 工單 / 評分(學生面公開)──────────────────────────
     @app.get("/api/tickets")

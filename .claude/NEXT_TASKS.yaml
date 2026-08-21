@@ -56,6 +56,7 @@ verify:
     - "python3 tests/test_classroom_live.py"
     - "python3 tests/test_supply_chain.py"
     - "python3 tests/test_commissioning.py"
+    - "python3 tests/test_production_records.py"
   web:
     - "cd web && npm ci && npm run build"
   animation:        # 改 3D / 動畫綁定才需要(要瀏覽器,約十分鐘)
@@ -72,8 +73,13 @@ tasks:
 
   - id: T13-data-chain-landing
     title: "資料鏈落地:停機原因碼 + 事件表 + 逐件生產紀錄(含良/不良計數)"
-    status: todo
-    autonomy: ask_first        # 動到引擎資料契約(新 tag / 新資料表),依 ask_first_when
+    status: in_review
+    pr: "PENDING"
+    decisions: >
+      2026-08-21 使用者拍板三個設計決定:① 逐件明細**與**每小時彙總都做(明細 2 天、彙總永久);
+      ② 工件序號**不進 Modbus**(真工廠序號在 MES 不在 PLC,學生既有程式零回歸);
+      ③ CNC 與射出各補兩支品質訊號(尺寸偏差 + 表面粗糙度 / 短射率 + 重量偏差)。
+    autonomy: ask_first        # 動到引擎資料契約(新 tag / 新資料表),依 ask_first_when —— 已問過
     size: XL
     why: >
       課程教「雲端生產數據」,但學生現在算不出良率(沒有良/不良計數)、做不出停機 Pareto

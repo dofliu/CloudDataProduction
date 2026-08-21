@@ -31,9 +31,10 @@ DOMAINS: dict[str, tuple[str, ...]] = {
     "產出計數": ("count", "produced", "shipped", "throughput"),
     "節拍/速率": ("cycle_time", "rate", "speed", "rpm", "index"),
     "品質": ("reject", "defect", "scrap", "yield", "burr", "dross", "spatter",
-             "particle", "false_call", "focus", "uniformity"),
+             "particle", "false_call", "focus", "uniformity", "good_count",
+             "short_shot", "dimension_deviation", "surface_roughness", "weight_deviation"),
     "能耗": ("power", "energy", "kwh", "current", "voltage"),
-    "狀態": ("state",),
+    "狀態": ("state", "stop_reason"),
     "劣化徵兆": ("vibration", "temp", "wear", "load", "pressure"),
 }
 

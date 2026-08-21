@@ -53,6 +53,7 @@ def build():
         backend=os.getenv("DB_BACKEND", "sqlite"),       # sqlite(本機持久)| timescale | memory
         sqlite_path=os.getenv("SQLITE_PATH", "historian.db"),
         retention_days=float(os.getenv("HISTORIAN_RETENTION_DAYS", "14")),
+        production_retention_days=float(os.getenv("PRODUCTION_RETENTION_DAYS", "2")),
     )
 
     # 營運狀態持久化(工單 / 學生預測 / OEE 累積器)→ 進程重啟不歸零

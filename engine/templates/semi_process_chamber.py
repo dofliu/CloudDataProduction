@@ -149,10 +149,18 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
         qual = float(np.clip(1.0 - (particle - PARTICLE_BASE) / 120.0, 0.5, 1.0))
         return perf, qual
 
+    def quality_fn(op, comps, tag_by):
+        """逐件判良:微粒數越高、良率越低 —— 與 oee_fn 用同一條式子,不另立標準。
+        製程漂移是 subtle fault:設備不會 fault,只有良率默默往下掉。"""
+        if not op["running"]:
+            return 0.0, "particle_contamination"
+        _perf, qual = oee_fn(op, comps)
+        return min(0.95, max(0.0, 1.0 - qual)), "particle_contamination"
+
     device = Device(
         device_id=device_id, template="semi_process_chamber", tags=tags,
         components=components, duty=duty, protocols=protocols, company_id=company_id,
-        oee_fn=oee_fn, pre_step_fn=pre_step,
+        oee_fn=oee_fn, quality_fn=quality_fn, pre_step_fn=pre_step,
     )
     tag_by_name["state"].driver = lambda op, c, dt: float(STATE_CODES.get(device.state, 0))
     return device

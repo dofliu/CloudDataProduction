@@ -146,10 +146,14 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
              + 5.0 * (1.0 - health_of(comps, "cutter_blade_wear")) ** 1.3
         return perf, float(np.clip(1.0 - rj / 30.0, 0.5, 1.0))
 
+    def quality_fn(op, comps, tag_by):
+        """封口不良率即不良機率(同一支 driver 重算)。"""
+        return min(0.95, max(0.0, drv_reject(op, comps, 0.0) / 100.0)), "seal_defect"
+
     device = Device(
         device_id=device_id, template="packaging_machine", tags=tags,
         components=components, duty=duty, protocols=protocols, company_id=company_id,
-        oee_fn=oee_fn, pre_step_fn=pre_step,
+        oee_fn=oee_fn, quality_fn=quality_fn, pre_step_fn=pre_step,
     )
     tag_by_name["state"].driver = lambda op, c, dt: float(STATE_CODES.get(device.state, 0))
     return device

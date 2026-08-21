@@ -222,6 +222,75 @@ MACHINES = [
          ("generator_bearing", "指標 · exponential", "發電機軸承發熱"),
      ], [(12, "healthy", "健康:葉片工作角,穩定發電"),
          (13, "stopped", "教師停機:葉片順槳 88°,畫面標示 pitch 角")]),
+
+    # ── 鑄造 / 鍛造上游(2026-08-21:手工具製程主要流程圖的「原料與成形」段)──
+    ("melting_furnace", "熔煉爐",
+     "爐體傾轉出湯直接吃 `tilt_angle`;爐殼由灰轉暗紅就是「該重砌爐襯」。", [
+         ("爐體傾轉", "`tilt_angle`", "L1"),
+         ("熔湯液面高度", "`bath_level`", "L1"),
+         ("熔湯色溫", "`melt_temp`", "L2"),
+         ("爐殼暗紅", "`shell_temp`", "L2"),
+         ("浮渣厚度", "`slag_ratio`", "L2"),
+     ], [
+         ("refractory_wear", "本體 · exponential", "爐殼外壁溫升 + 同功率維持不住爐溫 → 最終 fault"),
+         ("electrode_wear", "指標 · linear", "電極電流震盪幅度變大、出湯節拍拉長"),
+         ("slag_buildup", "指標 · linear", "含渣量升 → 下游鑄件夾渣(清渣即恢復,不是換爐)"),
+     ], [(32, "healthy", "健康:爐體傾轉出湯,熔湯白熾、爐殼仍是灰色"),
+         (33, "degraded", "爐襯磨蝕 + 爐渣:爐殼轉暗紅、浮渣變厚、爐溫掉到 1387 °C")]),
+
+    ("die_casting_machine", "壓鑄機",
+     "兩側模溫分開上色 —— 溫差拉開就是模具熱疲勞,真空燈轉紅則是密封劣化。", [
+         ("移動模板開合", "`clamping_force`", "L2"),
+         ("射出衝頭前進", "`shot_speed` > 0.3", "L1"),
+         ("兩側模板輝光", "`die_temp_fixed` · `die_temp_moving`", "L2"),
+         ("真空指示燈", "`vacuum_level`", "L1"),
+     ], [
+         ("hydraulic_accumulator", "本體 · exponential", "射出速度掉、循環拉長 → 最終壓不動 fault"),
+         ("die_thermal_fatigue", "指標 · linear", "兩側模溫差拉開 → 縮孔率升"),
+         ("vacuum_seal_wear", "指標 · linear", "真空抽不下去 → 氣孔率升"),
+     ], [(34, "healthy", "健康:鎖模 347 ton、真空 67 mbar、兩側模溫幾乎相同"),
+         (35, "degraded", "熱疲勞 + 真空劣化:模溫差 37 °C、真空 232 mbar、縮孔與氣孔都破 6%")]),
+
+    ("induction_heater", "感應加熱爐",
+     "棒料位置是本地重建(引擎沒給位置 tag,標倍率不假裝 L1);出料色溫是 L1。", [
+         ("棒料沿軌前進", "(無位置 tag)", "**L3**"),
+         ("出料棒料色溫", "`billet_temp_out`", "L1"),
+         ("線圈輝光", "`coil_current`", "L2"),
+         ("冷卻水管亮度", "`cooling_flow`", "L2"),
+         ("漏電警示燈", "`leakage_current`", "L1"),
+     ], [
+         ("coil_insulation", "本體 · exponential", "漏電流升 + 功因掉 → 絕緣失效 fault"),
+         ("cooling_scale", "指標 · linear", "水路結垢 → 流量掉、線圈溫升 → 降額運轉"),
+         ("coupling_drift", "指標 · linear", "出料溫度偏低**且分散變大** → 鍛件摺疊裂紋"),
+     ], [(36, "healthy", "健康:出料 1181 °C 白熾,漏電流 2 mA、功因 0.95"),
+         (37, "degraded", "絕緣劣化 + 結垢:出料只剩 1072 °C(不足)、漏電流 39.7 mA")]),
+
+    ("forging_press", "鍛造壓機",
+     "滑塊吃 `ram_position`;欠肉看鍛模、壓入氧化皮看除鱗壓力 —— 對症不同。", [
+         ("滑塊位置", "`ram_position`", "L1"),
+         ("滑塊偏擺", "`ram_deviation`", "L2"),
+         ("鍛件色溫", "`billet_temp_in`", "L1"),
+         ("鍛件欠肉(變小)", "`underfill_rate`", "L2"),
+         ("除鱗噴霧大小", "`descale_pressure`", "L2"),
+     ], [
+         ("ram_guide_wear", "本體 · exponential", "偏擺變大 + 振動升 → 最終咬死 fault"),
+         ("die_wear", "指標 · linear", "欠肉率升(除鱗壓力正常)→ 換 / 修鍛模"),
+         ("descaler_clog", "指標 · linear", "除鱗壓力掉 → 壓入氧化皮(清噴嘴,不是換模具)"),
+     ], [(38, "healthy", "健康:下死點 1520 ton 成形,鍛件紅熱、除鱗噴霧飽滿"),
+         (39, "degraded", "鍛模磨耗 + 噴嘴堵:偏擺 1.42 mm、欠肉 7.6%、氧化皮 8.2%")]),
+
+    ("trimming_press", "毛胚整修機",
+     "刀口鈍化時**切斷力先升、殘毛刺後升** —— 兩個指標的時間差就是這台的教學重點。", [
+         ("滑塊位置", "`slide_position`", "L1"),
+         ("刀座輝光(切斷力)", "`trim_force`", "L2"),
+         ("工件邊緣毛刺", "`burr_height`", "L2"),
+         ("頂桿伸出量", "`ejector_stroke`", "L1"),
+     ], [
+         ("slide_bearing_wear", "本體 · exponential", "振動升 + 節拍拉長 → 最終咬死 fault"),
+         ("trim_die_edge", "指標 · linear", "切斷力**先**升、殘毛刺**後**超規(規格 0.15 mm)"),
+         ("ejector_wear", "指標 · linear", "頂出行程不足 → 變形不良"),
+     ], [(40, "healthy", "健康:切斷力 214 ton、毛刺 0.03 mm(規格內),飛邊落進料箱"),
+         (41, "degraded", "刀口鈍化:切斷力 336 ton、毛刺 0.35 mm 超規、變形率 5.2%")]),
 ]
 
 GROUPS = [
@@ -235,6 +304,11 @@ GROUPS = [
     ("搬運 · 輸送",
      "讓工件在站與站之間真實流動的機構。畫面上的件數 = 引擎帳 = 學生 Modbus 讀到的數字。",
      ["robot_arm_6axis", "agv_mobile_robot", "conveyor"]),
+    ("鑄造 · 鍛造上游(原料與成形)",
+     "2026-08-21 依「手工具製程主要流程圖」補的前段。共同語彙:溫度是主角 —— "
+     "熔湯、棒料、鍛模的顏色就是製程狀態,而爐殼與模具的溫度則是「該保養了」的徵候。",
+     ["melting_furnace", "die_casting_machine", "induction_heater",
+      "forging_press", "trimming_press"]),
     ("廠務 · 能源",
      "不參與工件流動,但決定整廠能不能跑。故障徵兆常常要靠兩支訊號交叉才讀得出來。",
      ["air_compressor", "energy_meter", "wind_turbine"]),
@@ -248,6 +322,10 @@ LINES = [
     ("laserpack", "雷射切割 → 手臂取放 → 包裝出貨", "新產業 c67:包裝機當產線終站"),
     ("aoi", "射出成型 → 手臂取放 → AOI 檢測", "新產業 c68:全檢線"),
     ("agv", "CNC 加工 → AGV 搬運 → 輸送帶出料", "AGV compact 模式:巡迴路線縮尺 0.25 並畫縮小標線"),
+    ("casting", "熔煉出湯 → 手臂 → 壓鑄成形 → 手臂 → 輸送帶出料",
+     "c70 / x01-f4 的五站鑄造線:熔煉爐是全線瓶頸(72 s 一籃)"),
+    ("forging", "感應加熱 → 手臂 → 熱模鍛造 → 手臂 → 切邊整修",
+     "c71 / x01-f5 的五站鍛造線:出料溫度是第一個品質關卡"),
     ("mixed", "混合壓力測試", "七台同場:驗證燈光只有一組、佈局不互相穿模"),
 ]
 
@@ -296,7 +374,7 @@ def main() -> None:
         "> ⚠ 本平台所有數據皆為**合成(synthetic)教學資料**,非任何真實場域量測。",
         "> 截圖由 `web/preview` 逐案渲染,畫面內的讀數即為引擎當下發出的遙測值。",
         "",
-        "虛擬工業園區的 **15 種產業機型**,每一種都以「健康 ↔ 劣化」對照呈現。",
+        "虛擬工業園區的 **20 種產業機型**,每一種都以「健康 ↔ 劣化」對照呈現。",
         "畫面上每一個會動的部位,都對應引擎的一支具體 tag ——",
         "學生用 Modbus 讀到的數字,必須與眼前看到的位置一致。",
         "",

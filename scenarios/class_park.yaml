@@ -747,6 +747,34 @@ park:
         - {id: d164, template: packaging_machine}
         - {id: d165, template: energy_meter}
 
+    - id: c70
+      name: "冶昌金屬"
+      industry: casting
+      product: "鋁合金壓鑄毛胚"
+      product_icon: "🔥"
+      intro: "課堂教學用**合成**工廠(c70);熔煉鑄造 · 主力產品:鋁合金壓鑄毛胚。製程:回爐料在熔煉爐熔成 1450 °C 熔湯,每 72 秒傾轉出一籃湯;六軸手臂送至壓鑄機成形,再由手臂搬上輸送帶出貨為壓鑄毛胚。熔煉爐是全線瓶頸(72 秒一籃),壓鑄機的稼動率會誠實反映等湯的時間。產線:熔煉爐(d166) → 六軸機械手臂(d167) → 壓鑄機(d168) → 六軸機械手臂(d169) → 輸送帶(d170) —— 工件在引擎內真實流動,上游完工、手臂搬運、下游才有料可加工(緩衝可讀 FC04 line_in/out_buffer)。所有數據皆為模擬產生,非真實場域量測。"
+      line: [d166, d167, d168, d169, d170]   # 產線物料流(engine/line.py)
+      devices:
+        - {id: d166, template: melting_furnace}
+        - {id: d167, template: robot_arm_6axis}
+        - {id: d168, template: die_casting_machine}
+        - {id: d169, template: robot_arm_6axis}
+        - {id: d170, template: conveyor}
+
+    - id: c71
+      name: "鋒鍛工業"
+      industry: forging
+      product: "手工具鍛造胚料"
+      product_icon: "🔨"
+      intro: "課堂教學用**合成**工廠(c71);熱模鍛造 · 主力產品:手工具鍛造胚料。製程:外購棒料先進感應加熱爐加熱到 1180 °C,六軸手臂送進鍛造壓機一擊成形,再由手臂送到毛胚整修機切除飛邊,成為可進機械加工的鍛胚。加熱溫度不足的棒料鍛出來會有摺疊裂紋 —— 出料溫度是這條線的第一個品質關卡。產線:感應加熱爐(d171) → 六軸機械手臂(d172) → 鍛造壓機(d173) → 六軸機械手臂(d174) → 毛胚整修機(d175) —— 工件在引擎內真實流動,上游完工、手臂搬運、下游才有料可加工(緩衝可讀 FC04 line_in/out_buffer)。所有數據皆為模擬產生,非真實場域量測。"
+      line: [d171, d172, d173, d174, d175]   # 產線物料流(engine/line.py)
+      devices:
+        - {id: d171, template: induction_heater}
+        - {id: d172, template: robot_arm_6axis}
+        - {id: d173, template: forging_press}
+        - {id: d174, template: robot_arm_6axis}
+        - {id: d175, template: trimming_press}
+
   # 跨公司供應鏈:A 出貨 = B 進料(engine/supply.py)。
   # 上游同學的機台壞了沒人管,你的產線就餓料停機;你停太久,下游的進料倉塞爆,
   # 反過來把你卡住。每 4 間一條鏈(= 課堂分組大小),每條鏈最後一段刻意不給外部備援。

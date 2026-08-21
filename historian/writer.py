@@ -41,6 +41,68 @@ CREATE TABLE IF NOT EXISTS telemetry (
 """
 _SQLITE_INDEX = "CREATE INDEX IF NOT EXISTS idx_tel ON telemetry(device_id, tag, wall_t);"
 
+# ── 事件 / 逐件生產 / 每小時彙總(docs/資料盤點_生產數據完整性.md 的 P1)────────────
+#
+# 先前這三種資料只存在於「當下」:事件廣播給工單與告警評分就丟掉、產線帳只有即時視圖、
+# 完工工單每台只留最近 8 張。學生因此算不出 MTBF、做不出停機 Pareto、追溯不到一件不良品。
+#
+# 三張表的分工(與真 historian 同一套邏輯:明細短期、彙總長期):
+#   events            狀態轉換 / 故障,帶停機原因 → MTBF、MTTR、停機 Pareto
+#   production        逐件明細(序號 / 良不良 / 不良類型)→ 追溯、良率與參數的相關
+#   production_hourly 每台每小時 × 每種結果的件數 → 一學期的良率趨勢(明細清掉也還在)
+#
+# events 刻意**不存故障元件名** —— 那是 ground-truth(等於寫著答案),學生面只給
+# 「這台在這個時間點進了 fault」這種現場看得到的事實。
+_SQLITE_EVENTS = """
+CREATE TABLE IF NOT EXISTS events (
+    wall_t      REAL NOT NULL,
+    sim_t       REAL NOT NULL,
+    device_id   TEXT NOT NULL,
+    company_id  TEXT,
+    type        TEXT NOT NULL,
+    from_state  TEXT,
+    to_state    TEXT,
+    stop_reason TEXT
+);
+"""
+_SQLITE_PRODUCTION = """
+CREATE TABLE IF NOT EXISTS production (
+    wall_t     REAL NOT NULL,
+    sim_t      REAL NOT NULL,
+    serial     TEXT NOT NULL,
+    device_id  TEXT NOT NULL,
+    company_id TEXT,
+    template   TEXT,
+    good       INTEGER NOT NULL,
+    defect     TEXT,
+    order_id   TEXT
+);
+"""
+_SQLITE_HOURLY = """
+CREATE TABLE IF NOT EXISTS production_hourly (
+    hour_t     REAL NOT NULL,
+    device_id  TEXT NOT NULL,
+    company_id TEXT,
+    template   TEXT,
+    defect     TEXT NOT NULL,
+    pieces     INTEGER NOT NULL,
+    PRIMARY KEY (hour_t, device_id, defect)
+);
+"""
+_SQLITE_MORE_INDEX = [
+    "CREATE INDEX IF NOT EXISTS idx_ev ON events(device_id, wall_t);",
+    "CREATE INDEX IF NOT EXISTS idx_ev_reason ON events(stop_reason, wall_t);",
+    "CREATE INDEX IF NOT EXISTS idx_prod ON production(device_id, wall_t);",
+    "CREATE INDEX IF NOT EXISTS idx_prod_serial ON production(serial);",
+    "CREATE INDEX IF NOT EXISTS idx_hourly ON production_hourly(device_id, hour_t);",
+]
+
+_PG_EVENTS = _SQLITE_EVENTS.replace("REAL", "DOUBLE PRECISION").replace("INTEGER", "INT")
+_PG_PRODUCTION = _SQLITE_PRODUCTION.replace("REAL", "DOUBLE PRECISION").replace("INTEGER", "INT")
+_PG_HOURLY = _SQLITE_HOURLY.replace("REAL", "DOUBLE PRECISION").replace("INTEGER", "INT")
+
+HOUR_S = 3600.0
+
 
 class Historian:
     def __init__(
@@ -52,6 +114,7 @@ class Historian:
         sample_interval_s: float = 0.5,
         mem_maxlen: int = 20000,
         retention_days: float = 14.0,
+        production_retention_days: float = 2.0,
     ):
         self.dsn = dsn
         self.enabled = enabled
@@ -62,6 +125,10 @@ class Historian:
         # 而教學只查「當週資料窗」、凍結週包又是離線預產 —— 不清就只是白占硬碟。
         # 0 = 不清(要留整學期做期末大分析時再開)。
         self.retention_days = float(retention_days)
+        # 逐件明細的保留期。課堂園區 89 台 producer 在 ×120 下一天寫上千萬件 ——
+        # 明細留兩天(夠學生做追溯與良率相關),長期趨勢靠 production_hourly(小到可以永久留)。
+        # 這也是真 historian 的做法:raw 短期、aggregate 長期。
+        self.production_retention_days = float(production_retention_days)
 
         self._pool = None                     # asyncpg pool(timescale)
         self._sqlite: Optional[sqlite3.Connection] = None
@@ -74,6 +141,12 @@ class Historian:
         self._last_sample_wall: float = 0.0
         self._flush_task: Optional[asyncio.Task] = None
         self._running = False
+        # 事件 / 逐件 / 每小時彙總的待寫緩衝(degraded 時退回有界的記憶體佇列)
+        self._ev_buffer: List[tuple] = []
+        self._prod_buffer: List[tuple] = []
+        self._hourly_acc: Dict[tuple, int] = defaultdict(int)   # (hour_t, dev, comp, tmpl, defect) → 件數
+        self._mem_events: Deque[dict] = deque(maxlen=mem_maxlen)
+        self._mem_prod: Deque[dict] = deque(maxlen=mem_maxlen)
 
     # ── 連線 ────────────────────────────────────────────────
     async def connect(self) -> None:
@@ -87,6 +160,10 @@ class Historian:
                 with self._sqlite_lock:
                     self._sqlite.execute(_SQLITE_CREATE)
                     self._sqlite.execute(_SQLITE_INDEX)
+                    for ddl in (_SQLITE_EVENTS, _SQLITE_PRODUCTION, _SQLITE_HOURLY):
+                        self._sqlite.execute(ddl)
+                    for idx in _SQLITE_MORE_INDEX:
+                        self._sqlite.execute(idx)
                     self._sqlite.commit()
                 print(f"[historian] SQLite 持久化:{self.sqlite_path}")
             except Exception as exc:
@@ -100,6 +177,8 @@ class Historian:
             self._pool = await asyncpg.create_pool(self.dsn, min_size=1, max_size=4)
             async with self._pool.acquire() as conn:
                 await conn.execute(_PG_CREATE)
+                for ddl in (_PG_EVENTS, _PG_PRODUCTION, _PG_HOURLY):
+                    await conn.execute(ddl)
                 try:
                     await conn.execute(_PG_HYPERTABLE)
                 except Exception as exc:
@@ -124,6 +203,48 @@ class Historian:
                 else:
                     self._buffer.append((wall_t, sim_t, device_id, tag, float(value)))
 
+    # ── 訂閱者:事件 / 逐件生產 ─────────────────────────────
+    async def on_event(self, ev: dict) -> None:
+        """狀態轉換 / 故障事件落地。先前這些事件只廣播給工單 / 預測 / 告警評分就消失了,
+        歷史上沒留下任何一列 —— MTBF、MTTR、停機 Pareto 因此全都算不出來。"""
+        import time as _time
+        row = (
+            float(ev.get("wall_t") or _time.time()),
+            float(ev.get("sim_t") or 0.0),
+            str(ev.get("device") or ""),
+            ev.get("company"),
+            str(ev.get("type") or ""),
+            ev.get("from"),
+            ev.get("to"),
+            ev.get("stop_reason"),
+        )
+        if self.degraded:
+            self._mem_events.append({
+                "wall_t": row[0], "sim_t": row[1], "device_id": row[2], "company_id": row[3],
+                "type": row[4], "from_state": row[5], "to_state": row[6], "stop_reason": row[7]})
+        else:
+            self._ev_buffer.append(row)
+
+    async def on_pieces(self, pieces: List[dict]) -> None:
+        """逐件生產明細落地 + 同步累積每小時彙總(明細清掉後趨勢還在)。"""
+        import time as _time
+        wall_t = _time.time()
+        hour_t = (wall_t // HOUR_S) * HOUR_S
+        for pc in pieces:
+            good = bool(pc.get("good"))
+            defect = "" if good else str(pc.get("defect") or "unknown")
+            row = (wall_t, float(pc.get("sim_t") or 0.0), str(pc.get("serial") or ""),
+                   str(pc.get("device") or ""), pc.get("company"), pc.get("template"),
+                   1 if good else 0, pc.get("defect"), pc.get("order"))
+            if self.degraded:
+                self._mem_prod.append({
+                    "wall_t": row[0], "sim_t": row[1], "serial": row[2], "device_id": row[3],
+                    "company_id": row[4], "template": row[5], "good": bool(good),
+                    "defect": row[7], "order_id": row[8]})
+            else:
+                self._prod_buffer.append(row)
+            self._hourly_acc[(hour_t, row[3], row[4], row[5], defect)] += 1
+
     # ── 批次 flush + 定期清舊 ───────────────────────────────
     async def _flush_loop(self) -> None:
         tick = 0
@@ -147,6 +268,11 @@ class Historian:
                 async with self._pool.acquire() as conn:
                     res = await conn.execute(
                         "DELETE FROM telemetry WHERE time < to_timestamp($1)", cutoff)
+                    await conn.execute("DELETE FROM events WHERE wall_t < $1", cutoff)
+                    if self.production_retention_days > 0:
+                        await conn.execute(
+                            "DELETE FROM production WHERE wall_t < $1",
+                            _time.time() - self.production_retention_days * 86400.0)
                 deleted = int(res.split()[-1]) if res else 0
             else:
                 return
@@ -158,12 +284,21 @@ class Historian:
     def _sqlite_prune(self, cutoff: float) -> int:
         with self._sqlite_lock:
             cur = self._sqlite.execute("DELETE FROM telemetry WHERE wall_t < ?", (cutoff,))
+            # 事件與 telemetry 同一個保留期;逐件明細更短(見 production_retention_days),
+            # production_hourly **不清** —— 一學期的良率趨勢就靠它,而它一天也才幾千列。
+            self._sqlite.execute("DELETE FROM events WHERE wall_t < ?", (cutoff,))
+            if self.production_retention_days > 0:
+                import time as _time
+                self._sqlite.execute(
+                    "DELETE FROM production WHERE wall_t < ?",
+                    (_time.time() - self.production_retention_days * 86400.0,))
             self._sqlite.commit()
             # 釋放出的頁面會被之後的寫入重複使用(檔案停止成長);要實際縮小檔案
             # 得離線跑一次 VACUUM —— 那會鎖表數十秒,不適合在活廠自動做。
             return cur.rowcount
 
     async def _flush(self) -> None:
+        await self._flush_records()
         if self.degraded or not self._buffer:
             return
         batch, self._buffer = self._buffer, []
@@ -189,6 +324,57 @@ class Historian:
                 "INSERT INTO telemetry(wall_t, sim_t, device_id, tag, value) VALUES (?,?,?,?,?)",
                 batch,
             )
+            self._sqlite.commit()
+
+    # ── 事件 / 逐件 / 彙總的 flush ─────────────────────────
+    _EV_COLS = "wall_t, sim_t, device_id, company_id, type, from_state, to_state, stop_reason"
+    _PROD_COLS = ("wall_t, sim_t, serial, device_id, company_id, template, good, defect, order_id")
+    # 彙總是 upsert:同一小時同一台同一種結果只有一列,件數累加(SQLite 3.24+ / PG 都支援)
+    _HOURLY_UPSERT_SQLITE = (
+        "INSERT INTO production_hourly(hour_t, device_id, company_id, template, defect, pieces) "
+        "VALUES (?,?,?,?,?,?) ON CONFLICT(hour_t, device_id, defect) "
+        "DO UPDATE SET pieces = pieces + excluded.pieces")
+    _HOURLY_UPSERT_PG = (
+        "INSERT INTO production_hourly(hour_t, device_id, company_id, template, defect, pieces) "
+        "VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT(hour_t, device_id, defect) "
+        "DO UPDATE SET pieces = production_hourly.pieces + excluded.pieces")
+
+    async def _flush_records(self) -> None:
+        if self.degraded:
+            return
+        evs, self._ev_buffer = self._ev_buffer, []
+        prods, self._prod_buffer = self._prod_buffer, []
+        hourly = [(k[0], k[1], k[2], k[3], k[4], n) for k, n in self._hourly_acc.items()]
+        self._hourly_acc.clear()
+        if not (evs or prods or hourly):
+            return
+        try:
+            if self.backend == "sqlite":
+                await asyncio.to_thread(self._sqlite_write_records, evs, prods, hourly)
+            elif self._pool is not None:
+                async with self._pool.acquire() as conn:
+                    if evs:
+                        await conn.executemany(
+                            f"INSERT INTO events({self._EV_COLS}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)", evs)
+                    if prods:
+                        await conn.executemany(
+                            f"INSERT INTO production({self._PROD_COLS}) "
+                            "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)", prods)
+                    if hourly:
+                        await conn.executemany(self._HOURLY_UPSERT_PG, hourly)
+        except Exception as exc:
+            print(f"[historian] 事件 / 生產紀錄 flush 失敗:{exc}")
+
+    def _sqlite_write_records(self, evs, prods, hourly) -> None:
+        with self._sqlite_lock:
+            if evs:
+                self._sqlite.executemany(
+                    f"INSERT INTO events({self._EV_COLS}) VALUES (?,?,?,?,?,?,?,?)", evs)
+            if prods:
+                self._sqlite.executemany(
+                    f"INSERT INTO production({self._PROD_COLS}) VALUES (?,?,?,?,?,?,?,?,?)", prods)
+            if hourly:
+                self._sqlite.executemany(self._HOURLY_UPSERT_SQLITE, hourly)
             self._sqlite.commit()
 
     def start_background(self) -> None:
@@ -243,6 +429,122 @@ class Historian:
             {"wall_t": r["wall_t"], "sim_t": r["sim_t"], "value": r["value"]}
             for r in reversed(records)
         ]
+
+    # ── 查詢:事件 / 逐件生產 / 每小時彙總 ──────────────────
+    async def query_events(self, device_id=None, company_id=None, ev_type=None,
+                           stop_reason=None, t_from=None, t_to=None, limit=2000) -> List[dict]:
+        """狀態轉換 / 故障事件。學生用它算 MTBF / MTTR、做停機 Pareto。"""
+        cols = ["wall_t", "sim_t", "device_id", "company_id", "type",
+                "from_state", "to_state", "stop_reason"]
+        filters = [("device_id", device_id), ("company_id", company_id),
+                   ("type", ev_type), ("stop_reason", stop_reason)]
+        if self.degraded:
+            rows = [r for r in self._mem_events
+                    if all(v is None or r.get(k) == v for k, v in filters)
+                    and (t_from is None or r["wall_t"] >= t_from)
+                    and (t_to is None or r["wall_t"] <= t_to)]
+            return rows[-limit:]
+        return await self._query_table("events", cols, filters, t_from, t_to, limit)
+
+    async def query_production(self, device_id=None, company_id=None, serial=None,
+                               good=None, defect=None, t_from=None, t_to=None,
+                               limit=2000) -> List[dict]:
+        """逐件生產明細(追溯用)。序號 / 良不良 / 不良類型都是現場看得到的品質結果,
+        **不含** ground-truth(哪個元件在壞、健康度多少)。"""
+        cols = ["wall_t", "sim_t", "serial", "device_id", "company_id", "template",
+                "good", "defect", "order_id"]
+        filters = [("device_id", device_id), ("company_id", company_id),
+                   ("serial", serial), ("defect", defect),
+                   ("good", None if good is None else (1 if good else 0))]
+        if self.degraded:
+            def _match(r):
+                for k, v in filters:
+                    if v is None:
+                        continue
+                    rv = int(bool(r["good"])) if k == "good" else r.get(k)
+                    if rv != v:
+                        return False
+                return True
+            rows = [r for r in self._mem_prod if _match(r)
+                    and (t_from is None or r["wall_t"] >= t_from)
+                    and (t_to is None or r["wall_t"] <= t_to)]
+            return rows[-limit:]
+        rows = await self._query_table("production", cols, filters, t_from, t_to, limit)
+        for r in rows:
+            r["good"] = bool(r["good"])
+        return rows
+
+    async def query_production_hourly(self, device_id=None, company_id=None,
+                                      t_from=None, t_to=None, limit=5000) -> List[dict]:
+        """每台每小時 × 每種結果的件數(defect='' 代表良品)。明細清掉後趨勢仍在。"""
+        cols = ["hour_t", "device_id", "company_id", "template", "defect", "pieces"]
+        filters = [("device_id", device_id), ("company_id", company_id)]
+        if self.degraded:
+            agg: Dict[tuple, int] = defaultdict(int)
+            for r in self._mem_prod:
+                if device_id and r["device_id"] != device_id:
+                    continue
+                if company_id and r["company_id"] != company_id:
+                    continue
+                hour_t = (r["wall_t"] // HOUR_S) * HOUR_S
+                if t_from is not None and hour_t < (t_from // HOUR_S) * HOUR_S:
+                    continue
+                if t_to is not None and hour_t > t_to:
+                    continue
+                key = (hour_t, r["device_id"], r["company_id"], r["template"],
+                       "" if r["good"] else (r["defect"] or "unknown"))
+                agg[key] += 1
+            out = [{"hour_t": k[0], "device_id": k[1], "company_id": k[2], "template": k[3],
+                    "defect": k[4], "pieces": n} for k, n in agg.items()]
+            # 還沒 flush 的當下這一批也要算進去,不然剛跑起來的世界看起來像沒生產
+            for k, n in self._hourly_acc.items():
+                if device_id and k[1] != device_id:
+                    continue
+                if company_id and k[2] != company_id:
+                    continue
+                out.append({"hour_t": k[0], "device_id": k[1], "company_id": k[2],
+                            "template": k[3], "defect": k[4], "pieces": n})
+            return sorted(out, key=lambda r: (r["hour_t"], r["device_id"]))[-limit:]
+        return await self._query_table("production_hourly", cols, filters,
+                                       t_from, t_to, limit, time_col="hour_t")
+
+    async def _query_table(self, table: str, cols: List[str], filters: List[tuple],
+                           t_from, t_to, limit: int, time_col: str = "wall_t") -> List[dict]:
+        """三張新表共用的查詢組裝(SQLite ? 佔位 / PG $n 佔位)。"""
+        active = [(k, v) for k, v in filters if v is not None]
+        if self.backend == "sqlite":
+            clauses = [f"{k} = ?" for k, _ in active]
+            params = [v for _, v in active]
+            if t_from is not None:
+                clauses.append(f"{time_col} >= ?"); params.append(t_from)
+            if t_to is not None:
+                clauses.append(f"{time_col} <= ?"); params.append(t_to)
+            where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+            sql = (f"SELECT {', '.join(cols)} FROM {table} {where} "
+                   f"ORDER BY {time_col} DESC LIMIT ?")
+            params.append(int(limit))
+            rows = await asyncio.to_thread(self._sqlite_fetch, sql, params)
+            return [dict(zip(cols, r)) for r in reversed(rows)]
+        if self._pool is None:
+            return []
+        clauses, params = [], []
+        for k, v in active:
+            params.append(v); clauses.append(f"{k} = ${len(params)}")
+        if t_from is not None:
+            params.append(t_from); clauses.append(f"{time_col} >= ${len(params)}")
+        if t_to is not None:
+            params.append(t_to); clauses.append(f"{time_col} <= ${len(params)}")
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        params.append(int(limit))
+        sql = (f"SELECT {', '.join(cols)} FROM {table} {where} "
+               f"ORDER BY {time_col} DESC LIMIT ${len(params)}")
+        async with self._pool.acquire() as conn:
+            records = await conn.fetch(sql, *params)
+        return [dict(r) for r in reversed(records)]
+
+    def _sqlite_fetch(self, sql: str, params: list) -> list:
+        with self._sqlite_lock:
+            return self._sqlite.execute(sql, params).fetchall()
 
     def _sqlite_query(self, device_id, tag, t_from, t_to, limit) -> List[dict]:
         clauses = ["device_id = ?", "tag = ?"]

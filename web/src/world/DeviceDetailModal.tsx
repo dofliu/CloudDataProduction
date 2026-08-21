@@ -24,6 +24,11 @@ import AoiInspection3D from "./AoiInspection3D";
 import WeldingCell3D from "./WeldingCell3D";
 import LaserCutter3D from "./LaserCutter3D";
 import PackagingMachine3D from "./PackagingMachine3D";
+import MeltingFurnace3D from "./MeltingFurnace3D";
+import DieCastingMachine3D from "./DieCastingMachine3D";
+import InductionHeater3D from "./InductionHeater3D";
+import ForgingPress3D from "./ForgingPress3D";
+import TrimmingPress3D from "./TrimmingPress3D";
 
 const SCENES: Record<string, React.ComponentType<MachineProps>> = {
   cnc_machining_center: CncMachine3D,
@@ -41,6 +46,11 @@ const SCENES: Record<string, React.ComponentType<MachineProps>> = {
   welding_cell: WeldingCell3D,
   laser_cutter: LaserCutter3D,
   packaging_machine: PackagingMachine3D,
+  melting_furnace: MeltingFurnace3D,
+  die_casting_machine: DieCastingMachine3D,
+  induction_heater: InductionHeater3D,
+  forging_press: ForgingPress3D,
+  trimming_press: TrimmingPress3D,
 };
 
 const KIND_NAME: Record<string, string> = {

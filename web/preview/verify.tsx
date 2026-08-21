@@ -28,6 +28,11 @@ import AoiInspection3D from "../src/world/AoiInspection3D";
 import WeldingCell3D from "../src/world/WeldingCell3D";
 import LaserCutter3D from "../src/world/LaserCutter3D";
 import PackagingMachine3D from "../src/world/PackagingMachine3D";
+import MeltingFurnace3D from "../src/world/MeltingFurnace3D";
+import DieCastingMachine3D from "../src/world/DieCastingMachine3D";
+import InductionHeater3D from "../src/world/InductionHeater3D";
+import ForgingPress3D from "../src/world/ForgingPress3D";
+import TrimmingPress3D from "../src/world/TrimmingPress3D";
 
 const SCENES: Record<string, React.ComponentType<any>> = {
   cnc_machining_center: CncMachine3D, robot_arm_6axis: RobotArm3D, injection_molding: InjectionMolding3D,
@@ -36,6 +41,9 @@ const SCENES: Record<string, React.ComponentType<any>> = {
   semi_process_chamber: ProcessChamber3D, heat_treat_furnace: HeatTreatFurnace3D,
   aoi_inspection: AoiInspection3D, welding_cell: WeldingCell3D,
   laser_cutter: LaserCutter3D, packaging_machine: PackagingMachine3D,
+  melting_furnace: MeltingFurnace3D, die_casting_machine: DieCastingMachine3D,
+  induction_heater: InductionHeater3D, forging_press: ForgingPress3D,
+  trimming_press: TrimmingPress3D,
 };
 
 type Frame = { sim_t: number; multiplier: number; devices: Record<string, any> };

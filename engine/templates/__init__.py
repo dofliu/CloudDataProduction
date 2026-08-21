@@ -23,6 +23,12 @@ from .aoi_inspection import build as _build_aoi
 from .welding_cell import build as _build_welding
 from .laser_cutter import build as _build_laser
 from .packaging_machine import build as _build_packaging
+# 鑄造 / 鍛造上游(2026-08-21:手工具製程主要流程圖的前段)
+from .melting_furnace import build as _build_melting
+from .die_casting_machine import build as _build_diecast
+from .induction_heater import build as _build_induction
+from .forging_press import build as _build_forging
+from .trimming_press import build as _build_trimming
 
 # template 名稱 → builder
 _REGISTRY: Dict[str, Callable] = {
@@ -41,6 +47,12 @@ _REGISTRY: Dict[str, Callable] = {
     "welding_cell": _build_welding,
     "laser_cutter": _build_laser,
     "packaging_machine": _build_packaging,
+    # 鑄造 / 鍛造上游
+    "melting_furnace": _build_melting,
+    "die_casting_machine": _build_diecast,
+    "induction_heater": _build_induction,
+    "forging_press": _build_forging,
+    "trimming_press": _build_trimming,
 }
 
 

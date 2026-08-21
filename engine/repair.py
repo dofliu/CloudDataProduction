@@ -56,6 +56,18 @@ REPAIR_ACTIONS: Dict[str, dict] = {
         "signature": "單一訊號與其他相關訊號**脫鉤**:卡住不動、整條平移、或憑空出現漂移;"
                      "但同機其他訊號與產出一切正常。",
     },
+    "reline_refractory": {
+        "label": "重砌 / 修補耐火爐襯",
+        "duration_h": 24.0,
+        "signature": "爐殼外壁溫度一路上升、同樣功率維持不住熔湯溫度;爐溫與功率的關係整個走樣。"
+                     "這是熱設備最貴的一次停機 —— 拖到爐襯破損就不是停一天而已。",
+    },
+    "clear_blockage": {
+        "label": "清除堆積 / 疏通(爐渣 / 氧化皮 / 噴嘴 / 水路結垢)",
+        "duration_h": 2.0,
+        "signature": "流量或壓力掉、堆積物指標(含渣量 / 氧化皮)升,但驅動端的電流與振動都正常 ——"
+                     "機構沒壞,是通道被堵住了。清乾淨就恢復,換件是白花錢。",
+    },
     "overhaul": {
         "label": "整機大修(不需診斷)",
         "duration_h": 24.0,
@@ -112,6 +124,20 @@ _COMPONENT_ACTION: Dict[str, str] = {
     "led_aging": "replace_electrical",
     "torch_cable_aging": "replace_electrical",
     "sealer_heater_aging": "replace_electrical",
+    "coil_insulation": "replace_electrical",          # 感應線圈絕緣:漏電流升、功因掉
+    # 耐火 / 堆積(2026-08-21 鑄造 / 鍛造上游)
+    "refractory_wear": "reline_refractory",
+    "slag_buildup": "clear_blockage",                 # 爐渣:清渣即恢復,不是換爐
+    "descaler_clog": "clear_blockage",                # 除鱗噴嘴堵:清噴嘴,不是換鍛模
+    "cooling_scale": "clear_blockage",                # 冷卻水路結垢:除垢即恢復流量
+    "electrode_wear": "replace_wear_part",            # 電極是消耗品
+    "die_thermal_fatigue": "replace_wear_part",       # 壓鑄模熱疲勞龜裂
+    "trim_die_edge": "replace_wear_part",             # 切邊刀口鈍化
+    "ejector_wear": "replace_wear_part",
+    "ram_guide_wear": "replace_wear_part",            # 滑塊導軌 / 銅板
+    "hydraulic_accumulator": "service_fluid_system",
+    "vacuum_seal_wear": "service_fluid_system",
+    "coupling_drift": "recalibrate_process",          # 線圈耦合走樣:重新校正加熱配方
 }
 
 # 關鍵字後援:新模板取了沒登記的元件名時,盡量還是猜得到對症動作,

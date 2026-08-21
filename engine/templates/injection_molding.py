@@ -26,7 +26,11 @@ _TAG_SPEC = (
     + [("oil_temp", "degC", "float32"),
        ("cycle_time", "s", "float32"),
        ("vibration_rms", "mm/s", "float32"),
-       ("shot_count", "count", "int32")]
+       ("shot_count", "count", "int32"),
+       # 品質(2026-08-21 補):先前射出只有製程參數,沒有「這模做出來好不好」。
+       # 兩支的來源不同 —— 短射看計量(螺桿磨耗 / 料溫),重量偏差看保壓穩定度(油壓泵)。
+       ("short_shot_rate", "%", "float32"),          # 短射率:計量不足,射不飽
+       ("part_weight_deviation", "g", "float32")]    # 成品重量偏差:保壓不穩
 )
 _INDICATORS = {"screw_wear", "heater_drift"}
 _DEFAULT_DEGRADATION = {
@@ -99,14 +103,52 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
     tag_by_name["vibration_rms"].driver = drv_vib
     tag_by_name["shot_count"].driver = drv_shots
 
+    # ── 品質:短射率與重量偏差 ──────────────────────────────
+    WEIGHT_TOL_G = 1.5     # 成品重量規格上下限(±1.5 g)
+    BASE_SCRAP = 0.005     # 健康機台的隨機不良底線(料批含水率 / 脫模等未建模原因)
+
+    def _short_shot_pct(comps) -> float:
+        h_screw = health_of(comp_map, "screw_wear")
+        h_heat = health_of(comp_map, "heater_drift")
+        # 螺桿磨耗 → 逆止環洩料 → 計量不足;料溫偏低 → 流動性差 → 一樣射不飽
+        return 0.25 + 11.0 * (1.0 - h_screw) ** 1.4 + 4.0 * (1.0 - h_heat) ** 1.2
+
+    def _weight_dev_g(comps) -> float:
+        h_pump = health_of(comp_map, "hydraulic_pump")
+        return 0.18 + 2.4 * (1.0 - h_pump) ** 1.3      # 保壓不穩 → 每模灌進去的量飄
+
+    def drv_short_shot(op, comps, dt):
+        if not op["running"]:
+            return 0.0
+        return max(0.0, _short_shot_pct(comps) + gaussian_noise(nrng, 0.08))
+
+    def drv_weight_dev(op, comps, dt):
+        if not op["running"]:
+            return 0.0
+        return max(0.0, _weight_dev_g(comps) + gaussian_noise(nrng, 0.04))
+
+    tag_by_name["short_shot_rate"].driver = drv_short_shot
+    tag_by_name["part_weight_deviation"].driver = drv_weight_dev
+
     def oee_fn(op, comps):
         h = health_of(comp_map, "screw_wear")
         return CYCLE_S / _cycle(h), max(0.5, 1.0 - (1.0 - h) * 0.45)
 
+    def quality_fn(op, comps, tag_by):
+        """逐件判良:短射直接就是不良;重量偏差撞到 ±1.5 g 規格也是不良。
+        兩者機率獨立疊加 —— 學生要分辨「該保養螺桿」還是「油壓保壓出問題」。"""
+        if not op["running"]:
+            return 0.0, "short_shot"
+        p_short = min(0.95, _short_shot_pct(comps) / 100.0)
+        p_weight = min(0.60, max(0.0, (_weight_dev_g(comps) - WEIGHT_TOL_G * 0.55) / WEIGHT_TOL_G))
+        both = p_short + (1.0 - p_short) * p_weight
+        p = BASE_SCRAP + (1.0 - BASE_SCRAP) * both
+        return p, ("short_shot" if p_short >= p_weight else "weight_out_of_spec")
+
     device = Device(
         device_id=device_id, template="injection_molding", tags=tags,
         components=components, duty=duty, protocols=protocols, company_id=company_id,
-        oee_fn=oee_fn, pre_step_fn=pre_step,
+        oee_fn=oee_fn, quality_fn=quality_fn, pre_step_fn=pre_step,
     )
     tag_by_name["state"].driver = lambda op, c, dt: float(STATE_CODES.get(device.state, 0))
     return device

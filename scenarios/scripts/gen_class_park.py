@@ -321,7 +321,10 @@ INTRO = ("課堂教學用**合成**工廠(#{n:02d});{label} · 主力產品:{pro
 LINE_PRODUCERS = {"cnc_machining_center", "injection_molding",
                   "stamping_press", "semi_process_chamber",
                   "welding_cell", "laser_cutter",
-                  "aoi_inspection", "packaging_machine"}
+                  "aoi_inspection", "packaging_machine",
+                  # 鑄造 / 鍛造上游(2026-08-21)
+                  "melting_furnace", "die_casting_machine",
+                  "induction_heater", "forging_press", "trimming_press"}
 
 
 def derive_line(devices: list[dict]) -> list[str] | None:
@@ -331,8 +334,22 @@ def derive_line(devices: list[dict]) -> list[str] | None:
     convs = [d["id"] for d in devices if d["template"] == "conveyor"]
     if not arms:
         return None
-    if len(producers) >= 2:
-        return [producers[0], arms[0], producers[1]]        # A → 手臂 → B(兩站加工)
+    # 多站交錯(2026-08-21):producer → 手臂 → producer → 手臂 → …,手臂不夠就在那裡收尾。
+    # 鑄造 / 鍛造那種「熔煉 → 壓鑄 → 整修」的三站以上製程才接得起來;
+    # 兩站的舊配方走同一條路徑,結果與先前完全相同(零回歸)。
+    seq: list[str] = []
+    for i, pid in enumerate(producers):
+        if i > 0:
+            if i - 1 >= len(arms):
+                break                                       # 手臂用完 → 線到此為止
+            seq.append(arms[i - 1])
+        seq.append(pid)
+    if len(seq) >= 3:
+        # 還有剩的手臂 + 輸送帶 → 末端接出貨段
+        used_arms = max(0, (len(seq) - 1) // 2)
+        if convs and used_arms < len(arms):
+            seq += [arms[used_arms], convs[0]]
+        return seq
     if len(producers) == 1 and convs:
         return [producers[0], arms[0], convs[0]]            # 加工 → 手臂 → 輸送帶出貨
     return None
@@ -355,6 +372,9 @@ ZH = {
     "heat_treat_furnace": "熱處理爐",
     "aoi_inspection": "AOI 光學檢測站", "welding_cell": "焊接機器人工作站",
     "laser_cutter": "雷射切割機", "packaging_machine": "包裝機",
+    "melting_furnace": "熔煉爐", "die_casting_machine": "壓鑄機",
+    "induction_heater": "感應加熱爐", "forging_press": "鍛造壓機",
+    "trimming_press": "毛胚整修機",
 }
 ALL_TEMPLATES = set(ZH)
 
@@ -433,6 +453,22 @@ def build() -> tuple[list[dict], list[str]]:
          "自動包裝",
          "成品在包裝機封口裝箱,智慧電表監測包裝線能耗與稼動。",
          ["packaging_machine", "energy_meter"]),
+        # 鑄造 / 鍛造上游(2026-08-21 追加):手工具製程主要流程圖的第 1 段「原料與成形」。
+        # 兩間各自成線,再與既有機加工廠接成「素材 → 成形 → 機械加工」的供應鏈。
+        ("c70", "冶昌金屬", "casting", "鋁合金壓鑄毛胚", "🔥",
+         "熔煉鑄造",
+         "回爐料在熔煉爐熔成 1450 °C 熔湯,每 72 秒傾轉出一籃湯;六軸手臂送至壓鑄機成形,"
+         "再由手臂搬上輸送帶出貨為壓鑄毛胚。熔煉爐是全線瓶頸(72 秒一籃),"
+         "壓鑄機的稼動率會誠實反映等湯的時間。",
+         ["melting_furnace", "robot_arm_6axis", "die_casting_machine",
+          "robot_arm_6axis", "conveyor"]),
+        ("c71", "鋒鍛工業", "forging", "手工具鍛造胚料", "🔨",
+         "熱模鍛造",
+         "外購棒料先進感應加熱爐加熱到 1180 °C,六軸手臂送進鍛造壓機一擊成形,"
+         "再由手臂送到毛胚整修機切除飛邊,成為可進機械加工的鍛胚。"
+         "加熱溫度不足的棒料鍛出來會有摺疊裂紋 —— 出料溫度是這條線的第一個品質關卡。",
+         ["induction_heater", "robot_arm_6axis", "forging_press",
+          "robot_arm_6axis", "trimming_press"]),
     ]
     for cid, name, industry, product, icon, label, story, tmpls in NEW_FACTORIES:
         devices = []
@@ -479,6 +515,7 @@ STAGE = {
     "laser_cutting": 0,                                      # 雷切下料(成形)
     "welding": 1,                                            # 焊接接合(加工)
     "inspection": 2, "packaging": 2,                         # 檢測 / 包裝(精整收尾)
+    "casting": 0, "forging": 0,                              # 鑄造 / 鍛造(素材成形,最上游)
 }
 # 進料名用上游產業的「中間料」語彙(A 出給 B 的是半成品,不是 A 的整個主力產品名)
 PART_BY_INDUSTRY = {
@@ -488,12 +525,15 @@ PART_BY_INDUSTRY = {
     "cutting_tools": "切削刀具", "logistics": "物流設備部件",
     "laser_cutting": "雷切下料件", "welding": "焊接組件",
     "inspection": "檢驗合格件", "packaging": "包裝成品",
+    "casting": "熔鑄棒料", "forging": "鍛造胚料",
 }
 # 只有這些 template 有「完成一件」的累積量 tag,供應鏈才數得出誰出了幾件
 # (與 engine/line.py 的 COUNT_TAGS 一致)。沒有這種設備的廠不參與供應鏈 ——
 # 電表廠 / 壓縮機房本來就不是在做零件,硬接進去只會在啟動時噴一堆略過警告。
 SUPPLY_TEMPLATES = {"cnc_machining_center", "injection_molding", "stamping_press", "semi_process_chamber",
-                    "welding_cell", "laser_cutter", "aoi_inspection", "packaging_machine"}
+                    "welding_cell", "laser_cutter", "aoi_inspection", "packaging_machine",
+                    "melting_furnace", "die_casting_machine", "induction_heater",
+                    "forging_press", "trimming_press"}
 # 每條鏈的**最後一段**不給外部備援(external_backup_h=0)—— 刻意留一個對照組:
 # 有備援的那幾段會看到「靠外購撐著」,沒備援的那段上游一停就真的死給你看。
 BACKUP_H = 3.0
@@ -509,16 +549,34 @@ def build_supply_chain(companies: list[dict]) -> list[dict]:
     # 新產業廠(c66~c69)不進一般 pool —— 塞進去會補滿舊 pool 的最後一組,
     # 改變既有鏈的成員;獨立成鏈(雷切下料 → 焊接 → 檢測 → 包裝)故事也才連貫。
     NEW_CHAIN_IDS = {"c66", "c67", "c68", "c69"}
+    # 鑄造 / 鍛造上游(2026-08-21)**刻意不接供應鏈**,理由寫在這裡免得下次又有人想接:
+    #
+    # 引擎的供應鏈是 **1 件換 1 件**(engine/supply.py:上游 shipped +1 → 下游進料倉 +1)。
+    # 但真實的「熔煉 → 鍛造」不是 1:1 —— 一籃 1450 °C 熔湯連鑄下去可以出很多支棒料。
+    # 硬把 c70(一籃 72 秒)接給 c71(一支棒料 22 秒)會讓鍛造廠一天餓料 4.5 小時、
+    # 感應加熱爐利用率剩 10%,看起來像壞掉的工廠 —— 那是**模型單位的假象**,不是工廠事實,
+    # 寫進場景就是拿假資料教學(違反鐵則二)。
+    #
+    # 正解有兩條:① 供應鏈支援「產出比」(上游 1 件 = 下游 N 件),那是資料契約改動,要另案;
+    # ② 等 B 批的手工具廠上線,鍛造胚料 → 手工具組裝的節拍本來就對得上,再接才誠實。
+    # 現在先讓兩間各自跑完整產線,不接鏈。
+    UPSTREAM_CHAIN_IDS = {"c70", "c71"}
     pool = [c for c in companies
             if c["id"] != "c65" and c["id"] not in NEW_CHAIN_IDS
+            and c["id"] not in UPSTREAM_CHAIN_IDS
             and any(d["template"] in SUPPLY_TEMPLATES for d in c["devices"])]
     new_group = sorted((c for c in companies if c["id"] in NEW_CHAIN_IDS),
                        key=lambda c: c["id"])
+    upstream_group = sorted((c for c in companies if c["id"] in UPSTREAM_CHAIN_IDS),
+                            key=lambda c: c["id"])
     # 舊 pool 依原規則切組;新四廠**單獨一組**(不能直接 append 進 pool ——
     # 舊 pool 尾組不滿 4 時會被新廠補滿,既有鏈成員就變了)。
     groups = [pool[i:i + CHAIN_LEN] for i in range(0, len(pool), CHAIN_LEN)]
     if new_group:
         groups.append(new_group)
+    # upstream_group(c70/c71)不進 groups —— 見上面的理由。留著變數是為了讓「為什麼沒接」
+    # 這件事在程式裡看得見,而不是靠記憶。
+    _ = upstream_group
     links: list[dict] = []
     for chain in groups:
         if len(chain) < 2:

@@ -71,6 +71,9 @@ jobs:
       - name: 整合建廠自動上線(compose / 點位表 / 守恆)
         run: python3 tests/test_commissioning.py
 
+      - name: 資料鏈(停機原因碼 / 逐件生產 / 事件落地)
+        run: python3 tests/test_production_records.py
+
   # ── 前端型別 + 建置 ──────────────────────────────────────
   web:
     name: 前端 tsc + build
@@ -91,7 +94,7 @@ jobs:
 
   # ── 動畫 ↔ 模擬資料一致性(開真的瀏覽器讀場景世界座標)──
   animation:
-    name: 動畫一致性(38 項)
+    name: 動畫一致性(48 項)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     needs: [scenario, web]

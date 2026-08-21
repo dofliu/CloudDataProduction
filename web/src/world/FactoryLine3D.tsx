@@ -29,6 +29,11 @@ import { AoiInspectionModel } from "./AoiInspection3D";
 import { WeldingCellModel } from "./WeldingCell3D";
 import { LaserCutterModel } from "./LaserCutter3D";
 import { PackagingMachineModel } from "./PackagingMachine3D";
+import { MeltingFurnaceModel } from "./MeltingFurnace3D";
+import { DieCastingMachineModel } from "./DieCastingMachine3D";
+import { InductionHeaterModel } from "./InductionHeater3D";
+import { ForgingPressModel } from "./ForgingPress3D";
+import { TrimmingPressModel } from "./TrimmingPress3D";
 
 import { ARM_REACH_X, LINE_SCALE, layoutLine } from "./processFlow";
 
@@ -50,6 +55,11 @@ const MODELS: Record<string, ModelComp> = {
   welding_cell: WeldingCellModel,
   laser_cutter: LaserCutterModel,
   packaging_machine: PackagingMachineModel,
+  melting_furnace: MeltingFurnaceModel,
+  die_casting_machine: DieCastingMachineModel,
+  induction_heater: InductionHeaterModel,
+  forging_press: ForgingPressModel,
+  trimming_press: TrimmingPressModel,
 };
 
 /**

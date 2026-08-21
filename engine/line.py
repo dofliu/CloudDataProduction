@@ -44,6 +44,11 @@ COUNT_TAGS: Dict[str, str] = {
     "laser_cutter": "cut_count",
     "aoi_inspection": "inspected_count",
     "packaging_machine": "package_count",
+    "melting_furnace": "tap_count",
+    "die_casting_machine": "cast_count",
+    "induction_heater": "billet_count",
+    "forging_press": "forge_count",
+    "trimming_press": "trim_count",
 }
 HANDLER_TEMPLATES = {"robot_arm_6axis"}
 TERMINAL_TEMPLATES = {"conveyor"}
@@ -68,6 +73,11 @@ NOMINAL_CYCLE_S: Dict[str, float] = {
     "laser_cutter": 24.0,
     "aoi_inspection": 15.0,
     "packaging_machine": 15.0,
+    "melting_furnace": 72.0,
+    "die_casting_machine": 65.0,
+    "induction_heater": 22.0,
+    "forging_press": 12.0,
+    "trimming_press": 9.0,
 }
 
 
@@ -80,6 +90,7 @@ class _Station:
         self.on_belt: List[float] = []      # terminal 輸送帶:帶上各工件的剩餘輸送秒數
         self.prev_count: Optional[int] = None   # 累積量 tag 上次讀值(None=尚未初始化)
         self.need_items = 1                 # 本拍要完成幾件(= ceil(dt/節拍);gate() 更新)
+        self.make_items = 1                 # 本拍做得出幾件(出料緩衝下限;gate() 更新)
         self.count_tag = None               # 累積量 tag 物件(快取)
         tag_name = COUNT_TAGS.get(device.template) or (
             "cycle_count" if device.template in HANDLER_TEMPLATES else None)
@@ -116,7 +127,15 @@ class ProductionLine:
                 st.need_items = max(1, math.ceil(dt_sim / max(1e-6, cyc) - 1e-9)) if dt_sim > 0 else 1
                 d.line_has_input = st.in_buf >= st.need_items
             if st.role in ("source", "mid"):
-                d.line_output_blocked = st.out_buf >= OUT_CAP
+                # 出料緩衝至少要裝得下**這一拍做得出來的量**。先前固定 OUT_CAP=3:
+                # 節拍 22 s 的站在 dt=120 s 的粗 tick 下一拍能做 5 件,做到第 3 件就被判
+                # 「滿料阻塞」停機 —— 那是 tick 粒度造成的假瓶頸,不是工廠事實
+                # (實測:感應加熱爐因此有 58% 的時間掛在 blocked,退化累積不起來,
+                #  週包產生器就因為「注入的故障長不到可偵測量」而拒產)。
+                # dt ≤ 節拍時 make_items = 1 ≤ OUT_CAP,與先前完全等價(零回歸)。
+                cyc_out = self._cycle_s(st) or NOMINAL_CYCLE_S.get(d.template, 45.0)
+                st.make_items = max(1, math.ceil(dt_sim / max(1e-6, cyc_out) - 1e-9)) if dt_sim > 0 else 1
+                d.line_output_blocked = st.out_buf >= max(OUT_CAP, st.make_items)
             if st.role == "handler":
                 # 手臂:被授予搬運才動。line_carry = 在手件數(配額由 advance() 授予/收回)
                 d.line_carry = sum(lk["in_hand"] for lk in self.links if lk["handler"] is st)
@@ -191,9 +210,16 @@ class ProductionLine:
         學生自己讀 Modbus 也能算出同一個數字;讀不到有效值(待機)退回額定值。"""
         d = st.device
         val = {t.name: float(t.value) for t in d.tags}
-        if d.template in ("cnc_machining_center", "injection_molding", "packaging_machine"):
+        if d.template in ("cnc_machining_center", "injection_molding", "packaging_machine",
+                          "die_casting_machine", "trimming_press"):
             v = val.get("cycle_time", 0.0)
             return v if v > 0.5 else NOMINAL_CYCLE_S[d.template]
+        if d.template == "melting_furnace":
+            v = val.get("melt_cycle_time", 0.0)
+            return v if v > 0.5 else NOMINAL_CYCLE_S[d.template]
+        if d.template == "forging_press":
+            r = val.get("stroke_rate", 0.0)   # spm → 單件秒數
+            return 60.0 / r if r > 0.2 else NOMINAL_CYCLE_S[d.template]
         if d.template == "aoi_inspection":
             v = val.get("inspect_time", 0.0)
             return v if v > 0.5 else NOMINAL_CYCLE_S[d.template]

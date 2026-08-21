@@ -127,10 +127,17 @@ def build(device_id: str, cfg: dict, company_id: Optional[str] = None) -> Device
         qual = max(0.5, 1.0 - (1.0 - health_of(comps, "die_wear")) * 0.5)  # 模具磨耗 → 毛邊 → 良率掉
         return perf, qual
 
+    def quality_fn(op, comps, tag_by):
+        """逐件判良:直接用毛邊率當不良機率 —— 呼叫**同一支 driver**,不另寫一套物理。
+        讀的是健康度重算的乾淨值,不是 tag 的讀值:感測器壞掉不該讓工件跟著變不良。"""
+        if not op["running"]:
+            return 0.0, "burr"
+        return min(0.95, max(0.0, drv_burr(op, comps, 0.0) / 100.0)), "burr"
+
     device = Device(
         device_id=device_id, template="stamping_press", tags=tags,
         components=components, duty=duty, protocols=protocols, company_id=company_id,
-        oee_fn=oee_fn, pre_step_fn=pre_step,
+        oee_fn=oee_fn, quality_fn=quality_fn, pre_step_fn=pre_step,
     )
     tag_by_name["state"].driver = lambda op, c, dt: float(STATE_CODES.get(device.state, 0))
     return device

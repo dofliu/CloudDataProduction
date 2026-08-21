@@ -60,6 +60,8 @@ class World:
 
         self._subscribers: List[Subscriber] = []
         self._event_subscribers: List[Subscriber] = []
+        self._production_subscribers: List[Subscriber] = []
+        self._pending_pieces: List[dict] = []
         self._running = False
         self._last_snapshot: dict = {}
         self._prev_states: Dict[str, str] = {}      # 偵測狀態轉換用
@@ -152,6 +154,10 @@ class World:
         """訂閱事件(狀態轉換 / 故障)。"""
         self._event_subscribers.append(callback)
 
+    def subscribe_production(self, callback: Subscriber) -> None:
+        """訂閱逐件生產明細(每拍一批 list[dict])。historian 用它落地成可查詢的資料。"""
+        self._production_subscribers.append(callback)
+
     # ── 推進 ────────────────────────────────────────────────
     def step(self, dt_sim: float) -> dict:
         sim_t = self.clock.now()
@@ -166,6 +172,8 @@ class World:
         self.lines.advance(dt_sim)          # 產線記帳:完工進緩衝、授予手臂搬運、工件落下游
         self.supply.advance(dt_sim)         # 供應鏈記帳:上游出貨進倉、下游完工吃料、缺料計時
         self._pending_events = self._detect_events(sim_t)
+        # 逐件生產明細:每拍收走(引擎不留副本,鐵則一)。訂閱者(historian)負責落地。
+        self._pending_pieces = [pc for d in self.devices.values() for pc in d.drain_pieces()]
         snapshot = self._make_snapshot()
         self._last_snapshot = snapshot
         return snapshot
@@ -193,6 +201,9 @@ class World:
                 events.append({
                     "type": "state_change", "device": device.id, "company": device.company_id,
                     "from": prev, "to": cur, "sim_t": sim_t,
+                    # 為什麼轉成這個狀態(餓料 / 滿料 / 無工單 / 班外 / 教師停機 / 保養 / 故障)。
+                    # 有了它,停機 Pareto 才是一句 SQL —— 先前所有停機都只是一個 idle。
+                    "stop_reason": device.stop_reason,
                 })
             self._prev_states[device.id] = cur
             self._prev_faulted[device.id] = now_faulted
@@ -229,6 +240,14 @@ class World:
                         await cb(snapshot)
                     except Exception as exc:  # 單一訂閱者出錯不應拖垮整個世界
                         print(f"[world] telemetry 訂閱者錯誤:{exc}")
+
+            # 逐件明細不受節流:件是離散事實,少送一拍帳就對不起來
+            if self._pending_pieces:
+                for cb in self._production_subscribers:
+                    try:
+                        await cb(self._pending_pieces)
+                    except Exception as exc:
+                        print(f"[world] production 訂閱者錯誤:{exc}")
 
             # 事件(狀態轉換 / 故障)永遠即時廣播,不受節流
             for ev in self._pending_events:

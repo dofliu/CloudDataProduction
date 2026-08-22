@@ -15,7 +15,8 @@ const BASE = process.env.PREVIEW_URL || "http://localhost:5173/preview/models3d.
 const OUT = process.argv[2] || "/tmp/lineshots";
 const COMBOS = process.argv.slice(3).length ? process.argv.slice(3)
   : ["cnc", "inj", "press", "agv", "solo", "mixed",
-     "weld", "laserpack", "aoi", "casting", "forging"];
+     "weld", "laserpack", "aoi", "casting", "forging",
+     "finishing", "handtool"];
 
 function launchOpts() {
   const exe = process.env.PLAYWRIGHT_CHROMIUM

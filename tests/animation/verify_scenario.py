@@ -181,12 +181,22 @@ def check_runtime(world: World, park: dict, steps: int = 60) -> None:
 
     first = {d.id: {t.name: t.value for t in d.tags} for d in world.devices.values()}
     seen_states: dict[str, set[str]] = {did: set() for did in world.devices}
+    # 「有沒有動過」要看**整個觀測窗**,不能只比頭尾兩個取樣點 ——
+    # 會週期性起停的設備(餓料 / 滿料交替的輸送帶)很容易剛好在頭尾都停著,
+    # 中間明明動過卻被誤判成「整台凍住」。這裡逐拍記錄「和第一拍相比變過沒有」。
+    moved: dict[str, bool] = {did: False for did in world.devices}
     bad_num: list[str] = []
     for _ in range(steps):
         world.clock.advance(1.0 / hz)
         snap = world.step(dt_sim)
         for did, s in snap["devices"].items():
             seen_states[did].add(s["state"])
+            if not moved[did]:
+                base = first.get(did, {})
+                for k, v in s["tags"].items():
+                    if isinstance(v, (int, float)) and abs(float(v) - float(base.get(k, 0))) > 1e-9:
+                        moved[did] = True
+                        break
             for k, v in s["tags"].items():
                 if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
                     bad_num.append(f"{did}.{k}")
@@ -215,9 +225,9 @@ def check_runtime(world: World, park: dict, steps: int = 60) -> None:
         "累積量(件數 / 電能 / 運轉時數)全部只增不減" if not regress
         else f"累積量倒退:{regress[:10]}")
 
-    # 每台至少有一個 tag 在動(不是整台凍住)
-    frozen = [did for did in world.devices
-              if all(abs(last[did][k] - first[did].get(k, 0)) < 1e-9 for k in last[did])]
+    # 每台至少有一個 tag 在動(不是整台凍住)。判定看整段觀測窗有沒有動過,
+    # 不是只比頭尾 —— 見上面 moved 的說明。
+    frozen = [did for did in world.devices if not moved[did]]
     (ok if not frozen else fail)(
         "沒有整台數值凍住的設備" if not frozen else f"數值完全沒變的設備:{frozen[:10]}")
 

@@ -31,6 +31,11 @@ import DieCastingMachine3D from "../src/world/DieCastingMachine3D";
 import InductionHeater3D from "../src/world/InductionHeater3D";
 import ForgingPress3D from "../src/world/ForgingPress3D";
 import TrimmingPress3D from "../src/world/TrimmingPress3D";
+import GrindingPolisher3D from "../src/world/GrindingPolisher3D";
+import CleaningDryer3D from "../src/world/CleaningDryer3D";
+import PlatingLine3D from "../src/world/PlatingLine3D";
+import AssemblyStation3D from "../src/world/AssemblyStation3D";
+import TorqueTester3D from "../src/world/TorqueTester3D";
 import FactoryLine3D from "../src/world/FactoryLine3D";
 
 type Case = { title: string; template: string; state: string; tags: Record<string, number>;
@@ -181,6 +186,47 @@ const CASES: Case[] = [
     tags: { slide_position: -12, trim_force: 336, burr_height: 0.35, ejector_stroke: 18.9,
             motor_current: 18.1, cycle_time: 11.7, deform_rate: 5.2, vibration_rms: 9.4,
             trim_count: 176000 } },
+  // ── 手工具後段五機種(2026-08-22):索引 42 起,LINE_COMBOS 依賴前面的索引不動 ──
+  { title: "研磨 · 拋光中(新砂輪)", template: "grinding_polisher", state: "running",
+    tags: { spindle_rpm: 2841, grind_force: 86, surface_ra: 0.35, wheel_diameter: 344,
+            extraction_dp: 0.98, extraction_flow: 2312, spindle_temp: 54, motor_current: 14.2,
+            cycle_time: 18.3, vibration_rms: 1.3, ground_count: 8600 } },
+  { title: "研磨 · 砂輪磨耗 + 集塵堵(粗糙度超規)", template: "grinding_polisher", state: "running",
+    tags: { spindle_rpm: 2738, grind_force: 156, surface_ra: 1.51, wheel_diameter: 271,
+            extraction_dp: 4.42, extraction_flow: 1268, spindle_temp: 96, motor_current: 22.8,
+            cycle_time: 23.9, vibration_rms: 6.9, ground_count: 148000 } },
+  { title: "清洗 · 連續網帶(三區同時)", template: "cleaning_dryer", state: "running",
+    tags: { bath_temp: 61.8, bath_conductivity: 402, spray_pressure: 3.19, spray_flow: 172,
+            dry_temp: 102, residue_level: 0.44, moisture_ppm: 53, pump_current: 11.7,
+            cycle_time: 15.2, transit_time: 91, vibration_rms: 1.0, washed_count: 9400 } },
+  { title: "清洗 · 噴嘴堵(壓力升但流量掉)", template: "cleaning_dryer", state: "running",
+    tags: { bath_temp: 61.5, bath_conductivity: 1980, spray_pressure: 4.86, spray_flow: 88,
+            dry_temp: 83, residue_level: 3.79, moisture_ppm: 486, pump_current: 15.9,
+            cycle_time: 17.4, transit_time: 106, vibration_rms: 5.2, washed_count: 162000 } },
+  { title: "電鍍 · 連續掛鍍(鍍層合格)", template: "plating_line", state: "running",
+    tags: { current_density: 3.86, cell_voltage: 5.83, rectifier_ripple: 1.35, bath_temp: 54.8,
+            bath_ph: 4.46, coating_thickness: 9.28, porosity_count: 0.81, anode_mass: 114,
+            rectifier_temp: 50.4, cycle_time: 12.2, dwell_time: 732, plated_count: 11200 } },
+  { title: "電鍍 · 陽極消耗 + 鍍液老化(過薄 + 孔隙)", template: "plating_line", state: "running",
+    tags: { current_density: 2.53, cell_voltage: 8.74, rectifier_ripple: 8.9, bath_temp: 54.6,
+            bath_ph: 5.34, coating_thickness: 7.09, porosity_count: 4.86, anode_mass: 57,
+            rectifier_temp: 75.2, cycle_time: 14.3, dwell_time: 858, plated_count: 205000 } },
+  { title: "組裝 · 壓入 + 鎖付", template: "assembly_station", state: "running",
+    tags: { press_depth: 21.4, press_force: 14.1, screw_torque: 8.94, feed_success: 97.2,
+            feeder_level: 78, missing_rate: 0.26, actuator_current: 9.4, cycle_time: 14.4,
+            vibration_rms: 0.95, assembled_count: 7300 } },
+  { title: "組裝 · 給料卡料 + 起子扭力衰退", template: "assembly_station", state: "running",
+    tags: { press_depth: 24.0, press_force: 18.9, screw_torque: 6.21, feed_success: 67.4,
+            feeder_level: 21, missing_rate: 5.38, actuator_current: 12.6, cycle_time: 18.5,
+            vibration_rms: 5.1, assembled_count: 154000 } },
+  { title: "扭力測試 · 合格(錶針在允收帶內)", template: "torque_tester", state: "running",
+    tags: { applied_torque: 58.4, peak_torque: 62.1, torque_angle: 30.8, sensor_bias: 0.22,
+            clamp_pressure: 40.9, slip_events: 6, load_rate: 9.06, motor_current: 6.9,
+            cycle_time: 11.3, vibration_rms: 0.82, tested_count: 6400 } },
+  { title: "扭力測試 · 感測器漂移(良品被誤退)", template: "torque_tester", state: "running",
+    tags: { applied_torque: 51.2, peak_torque: 53.9, torque_angle: 46.2, sensor_bias: -4.61,
+            clamp_pressure: 28.7, slip_events: 341, load_rate: 6.78, motor_current: 8.4,
+            cycle_time: 13.3, vibration_rms: 4.8, tested_count: 139000 } },
 ];
 
 const SCENES: Record<string, React.ComponentType<any>> = {
@@ -190,6 +236,9 @@ const SCENES: Record<string, React.ComponentType<any>> = {
   semi_process_chamber: ProcessChamber3D, heat_treat_furnace: HeatTreatFurnace3D,
   aoi_inspection: AoiInspection3D, welding_cell: WeldingCell3D,
   laser_cutter: LaserCutter3D, packaging_machine: PackagingMachine3D,
+  grinding_polisher: GrindingPolisher3D, cleaning_dryer: CleaningDryer3D,
+  plating_line: PlatingLine3D, assembly_station: AssemblyStation3D,
+  torque_tester: TorqueTester3D,
   melting_furnace: MeltingFurnace3D, die_casting_machine: DieCastingMachine3D,
   induction_heater: InductionHeater3D, forging_press: ForgingPress3D,
   trimming_press: TrimmingPress3D,
@@ -241,6 +290,10 @@ const LINE_COMBOS: Record<string, number[]> = {
   casting: [32, 2, 34, 2, 6],
   // 感應加熱 → 手臂 → 鍛造 → 手臂 → 切邊(c71 / x01-f5 的五站鍛造線)
   forging: [36, 2, 38, 2, 40],
+  // 研磨 → 手臂 → 清洗 → 手臂 → 電鍍(c72 / x01-f6 的五站表面處理線)
+  finishing: [42, 2, 44, 2, 46],
+  // 組裝 → 手臂 → 扭力測試 → 手臂 → 輸送帶(c73 / x01-f7 的五站組裝檢驗線)
+  handtool: [48, 2, 50, 2, 6],
   // 全部混一起,壓力測試
   mixed: [0, 2, 6, 8, 10, 18, 20],
 };

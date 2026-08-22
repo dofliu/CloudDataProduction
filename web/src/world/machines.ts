@@ -633,6 +633,123 @@ export function mTrimming(g: Graphics, ox: number, oy: number, t: number, runnin
   g.rect(ox + 1.4 * MTW, oy + 1.0 * MTH - 6, 16, 9).fill(0x6b5f52).stroke({ width: 1, color: 0x4a4238 });  // 飛邊料箱
 }
 
+
+// ── 手工具後段 5 機種(2026-08-22)────────────────────────────
+/** 研磨拋光機:砂輪轉、火花噴、集塵管。 */
+export function mGrinding(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
+  ishadow(g, ox + 0.1 * MTW, oy + 1.1 * MTH, 44, 20, 0.4);
+  isoBox3(g, ox, oy, 1.9, 1.3, 13, { top: 0xa99372, left: 0x8a7658, right: 0x9a8464 });
+  isoBox3(g, ox + 0.9 * MTW, oy - 30, 0.9, 1.0, 22, { top: 0xb4a082, left: 0x9a8464, right: 0xac9674 });  // 主軸箱
+  // 砂輪(轉起來:輻條角度隨 t 走)
+  const cx = ox + 0.55 * MTW, cy = oy - 20;
+  g.circle(cx, cy, 13).fill(0x9c8878).stroke({ width: 1, color: 0x6f5f52 });
+  const a = running ? t * 5.0 : 0;
+  for (let i = 0; i < 4; i++) {
+    const th = a + (i * Math.PI) / 2;
+    g.moveTo(cx, cy).lineTo(cx + Math.cos(th) * 11, cy + Math.sin(th) * 6)
+      .stroke({ width: 1.4, color: 0x6f5f52 });
+  }
+  // 工件 + 火花
+  g.rect(ox + 0.2 * MTW, oy + 0.55 * MTH - 12, 16, 5).fill(0xc8b48e).stroke({ width: 0.7, color: 0x9a8464 });
+  if (running) {
+    for (let i = 0; i < 3; i++) {
+      const k = (t * 1.6 + i * 0.33) % 1;
+      emissive(g, cx + 4 + k * 13, cy + 6 + k * k * 9, 2.4 * (1 - k), 0xffc86a, 0.75 * (1 - k));
+    }
+  }
+  // 集塵管
+  isoBox3(g, ox + 0.9 * MTW, oy - 52, 0.34, 0.34, 20, { top: 0x6f7d85, left: 0x57646b, right: 0x64727a });
+}
+
+/** 清洗乾燥機:連續網帶 + 噴淋 + 烘乾段蒸氣(三區同時作動)。 */
+export function mCleaning(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
+  ishadow(g, ox + 0.3 * MTW, oy + 1.1 * MTH, 58, 22, 0.4);
+  isoBox3(g, ox, oy, 2.9, 1.3, 11, { top: 0x9aa6ac, left: 0x76838a, right: 0x86939a });
+  isoBox3(g, ox - 0.1 * MTW, oy - 26, 1.3, 1.1, 20, { top: 0x8fa2ab, left: 0x6d7f88, right: 0x7d8f98 });  // 噴淋罩
+  isoBox3(g, ox + 1.5 * MTW, oy - 26, 1.2, 1.1, 20, { top: 0xa8927c, left: 0x866f5c, right: 0x97806a });  // 烘乾段
+  // 網帶上連續前進的工件
+  if (running) {
+    for (let i = 0; i < 4; i++) {
+      const u = ((t * 0.28 + i / 4) % 1);
+      g.rect(ox + u * 2.6 * MTW - 6, oy + 0.5 * MTH - 10, 9, 4)
+        .fill(0x7fae7f).stroke({ width: 0.6, color: 0x4d7a4d });
+    }
+    // 噴霧
+    for (let i = 0; i < 3; i++) {
+      const k = (t * 1.1 + i * 0.31) % 1;
+      g.circle(ox + 0.15 * MTW + i * 9, oy - 6 + k * 8, 2.2 * (1 - k))
+        .fill({ color: 0xbfe2f2, alpha: 0.5 * (1 - k) });
+    }
+    // 烘乾段蒸氣
+    for (let i = 0; i < 2; i++) {
+      const k = (t * 0.55 + i * 0.5) % 1;
+      g.circle(ox + 1.6 * MTW + i * 7, oy - 30 - k * 14, 3 + k * 3)
+        .fill({ color: 0xe8eef1, alpha: 0.26 * (1 - k) });
+    }
+  }
+}
+
+/** 電鍍線:槽列 + 天車沿軌前進 + 整流器機櫃。 */
+export function mPlating(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
+  ishadow(g, ox + 0.35 * MTW, oy + 1.1 * MTH, 62, 24, 0.4);
+  isoBox3(g, ox, oy, 3.1, 1.4, 10, { top: 0x8f9ba2, left: 0x6c7980, right: 0x7d8a91 });
+  // 四個槽(鍍液面)
+  for (let i = 0; i < 4; i++) {
+    const gx = ox + (0.25 + i * 0.72) * MTW;
+    isoBox3(g, gx, oy - 16, 0.6, 0.9, 14, { top: 0x2f7a66, left: 0x225a4c, right: 0x286a58 });
+  }
+  // 天車導軌 + 天車(連續前進)
+  g.rect(ox + 0.1 * MTW, oy - 46, 2.9 * MTW, 3).fill(0x59656c);
+  const u = running ? (t * 0.22) % 1 : 0.5;
+  g.rect(ox + 0.1 * MTW + u * 2.7 * MTW, oy - 52, 11, 8)
+    .fill(0x7c8891).stroke({ width: 1, color: 0x4e5a61 });
+  g.rect(ox + 0.1 * MTW + u * 2.7 * MTW + 4, oy - 44, 2, 12).fill(0x9aa7ad);
+  // 整流器機櫃
+  isoBox3(g, ox + 3.0 * MTW, oy - 22, 0.6, 0.8, 22, { top: 0x62707a, left: 0x47545c, right: 0x54626a });
+  if (running) emissive(g, ox + 3.15 * MTW, oy - 30, 3.2, 0xff9a3c, 0.5);
+}
+
+/** 零件組裝機:門型架 + 壓頭上下 + 振動盤。 */
+export function mAssembly(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
+  ishadow(g, ox + 0.1 * MTW, oy + 1.1 * MTH, 42, 20, 0.4);
+  isoBox3(g, ox, oy, 1.8, 1.3, 12, { top: 0xa99372, left: 0x8a7658, right: 0x9a8464 });
+  isoBox3(g, ox - 0.1 * MTW, oy - 40, 0.34, 1.0, 36, { top: 0xb4a082, left: 0x9a8464, right: 0xac9674 });
+  isoBox3(g, ox + 1.2 * MTW, oy - 40, 0.34, 1.0, 36, { top: 0xb4a082, left: 0x9a8464, right: 0xac9674 });
+  // 壓頭(smoothstep 下壓,與 3D / 引擎同一條相位語意)
+  const ph = running ? (t * 0.45) % 1 : 0.0;
+  const ss = (x: number) => x * x * (3 - 2 * x);
+  const d = ph < 0.45 ? ss(ph / 0.45) : ph < 0.6 ? 1 : ph < 0.75 ? 1 - ss((ph - 0.6) / 0.15) : 0;
+  const hy = oy - 34 + d * 16;
+  isoBox3(g, ox + 0.4 * MTW, hy, 0.8, 0.8, 9, { top: 0xc4b090, left: 0x9a8464, right: 0xb4a082 });
+  g.rect(ox + 0.62 * MTW, hy + 11, 3, 9).fill(0x9aa7ad);
+  // 工件
+  g.rect(ox + 0.52 * MTW, oy + 0.5 * MTH - 12, 13, 5).fill(0x7fae7f).stroke({ width: 0.7, color: 0x4d7a4d });
+  // 振動盤
+  g.circle(ox - 0.55 * MTW, oy + 0.15 * MTH, 11).fill(0x69757c).stroke({ width: 1, color: 0x4a565c });
+  if (running) g.circle(ox - 0.55 * MTW, oy + 0.15 * MTH, 6).fill(0xb58f5a);
+}
+
+/** 扭力測試機:立柱 + 加載頭 + 扭力錶(錶針隨相位擺動)。 */
+export function mTorque(g: Graphics, ox: number, oy: number, t: number, running: boolean) {
+  ishadow(g, ox + 0.1 * MTW, oy + 1.1 * MTH, 38, 18, 0.4);
+  isoBox3(g, ox, oy, 1.6, 1.2, 12, { top: 0xa99372, left: 0x8a7658, right: 0x9a8464 });
+  isoBox3(g, ox - 0.2 * MTW, oy - 34, 0.4, 0.9, 30, { top: 0xb4a082, left: 0x9a8464, right: 0xac9674 });
+  // 加載頭(前 70% 相位下壓)
+  const ph = running ? (t * 0.58) % 1 : 0.0;
+  const load = ph < 0.7 ? ph / 0.7 : 0;
+  isoBox3(g, ox + 0.35 * MTW, oy - 26 + load * 7, 0.6, 0.6, 8,
+          { top: 0xc4b090, left: 0x9a8464, right: 0xb4a082 });
+  // 受測工具
+  g.rect(ox + 0.28 * MTW, oy + 0.45 * MTH - 11, 15, 4).fill(0x7fae7f).stroke({ width: 0.7, color: 0x4d7a4d });
+  // 扭力錶:錶盤 + 允收帶 + 錶針
+  const cx = ox + 1.25 * MTW, cy = oy - 22;
+  g.circle(cx, cy, 12).fill(0x20262a).stroke({ width: 1.2, color: 0x4a565c });
+  g.arc(cx, cy, 9, -2.2, -0.95).stroke({ width: 2.4, color: 0x3f8f5a });   // 允收帶
+  const na = -2.6 + load * 2.0;
+  g.moveTo(cx, cy).lineTo(cx + Math.cos(na) * 9, cy + Math.sin(na) * 9)
+    .stroke({ width: 1.6, color: 0xf2f6f8 });
+}
+
 export const MOFF: Record<string, P2> = {
   cnc_machining_center: [-38, -12], injection_molding: [-30, -8], robot_arm_6axis: [2, 4],
   air_compressor: [-32, -4], wind_turbine: [8, 30], semi_process_chamber: [-30, -8],
@@ -640,6 +757,8 @@ export const MOFF: Record<string, P2> = {
   aoi_inspection: [-24, -6], welding_cell: [-26, -6], laser_cutter: [-26, -6], packaging_machine: [-28, -6],
   melting_furnace: [-28, -8], die_casting_machine: [-32, -6], induction_heater: [-34, -4],
   forging_press: [-18, 6], trimming_press: [-16, 4],
+  grinding_polisher: [-20, 2], cleaning_dryer: [-40, -2], plating_line: [-46, -2],
+  assembly_station: [-18, 4], torque_tester: [-20, 4],
 };
 export function drawStation(g: Graphics, tmpl: string, t: Record<string, number>, running: boolean, animT: number, _col: number, fault: boolean) {
   const [ox, oy] = MOFF[tmpl] ?? [-20, 0];
@@ -663,6 +782,11 @@ export function drawStation(g: Graphics, tmpl: string, t: Record<string, number>
     case "induction_heater": mInduction(g, ox, oy, animT, running); break;
     case "forging_press": mForging(g, ox, oy, animT, running); break;
     case "trimming_press": mTrimming(g, ox, oy, animT, running); break;
+    case "grinding_polisher": mGrinding(g, ox, oy, animT, running); break;
+    case "cleaning_dryer": mCleaning(g, ox, oy, animT, running); break;
+    case "plating_line": mPlating(g, ox, oy, animT, running); break;
+    case "assembly_station": mAssembly(g, ox, oy, animT, running); break;
+    case "torque_tester": mTorque(g, ox, oy, animT, running); break;
     default: isoBox3(g, ox, oy, 1.6, 1.4, 24, { top: 0xc8b48e, left: 0xa08a6a, right: 0xac9674 });
   }
 }

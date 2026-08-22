@@ -99,6 +99,19 @@ def build() -> list[dict]:
          "出料溫度是這條線的第一個品質關卡。",
          ["induction_heater", "robot_arm_6axis", "forging_press",
           "robot_arm_6axis", "trimming_press"]),
+        # 手工具後段(2026-08-22):流程圖的「加工與表面處理」與「組裝檢驗包裝」兩段。
+        ("x01-f6", "研磨電鍍示範廠(新產業展示)", "surface_finishing", "手工具研磨電鍍件", "✨",
+         "鍛胚在研磨拋光機磨掉分模線,六軸手臂送進連續網帶清洗機脫脂烘乾,再掛上連續電鍍線"
+         "鍍鎳鉻。洗不乾淨的工件鍍層會附不住,但不良要到電鍍站的孔隙率才看得出來 —— "
+         "本站儀表一切正常,這是跨站根因分析的教材。",
+         ["grinding_polisher", "robot_arm_6axis", "cleaning_dryer",
+          "robot_arm_6axis", "plating_line"]),
+        ("x01-f7", "手工具組裝示範廠(新產業展示)", "handtool_assembly", "棘輪扳手成品", "🔧",
+         "鍍好的本體在組裝機壓入棘輪組並鎖上背蓋,六軸手臂送到扭力測試機逐支驗扭力,"
+         "合格品經輸送帶出貨。扭力感測器漂移時退回率會升,但那是量測系統該校正,"
+         "不是上游做壞了 —— 刻意留的陷阱題。",
+         ["assembly_station", "robot_arm_6axis", "torque_tester",
+          "robot_arm_6axis", "conveyor"]),
     ]
     for cid, name, industry, product, icon, story, tmpls in NEW_DEMOS:
         devices = []

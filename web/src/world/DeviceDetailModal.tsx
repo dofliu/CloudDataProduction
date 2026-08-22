@@ -29,6 +29,11 @@ import DieCastingMachine3D from "./DieCastingMachine3D";
 import InductionHeater3D from "./InductionHeater3D";
 import ForgingPress3D from "./ForgingPress3D";
 import TrimmingPress3D from "./TrimmingPress3D";
+import GrindingPolisher3D from "./GrindingPolisher3D";
+import CleaningDryer3D from "./CleaningDryer3D";
+import PlatingLine3D from "./PlatingLine3D";
+import AssemblyStation3D from "./AssemblyStation3D";
+import TorqueTester3D from "./TorqueTester3D";
 
 const SCENES: Record<string, React.ComponentType<MachineProps>> = {
   cnc_machining_center: CncMachine3D,
@@ -51,6 +56,11 @@ const SCENES: Record<string, React.ComponentType<MachineProps>> = {
   induction_heater: InductionHeater3D,
   forging_press: ForgingPress3D,
   trimming_press: TrimmingPress3D,
+  grinding_polisher: GrindingPolisher3D,
+  cleaning_dryer: CleaningDryer3D,
+  plating_line: PlatingLine3D,
+  assembly_station: AssemblyStation3D,
+  torque_tester: TorqueTester3D,
 };
 
 const KIND_NAME: Record<string, string> = {

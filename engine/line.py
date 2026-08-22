@@ -65,7 +65,7 @@ ARM_CYCLE_S = 8.0   # 手臂一次取放循環的 sim 秒(= robot_arm_6axis.CYCL
                     # 一拍的搬運配額 = max(1, dt_sim / ARM_CYCLE_S) —— 大 dt(高倍速場景)
                     # 下手臂一拍能搬多件,才不會被 tick 粒度人為地變成產線瓶頸。
 BELT_TRANSIT_S = 8.0   # 工件走完輸送帶的 sim 秒(帶長 8 m ÷ 額定 1 m/s)
-BELT_CAP = 8           # 帶上最多同時幾件(滿了手臂等)
+BELT_CAP = 8           # 帶上最多同時幾件(滿了手臂等)。粗 dt 下要放大 —— 見 _belt_cap()。
 
 # 各 producer 的額定單件節拍(sim 秒)—— 只在該站的節拍 tag 讀不到有效值時(如待機中
 # stroke_rate / throughput 歸零)當保底;運轉中一律以學生讀得到的 tag 現值換算。
@@ -92,6 +92,22 @@ NOMINAL_CYCLE_S: Dict[str, float] = {
     "assembly_station": 14.0,
     "torque_tester": 11.0,
 }
+
+
+def _belt_cap(dt_sim: float) -> int:
+    """輸送帶「同時在帶上」的容量。粗 tick 下要跟著放大。
+
+    帶長 8 m、1 m/s → 單件 8 秒走完。dt=300 s 的一拍裡,實際會有 37 件先後通過帶尾;
+    但帳上若固定只准 8 件在帶上,手臂一拍最多就只能放 8 件 —— 整條線被**tick 粒度**
+    卡在 8 件/拍(≈37.5 秒一件),下游餓料、上游阻塞,退化累積不起來。
+
+    這與先前 need_items(入料)/ make_items(出料)是同一個病:
+    **一拍搬得走幾件,帳上就至少要容得下幾件**。dt ≤ BELT_TRANSIT_S 時 ceil=1 ≤ 8,
+    與原本完全等價(課堂 dt≈12 s 零回歸)。
+    """
+    if dt_sim <= 0:
+        return BELT_CAP
+    return max(BELT_CAP, math.ceil(dt_sim / BELT_TRANSIT_S - 1e-9))
 
 
 class _Station:
@@ -211,8 +227,9 @@ class ProductionLine:
                 else:
                     down.in_buf += delivered
             up: _Station = lk["up"]
+            belt_cap = _belt_cap(dt_sim)
             while (lk["in_hand"] < cap and up.out_buf > 0
-                   and (len(down.on_belt) + lk["in_hand"] < BELT_CAP if down.role == "terminal"
+                   and (len(down.on_belt) + lk["in_hand"] < belt_cap if down.role == "terminal"
                         else down.in_buf + lk["in_hand"] < max(IN_CAP, down.need_items))):
                 up.out_buf -= 1                            # 工件上手(從上游出料取走)
                 lk["in_hand"] += 1

@@ -291,6 +291,83 @@ MACHINES = [
          ("ejector_wear", "指標 · linear", "頂出行程不足 → 變形不良"),
      ], [(40, "healthy", "健康:切斷力 214 ton、毛刺 0.03 mm(規格內),飛邊落進料箱"),
          (41, "degraded", "刀口鈍化:切斷力 336 ton、毛刺 0.35 mm 超規、變形率 5.2%")]),
+
+    # ── 手工具後段(2026-08-22):case 索引 42–51 ──
+    ("grinding_polisher", "研磨拋光機",
+     "三條病都讓振動升,但只有主軸軸承會走到 fault —— 砂輪看輪徑、集塵看氣流,分得開。", [
+         ("砂輪半徑", "`wheel_diameter`", "L1"),
+         ("砂輪轉速", "`spindle_rpm`", "**L3**"),
+         ("火花量", "`grind_force`", "L2"),
+         ("工件表面質感", "`surface_ra`", "L2"),
+         ("集塵氣流粒子", "`extraction_flow`", "L2"),
+         ("主軸過熱輝光", "`spindle_temp`", "L2"),
+     ], [
+         ("spindle_bearing_wear", "本體 · exponential", "振動 + 主軸溫升 → 咬死 fault"),
+         ("abrasive_wear", "指標 · linear", "砂輪變小、研磨力升 → 粗糙度超規"),
+         ("dust_extraction_clog", "指標 · linear", "壓差升、風量掉 → 磨屑回附刮傷"),
+     ], [(42, "healthy", "健康:Ra 0.35 µm、砂輪 Ø344、抽風 2312 m³/h"),
+         (43, "degraded", "砂輪磨耗 + 集塵堵:Ra 1.51 µm(規格 0.80)、輪徑剩 271、風量掉到 1268")]),
+
+    ("cleaning_dryer", "清洗乾燥機",
+     "連續網帶機:三區同時有工件。噴嘴堵時**壓力升但流量掉** —— 反直覺的組合是本站的重點。", [
+         ("網帶工件前進", "`cycle_time`", "**L3**"),
+         ("噴桿輝光", "`spray_pressure`", "L2"),
+         ("噴霧錐大小", "`spray_flow`", "L2"),
+         ("槽液濁度", "`bath_conductivity`", "L2"),
+         ("烘乾輝光 + 蒸氣", "`dry_temp`", "L2"),
+         ("工件濁度", "`residue_level`", "L2"),
+     ], [
+         ("pump_bearing_wear", "本體 · exponential", "泵振動升、揚程掉 → 咬死 fault"),
+         ("bath_contamination", "指標 · linear", "導電度升 → 殘留污染升(換液)"),
+         ("nozzle_clog", "指標 · linear", "壓力升**但**流量掉 → 洗不到(清噴嘴)"),
+         ("heater_aging", "指標 · linear", "烘乾溫度到不了 → 殘留水分(換加熱器)"),
+     ], [(44, "healthy", "健康:殘留 0.44 mg/m²、壓力 3.19 bar / 流量 172 L/min 相稱"),
+         (45, "degraded", "噴嘴堵:壓力升到 4.86 但流量只剩 88 —— 一升一降就是堵塞的指紋")]),
+
+    ("plating_line", "電鍍線",
+     "連續掛鍍。鍍層厚度走法拉第定律,用 `dwell_time` 不是 `cycle_time` —— 這個坑是刻意留的。", [
+         ("天車沿槽列前進", "`cycle_time`", "**L3**"),
+         ("陽極板厚度", "`anode_mass`", "L1"),
+         ("掛具金屬光澤", "`coating_thickness`", "L2"),
+         ("掛具霧面程度", "`porosity_count`", "L2"),
+         ("鍍液色濁", "`bath_ph`", "L2"),
+         ("整流器輝光 / 閃爍", "`rectifier_temp` · `rectifier_ripple`", "L2"),
+     ], [
+         ("rectifier_aging", "本體 · exponential", "紋波升 + 自身發熱 → 失效 fault"),
+         ("anode_consumption", "指標 · linear", "電流密度不足 → 鍍層變薄(補掛陽極)"),
+         ("bath_aging", "指標 · linear", "孔隙率升(厚度可能還合格)→ 調 / 換鍍液"),
+     ], [(46, "healthy", "健康:9.28 µm(規格 ≥8)、孔隙 0.81、陽極 114 kg"),
+         (47, "degraded", "陽極消耗 + 鍍液老化:7.09 µm 過薄、孔隙 4.86 破表、陽極剩 57 kg")]),
+
+    ("assembly_station", "零件組裝機",
+     "壓入力 × 位移**要合著看** —— 同樣壓到 24 mm,力的曲線不同就代表壓錯了。", [
+         ("壓頭位置", "`press_depth`", "L1"),
+         ("工件下沉量", "`press_depth`", "L1"),
+         ("起子下降 + 旋轉", "`screw_torque`", "L1"),
+         ("背蓋翹起", "`screw_torque` 低於下限的程度", "L2"),
+         ("料軌零件疏密", "`feed_success`", "L2"),
+         ("料倉料位", "`feeder_level`", "L1"),
+     ], [
+         ("press_actuator_wear", "本體 · exponential", "壓入力升 + 振動 → 咬死 fault"),
+         ("feeder_jam", "指標 · linear", "給料成功率掉 → 缺件(清卡料)"),
+         ("screwdriver_torque_drift", "指標 · linear", "鎖付扭力不足 → 背蓋鬆"),
+     ], [(48, "healthy", "健康:給料 97.2%、鎖付 8.94 N·m、缺件 0.26%"),
+         (49, "degraded", "卡料 + 起子衰退:給料剩 67.4%、鎖付 6.21(下限 7.2)、缺件 5.38%")]),
+
+    ("torque_tester", "扭力測試機",
+     "**量測站**,不是加工站。感測器漂移會讓良品被誤退 —— 對症是校正,不是換件。", [
+         ("錶針角度", "`applied_torque`", "L1"),
+         ("峰值指針", "`peak_torque`", "L1"),
+         ("紅色偏差指針", "`sensor_bias`", "L1"),
+         ("允收帶紅 / 綠", "`peak_torque` 是否超出 62±3.1", "L1"),
+         ("夾爪開度", "`clamp_pressure`", "L2"),
+         ("工件突然轉一下", "`slip_events` 每 +1", "L1"),
+     ], [
+         ("drive_motor_wear", "本體 · exponential", "振動升 + 加載速率掉 → 咬死 fault"),
+         ("torque_sensor_drift", "指標 · linear", "**量錯了**:良品被退 → calibrate_sensor"),
+         ("fixture_wear", "指標 · linear", "夾不緊 → 打滑、量到的值偏低且分散變大"),
+     ], [(50, "healthy", "健康:峰值 62.1 落在允收帶內、偏差 +0.22、打滑 6 次"),
+         (51, "degraded", "感測器漂移 −4.61:峰值讀成 53.9 被判退 —— 但工件其實是好的")]),
 ]
 
 GROUPS = [
@@ -309,6 +386,12 @@ GROUPS = [
      "熔湯、棒料、鍛模的顏色就是製程狀態,而爐殼與模具的溫度則是「該保養了」的徵候。",
      ["melting_furnace", "die_casting_machine", "induction_heater",
       "forging_press", "trimming_press"]),
+    ("研磨 · 清洗 · 電鍍 · 組裝 · 檢驗(手工具後段)",
+     "2026-08-22 依「手工具製程主要流程圖」補的後兩段。共同教學重點:"
+     "**不良的根因常常不在本站** —— 清洗沒洗乾淨要到電鍍站才看得出來,"
+     "而扭力測試站的退回率上升,可能只是它自己的感測器該校正了。",
+     ["grinding_polisher", "cleaning_dryer", "plating_line",
+      "assembly_station", "torque_tester"]),
     ("廠務 · 能源",
      "不參與工件流動,但決定整廠能不能跑。故障徵兆常常要靠兩支訊號交叉才讀得出來。",
      ["air_compressor", "energy_meter", "wind_turbine"]),
@@ -326,6 +409,10 @@ LINES = [
      "c70 / x01-f4 的五站鑄造線:熔煉爐是全線瓶頸(72 s 一籃)"),
     ("forging", "感應加熱 → 手臂 → 熱模鍛造 → 手臂 → 切邊整修",
      "c71 / x01-f5 的五站鍛造線:出料溫度是第一個品質關卡"),
+    ("finishing", "研磨拋光 → 手臂 → 清洗乾燥 → 手臂 → 電鍍表面",
+     "c72 / x01-f6 的五站表面處理線:洗不乾淨的工件,鍍層會附不住"),
+    ("handtool", "零件組裝 → 手臂 → 扭力測試 → 手臂 → 輸送帶出貨",
+     "c73 / x01-f7 的五站組裝檢驗線:成品逐支驗扭力才出貨"),
     ("mixed", "混合壓力測試", "七台同場:驗證燈光只有一組、佈局不互相穿模"),
 ]
 
@@ -374,7 +461,7 @@ def main() -> None:
         "> ⚠ 本平台所有數據皆為**合成(synthetic)教學資料**,非任何真實場域量測。",
         "> 截圖由 `web/preview` 逐案渲染,畫面內的讀數即為引擎當下發出的遙測值。",
         "",
-        "虛擬工業園區的 **20 種產業機型**,每一種都以「健康 ↔ 劣化」對照呈現。",
+        "虛擬工業園區的 **25 種產業機型**,每一種都以「健康 ↔ 劣化」對照呈現。",
         "畫面上每一個會動的部位,都對應引擎的一支具體 tag ——",
         "學生用 Modbus 讀到的數字,必須與眼前看到的位置一致。",
         "",

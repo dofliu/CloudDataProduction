@@ -40,6 +40,9 @@ TEMPLATES = [
     # 2026-08-21 鑄造 / 鍛造上游(同樣附加在尾端,前面的裝置 seed 不動)
     "melting_furnace", "die_casting_machine", "induction_heater",
     "forging_press", "trimming_press",
+    # 2026-08-22 手工具後段(同樣附加在尾端,前面的裝置 seed 不動)
+    "grinding_polisher", "cleaning_dryer", "plating_line",
+    "assembly_station", "torque_tester",
 ]
 
 WARMUP_SIM_S = 10 * 3600.0      # 暖機到模擬日 10:00(兩班制設備已開工)

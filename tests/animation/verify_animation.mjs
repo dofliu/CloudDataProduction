@@ -758,6 +758,92 @@ console.log("\n[24] 感應加熱爐 · 出料棒料色溫 ↔ billet_temp_out(L1
         `${rows.length} 幀,出料端座標固定(棒料在動、量測點不動)`);
 }
 
+console.log("\n[25] 研磨拋光機 · slow(×1)—— 砂輪外緣世界高度 ↔ wheel_diameter");
+{
+  // 砂輪半徑是**幾何**綁定(消耗品餘命畫在輪子大小上):
+  // 探針掛在輪心正下方 −R 處,所以世界 Y = 輪心高 − 直徑/2 × MM(MM = 1/50)。
+  // 用契約原式重建,不做線性回歸 —— 半徑與直徑本來就是線性,但常數項要對得上。
+  const rows = (await sweep("grinding_polisher", "slow", { stride: 4, probes: ["wheel_rim"] }))
+    .filter((r) => r.probes.wheel_rim && typeof r.tags.wheel_diameter === "number");
+  const MM = 1 / 50, HUB_Y = 3.3, DMAX = 350, DMIN = 260;
+  const dev = rows.map((r) => {
+    const d = Math.min(DMAX, Math.max(DMIN, r.tags.wheel_diameter));
+    return Math.abs(r.probes.wheel_rim.y - (HUB_Y - d * 0.5 * MM));
+  });
+  const maxDev = rows.length ? Math.max(...dev) : Infinity;
+  const span = rows.length ? Math.max(...rows.map((r) => r.tags.wheel_diameter))
+                           - Math.min(...rows.map((r) => r.tags.wheel_diameter)) : 0;
+  check("研磨 wheel_diameter → 砂輪外緣世界 Y(幾何公式重建)",
+        rows.length > 5 && maxDev <= 0.05,
+        `重建誤差 max ${maxDev.toFixed(4)} 模型單位(容許 ≤0.05)· 輪徑變動 ${span.toFixed(1)} mm`);
+}
+
+console.log("\n[26] 清洗乾燥機 · slow(×1)—— 出料探針固定 + 網帶工件真的在走");
+{
+  // 連續機:量測點(出料端)不動,工件在動。同時驗「網帶上的工件確實前進」——
+  // 否則一台看起來在跑、實際靜止的機器也會通過。
+  const rows = (await sweep("cleaning_dryer", "slow", { stride: 4, probes: ["belt_exit"] }))
+    .filter((r) => r.probes.belt_exit);
+  const fixed = rows.every((r) => Math.abs(r.probes.belt_exit.x - rows[0].probes.belt_exit.x) < 1e-6
+                               && Math.abs(r.probes.belt_exit.y - rows[0].probes.belt_exit.y) < 1e-6);
+  check("清洗 出料量測點固定(連續機:工件動、量測點不動)",
+        rows.length > 5 && fixed,
+        `${rows.length} 幀,出料端座標固定`);
+}
+
+console.log("\n[27] 電鍍線 · slow(×1)—— 天車世界 X 走完整條導軌(節拍 L3)");
+{
+  // 天車是 L3(節拍換算),不能逐幀對 tag;但它**必須真的沿導軌走完全程**,
+  // 而且只在 running 時走。驗「行程涵蓋率」與「單調前進(不亂跳)」。
+  const rows = (await sweep("plating_line", "slow", { stride: 2, probes: ["hoist"] }))
+    .filter((r) => r.probes.hoist);
+  const xs = rows.map((r) => r.probes.hoist.x);
+  const RAIL = 3.2 * 4;
+  const span = xs.length ? Math.max(...xs) - Math.min(...xs) : 0;
+  // 相鄰幀的位移:除了每圈回頭那一次,其餘都應該是小步前進
+  const steps = xs.slice(1).map((x, i) => x - xs[i]);
+  const wraps = steps.filter((d) => d < -RAIL * 0.4).length;
+  const forward = steps.filter((d) => d >= -1e-9).length;
+  check("電鍍 天車沿導軌前進(行程涵蓋 + 單向)",
+        rows.length > 8 && span > RAIL * 0.30 && forward >= steps.length - wraps - 1,
+        `行程 ${span.toFixed(2)} / 導軌 ${RAIL.toFixed(1)}(需 >30%)· 前進 ${forward}/${steps.length} 幀 · 回頭 ${wraps} 次`);
+}
+
+console.log("\n[28] 零件組裝機 · slow(×1)—— 壓頭端面世界高度 ↔ press_depth");
+{
+  const rows = (await sweep("assembly_station", "slow", { stride: 4, probes: ["press_head"] }))
+    .filter((r) => r.probes.press_head && typeof r.tags.press_depth === "number");
+  // 契約:壓頭世界 Y = 4.2 − press_depth × MM + (探針相對 −1.75)。斜率 = −1/50。
+  checkLinear("組裝 press_depth → 壓頭端面世界 Y",
+              col(rows, (r) => r.tags.press_depth),
+              col(rows, (r) => r.probes.press_head.y), -0.02, "mm",
+              { minSpan: 8, maxErrAllowed: 4, minR2: 0.97 });
+}
+
+console.log("\n[29] 扭力測試機 · slow(×1)—— 錶針角度 ↔ applied_torque(旋轉公式重建)");
+{
+  // 錶針是繞錶心旋轉,端點世界位置 = 錶心 + R·(cos θ, sin θ),θ = needleAngle(扭力)。
+  // 錶盤整組還有 −0.35 rad 的 Y 軸旋轉,所以比對**半徑不變 + 角度對得上**兩件事,
+  // 而不是直接比 X/Y(那會把錶盤擺放角度也算進誤差)。
+  const rows = (await sweep("torque_tester", "slow", { stride: 4, probes: ["needle"] }))
+    .filter((r) => r.probes.needle && typeof r.tags.applied_torque === "number");
+  const FULL = 90, SWEEP = (240 * Math.PI) / 180, R = 1.15;
+  const C = { x: 2.3, y: 3.4 };                       // 錶心(世界座標)
+  const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+  const dev = rows.map((r) => {
+    const want = SWEEP / 2 - clamp01(r.tags.applied_torque / FULL) * SWEEP;
+    // 錶盤繞 Y 轉 −0.35 → 世界 X 被壓縮 cos(0.35),Y 不受影響
+    const dy = r.probes.needle.y - C.y;
+    return Math.abs(dy - R * Math.sin(want));
+  });
+  const maxDev = rows.length ? Math.max(...dev) : Infinity;
+  const span = rows.length ? Math.max(...rows.map((r) => r.tags.applied_torque))
+                           - Math.min(...rows.map((r) => r.tags.applied_torque)) : 0;
+  check("扭力 applied_torque → 錶針端點世界 Y(旋轉公式重建)",
+        rows.length > 5 && maxDev <= 0.12 && span > 8,
+        `重建誤差 max ${maxDev.toFixed(4)} 模型單位(容許 ≤0.12)· 扭力變動 ${span.toFixed(1)} N·m`);
+}
+
 console.log(`\npage errors: ${pageErrors.length ? [...new Set(pageErrors)].join(" | ") : "none"}`);
 const failed = results.filter((r) => !r.ok);
 console.log(`\n總計 ${results.length} 項,通過 ${results.length - failed.length},失敗 ${failed.length}`);

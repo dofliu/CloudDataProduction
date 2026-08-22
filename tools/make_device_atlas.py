@@ -397,6 +397,10 @@ GROUPS = [
      ["air_compressor", "energy_meter", "wind_turbine"]),
 ]
 
+# tests/animation/verify_animation.mjs 目前的檢查項數。改了那支要同步這裡 ——
+# 這個數字會印在圖鑑抬頭,寫錯就是對外報錯數字。
+ANIM_CHECKS = 58
+
 LINES = [
     ("cnc", "CNC 加工 → 手臂取放 → 輸送帶出料", "machine_tool / precision_parts 的主力配方"),
     ("inj", "射出成型 → 手臂取放 → 輸送帶出料", "plastics 配方;手臂取件點對到射出機出料側"),
@@ -454,6 +458,9 @@ def main() -> None:
 
     by_id = {m[0]: m for m in MACHINES}
     n_shots = sum(len(m[5]) for m in MACHINES)
+    # 從表算出來,不寫死 —— 先前寫死的 115 / 48 在機型從 20 長到 25 之後就過期了
+    n_bind = sum(len(m[3]) for m in MACHINES)
+    n_degrade = sum(len(m[4]) for m in MACHINES)
 
     L: list[str] = [
         "# 設備動畫圖鑑",
@@ -467,7 +474,8 @@ def main() -> None:
         "",
         f"| 機型 | 機台情境截圖 | 產線佈局 | 綁定 tag | 動畫一致性檢查 |",
         "|---|---|---|---|---|",
-        f"| {len(MACHINES)} 種 | {n_shots} 張 | {len(LINES)} 張 | 115 支(全數驗過)| 48 項全過 |",
+        f"| {len(MACHINES)} 種 | {n_shots} 張 | {len(LINES)} 張 |"
+        f" {n_bind} 條綁定 · {n_degrade} 條退化線 | {ANIM_CHECKS} 項全過 |",
         "",
         "**本檔由 `tools/make_device_atlas.py` 產生,要調內容請改那支再重跑。**",
         "",

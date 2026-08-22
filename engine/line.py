@@ -49,6 +49,12 @@ COUNT_TAGS: Dict[str, str] = {
     "induction_heater": "billet_count",
     "forging_press": "forge_count",
     "trimming_press": "trim_count",
+    # 手工具後段
+    "grinding_polisher": "ground_count",
+    "cleaning_dryer": "washed_count",
+    "plating_line": "plated_count",
+    "assembly_station": "assembled_count",
+    "torque_tester": "tested_count",
 }
 HANDLER_TEMPLATES = {"robot_arm_6axis"}
 TERMINAL_TEMPLATES = {"conveyor"}
@@ -78,6 +84,13 @@ NOMINAL_CYCLE_S: Dict[str, float] = {
     "induction_heater": 22.0,
     "forging_press": 12.0,
     "trimming_press": 9.0,
+    # 手工具後段。清洗與電鍍是**連續機**:這裡填的是出料節拍,不是單件穿越 / 停留時間
+    # (cleaning_dryer TRANSIT_S=90s、plating_line DWELL_S=96s 各自另有 tag 可讀)。
+    "grinding_polisher": 18.0,
+    "cleaning_dryer": 15.0,
+    "plating_line": 12.0,
+    "assembly_station": 14.0,
+    "torque_tester": 11.0,
 }
 
 
@@ -211,7 +224,11 @@ class ProductionLine:
         d = st.device
         val = {t.name: float(t.value) for t in d.tags}
         if d.template in ("cnc_machining_center", "injection_molding", "packaging_machine",
-                          "die_casting_machine", "trimming_press"):
+                          "die_casting_machine", "trimming_press",
+                          # 手工具後段五台的 cycle_time 一律是「出料節拍」語意 ——
+                          # 連續機(清洗 / 電鍍)的穿越 / 停留時間另有 transit_time / dwell_time。
+                          "grinding_polisher", "cleaning_dryer", "plating_line",
+                          "assembly_station", "torque_tester"):
             v = val.get("cycle_time", 0.0)
             return v if v > 0.5 else NOMINAL_CYCLE_S[d.template]
         if d.template == "melting_furnace":

@@ -48,6 +48,20 @@ _TEMPLATE_KEYWORDS = {
     "熱鍛": "forging_press",
     "切邊": "trimming_press", "去毛邊": "trimming_press", "毛胚整修": "trimming_press",
     "整修機": "trimming_press", "trimming": "trimming_press",
+    # 手工具後段(2026-08-22)。同樣長詞在前:「研磨拋光」要比「研磨」先命中。
+    # 刻意**不收單字**(磨 / 洗 / 鍍 / 裝),那些太容易在描述句裡誤命中。
+    "研磨拋光": "grinding_polisher", "研磨": "grinding_polisher", "拋光": "grinding_polisher",
+    "磨床": "grinding_polisher", "拋光機": "grinding_polisher", "grinding": "grinding_polisher",
+    "polish": "grinding_polisher",
+    "清洗乾燥": "cleaning_dryer", "清洗機": "cleaning_dryer", "清洗": "cleaning_dryer",
+    "脫脂": "cleaning_dryer", "烘乾": "cleaning_dryer", "乾燥": "cleaning_dryer",
+    "washer": "cleaning_dryer", "cleaning": "cleaning_dryer",
+    "電鍍": "plating_line", "鍍鎳": "plating_line", "鍍鉻": "plating_line",
+    "表面處理": "plating_line", "plating": "plating_line",
+    "扭力測試": "torque_tester", "功能測試": "torque_tester", "扭力": "torque_tester",
+    "torque": "torque_tester",
+    "組裝": "assembly_station", "裝配": "assembly_station", "組立": "assembly_station",
+    "assembly": "assembly_station",
 }
 
 # 各 template 的預設退化元件(讓新設備會自然退化,與場景一致)
@@ -115,6 +129,32 @@ _DEFAULT_DEGRADATION = {
         "ram_guide_wear": {"rate": 0.0000011, "trajectory": "exponential", "k": 2.9, "sigma": 0.1, "init_health": 0.93},
         "die_wear": {"rate": 0.0000017, "trajectory": "linear", "sigma": 0.15, "init_health": 1.0, "causes_device_fault": False},
     },
+    "grinding_polisher": {
+        "spindle_bearing_wear": {"rate": 0.0000011, "trajectory": "exponential", "k": 2.9, "sigma": 0.1, "init_health": 0.95},
+        "abrasive_wear": {"rate": 0.0000026, "trajectory": "linear", "sigma": 0.16, "init_health": 1.0, "causes_device_fault": False},
+        "dust_extraction_clog": {"rate": 0.0000014, "trajectory": "linear", "sigma": 0.12, "init_health": 1.0, "causes_device_fault": False},
+    },
+    "cleaning_dryer": {
+        "pump_bearing_wear": {"rate": 0.0000010, "trajectory": "exponential", "k": 2.7, "sigma": 0.1, "init_health": 0.95},
+        "bath_contamination": {"rate": 0.0000030, "trajectory": "linear", "sigma": 0.15, "init_health": 1.0, "causes_device_fault": False},
+        "nozzle_clog": {"rate": 0.0000016, "trajectory": "linear", "sigma": 0.13, "init_health": 1.0, "causes_device_fault": False},
+        "heater_aging": {"rate": 0.0000013, "trajectory": "linear", "sigma": 0.12, "init_health": 1.0, "causes_device_fault": False},
+    },
+    "plating_line": {
+        "rectifier_aging": {"rate": 0.0000009, "trajectory": "exponential", "k": 2.6, "sigma": 0.1, "init_health": 0.96},
+        "anode_consumption": {"rate": 0.0000028, "trajectory": "linear", "sigma": 0.14, "init_health": 1.0, "causes_device_fault": False},
+        "bath_aging": {"rate": 0.0000019, "trajectory": "linear", "sigma": 0.14, "init_health": 1.0, "causes_device_fault": False},
+    },
+    "assembly_station": {
+        "press_actuator_wear": {"rate": 0.0000011, "trajectory": "exponential", "k": 2.8, "sigma": 0.1, "init_health": 0.95},
+        "feeder_jam": {"rate": 0.0000024, "trajectory": "linear", "sigma": 0.16, "init_health": 1.0, "causes_device_fault": False},
+        "screwdriver_torque_drift": {"rate": 0.0000018, "trajectory": "linear", "sigma": 0.13, "init_health": 1.0, "causes_device_fault": False},
+    },
+    "torque_tester": {
+        "drive_motor_wear": {"rate": 0.0000010, "trajectory": "exponential", "k": 2.7, "sigma": 0.1, "init_health": 0.95},
+        "torque_sensor_drift": {"rate": 0.0000021, "trajectory": "linear", "sigma": 0.15, "init_health": 1.0, "causes_device_fault": False},
+        "fixture_wear": {"rate": 0.0000017, "trajectory": "linear", "sigma": 0.13, "init_health": 1.0, "causes_device_fault": False},
+    },
     "trimming_press": {
         "slide_bearing_wear": {"rate": 0.0000012, "trajectory": "exponential", "k": 2.8, "sigma": 0.1, "init_health": 0.94},
         "trim_die_edge": {"rate": 0.0000018, "trajectory": "linear", "sigma": 0.15, "init_health": 1.0, "causes_device_fault": False},
@@ -162,6 +202,11 @@ _TEMPLATE_DESC = {
     "induction_heater": "感應加熱爐(鍛造前棒料加熱,線圈絕緣→漏電流、耦合走樣→出料溫度不足)",
     "forging_press": "鍛造壓機 / 熱模鍛(滑塊行程與噸位、鍛模磨耗→欠肉、除鱗堵→壓入氧化皮)",
     "trimming_press": "毛胚整修機 / 切邊機(切除飛邊,刀口鈍化→切斷力升、殘毛刺超規)",
+    "grinding_polisher": "研磨拋光機(磨掉分模線並拋光,砂輪磨耗→粗糙度變差、集塵堵→磨屑刮傷)",
+    "cleaning_dryer": "清洗乾燥機(連續網帶脫脂 + 烘乾,清洗液污染→殘留、噴嘴堵→壓力升但流量掉)",
+    "plating_line": "電鍍線(連續掛鍍鎳鉻,陽極消耗→鍍層變薄、鍍液老化→孔隙率升)",
+    "assembly_station": "零件組裝機(壓入 + 鎖付,給料卡料→缺件、起子扭力衰退→背蓋鬆)",
+    "torque_tester": "扭力功能測試機(成品扭力驗證,夾具磨耗→打滑、感測器漂移→誤判良品)",
 }
 _DUTY = ("continuous", "single_shift", "two_shift")
 
@@ -169,11 +214,11 @@ _CH_NUM = {"一": 1, "二": 2, "兩": 2, "三": 3, "四": 4, "五": 5, "六": 6,
 
 
 def _parse_count(text: str) -> int:
-    m = re.search(r"(\d+)\s*[台臺套部]", text)
+    m = re.search(r"(\d+)\s*[台臺套部條組線]", text)
     if m:
         return max(1, min(20, int(m.group(1))))
     for ch, n in _CH_NUM.items():
-        if re.search(ch + r"\s*[台臺套部]", text):
+        if re.search(ch + r"\s*[台臺套部條組線]", text):
             return n
     return 1
 
@@ -207,19 +252,22 @@ def _parse_multi(text: str) -> list[tuple[str, int]]:
             s, e = m.span()
             if any(not (e <= us or s >= ue) for us, ue in used_spans):
                 continue                        # 已被更早配對的關鍵字涵蓋(如「機械手臂」vs「手臂」)
-            # 「鍛造廠」「鑄造廠」是**公司名**不是設備:關鍵字後面緊接廠 / 公司 / 業 就跳過。
-            # (先前「一座鍛造廠,有 2 台鍛造壓機」會多建出一台憑空的鍛造壓機。)
-            if low[e:e + 1] in ("廠", "公司", "業", "商"):
+            # 「鍛造廠」「電鍍廠」「表面處理工廠」是**公司名**不是設備:關鍵字後面緊接
+            # 公司字尾就跳過。(先前「一座鍛造廠,有 2 台鍛造壓機」會多建出一台憑空的機器。)
+            # 用 2 字視窗:原本的 1 字切片永遠不可能等於「公司」,且「工廠 / 工業」這種
+            # 前綴是「工」的字尾整組漏掉 —— 「沖壓工廠有 2 台沖床」會多算一台。
+            nxt2 = low[e:e + 2]
+            if nxt2[:1] in ("廠", "業", "商") or nxt2 in ("公司", "工廠", "工業", "實業", "企業"):
                 continue
             used_spans.append((s, e))
             head = text[max(0, s - 8):s]        # 往前找數量詞
             count = 1
-            mm = re.search(r"(\d+)\s*[台臺套部支座]?\s*$", head)
+            mm = re.search(r"(\d+)\s*[台臺套部支座條組線]?\s*$", head)
             if mm:
                 count = int(mm.group(1))
             else:
                 for ch, n in _CH_NUM.items():
-                    if re.search(ch + r"\s*[台臺套部支座]?\s*$", head):
+                    if re.search(ch + r"\s*[台臺套部支座條組線]?\s*$", head):
                         count = n
                         break
             explicit = mm is not None or count > 1
@@ -227,12 +275,12 @@ def _parse_multi(text: str) -> list[tuple[str, int]]:
                 # 往後找:「壓鑄機 2 台」這種把數量寫在設備後面的講法。只看緊接的片段,
                 # 遇到分隔詞就停 —— 否則「2 台 CNC、3 台手臂」會把 3 也算到 CNC 頭上。
                 tail = text[e:e + 6]
-                mt = re.match(r"\s*(\d+)\s*[台臺套部支座]", tail)
+                mt = re.match(r"\s*(\d+)\s*[台臺套部支座條組線]", tail)
                 if mt:
                     count, explicit = int(mt.group(1)), True
                 else:
                     for ch, n in _CH_NUM.items():
-                        if re.match(r"\s*" + ch + r"\s*[台臺套部支座]", tail):
+                        if re.match(r"\s*" + ch + r"\s*[台臺套部支座條組線]", tail):
                             count, explicit = n, True
                             break
             hits.append((s, e, tmpl, max(1, min(20, count)), explicit))

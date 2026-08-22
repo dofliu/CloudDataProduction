@@ -141,7 +141,7 @@ tasks:
   - id: T14-data-access-layer
     title: "取數介面升級:多設備 / 多 tag / 降採樣 / 匯出(或唯讀 SQL)"
     status: in_review
-    pr: "PENDING"
+    pr: "https://github.com/dofliu/CloudDataProduction/pull/60"
     decisions: >
       2026-08-22 使用者拍板三題:① 取數路線 = REST 強化為主 + 唯讀 SQL 進階(兩個都做);
       ② 輸出形狀 = wide 與 long 都給、預設 wide;③ 降採樣統計量 = avg / min / max / count 四個。

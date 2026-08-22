@@ -14,7 +14,7 @@ import { useFrame } from "@react-three/fiber";
 import { Box, Cylinder } from "@react-three/drei";
 import * as THREE from "three";
 import MachineScene, { Readout, Row } from "./MachineScene";
-import { FX, FaultSmoke, Shake, StatusBeacon, StatusText, WORKPIECE, bodyColor } from "./MachineFx";
+import { FaultSmoke, Shake, StatusBeacon, StatusText, WORKPIECE, bodyColor } from "./MachineFx";
 import { DeviceMotion, MachineProps, clamp01, scaleNote, visualPeriod } from "./deviceMotion";
 
 const CYCLE_S = 15.0;

@@ -14,7 +14,7 @@ import { useFrame } from "@react-three/fiber";
 import { Box, Cylinder } from "@react-three/drei";
 import * as THREE from "three";
 import MachineScene, { Readout, Row } from "./MachineScene";
-import { FX, FaultSmoke, HeatGlow, Shake, StatusBeacon, StatusText, WORKPIECE, bodyColor } from "./MachineFx";
+import { FaultSmoke, HeatGlow, Shake, StatusBeacon, StatusText, WORKPIECE, bodyColor } from "./MachineFx";
 import { DeviceMotion, MachineProps, approach, clamp01, scaleNote, visualPeriod, visualSpin } from "./deviceMotion";
 
 const CYCLE_S = 18.0;
@@ -28,8 +28,8 @@ const MM = 1 / 50;
 const contactOf = (ph: number) => (ph < 0.62 ? 1 : 0);
 
 export const GrindingPolisherModel = ({ motion }: MachineProps) => {
-  const wheelRef = useRef<THREE.Group>(null);
-  const wheelMeshRef = useRef<THREE.Mesh>(null);
+  const wheelRef = useRef<THREE.Group>(null);       // 自轉(spin)
+  const wheelScaleRef = useRef<THREE.Group>(null);  // 依 wheel_diameter 縮放(含探針)
   const partRef = useRef<THREE.Mesh>(null);
   const partMatRef = useRef<THREE.MeshStandardMaterial>(null);
   const sparkRefs = [useRef<THREE.Mesh>(null), useRef<THREE.Mesh>(null), useRef<THREE.Mesh>(null)];
@@ -54,11 +54,14 @@ export const GrindingPolisherModel = ({ motion }: MachineProps) => {
     const contact = motion.running ? contactOf(phase.current) : 0;
 
     // 砂輪直徑 = wheel_diameter(mm,L1)。消耗品餘命直接畫在幾何上。
-    if (wheelMeshRef.current) {
-      const dia = t.wheel_diameter ?? WHEEL_MAX_MM;
-      const s = clamp01((dia - WHEEL_MIN_MM) / (WHEEL_MAX_MM - WHEEL_MIN_MM));
-      const r = (WHEEL_MIN_MM + s * (WHEEL_MAX_MM - WHEEL_MIN_MM)) * 0.5 * MM;
-      wheelMeshRef.current.scale.set(r / (WHEEL_MAX_MM * 0.5 * MM), 1, r / (WHEEL_MAX_MM * 0.5 * MM));
+    //
+    // 縮放掛在**內層 group**(含輪面刻痕與驗證探針),不是只縮圓柱 mesh ——
+    // 探針要跟著輪子一起縮,量回來的「輪心 → 探針」距離才真的是渲染出來的半徑。
+    // 圓柱本身已繞 Z 轉 90°(軸沿世界 X),所以只縮 Y/Z 兩個徑向,厚度維持不變。
+    if (wheelScaleRef.current) {
+      const dia = Math.min(WHEEL_MAX_MM, Math.max(WHEEL_MIN_MM, t.wheel_diameter ?? WHEEL_MAX_MM));
+      const k = dia / WHEEL_MAX_MM;
+      wheelScaleRef.current.scale.set(1, k, k);
     }
     if (wheelRef.current) wheelRef.current.rotation.x = spin.current;
 
@@ -121,19 +124,21 @@ export const GrindingPolisherModel = ({ motion }: MachineProps) => {
 
         {/* 砂輪(wheel_diameter L1 → 半徑;spindle_rpm 夾住後的轉速) */}
         <group ref={wheelRef} position={[0.5, 3.3, 0]}>
-          <Cylinder ref={wheelMeshRef as never} args={[3.5, 3.5, 0.55, 28]}
-                    rotation={[0, 0, Math.PI / 2]} castShadow>
-            <meshStandardMaterial color="#9c8878" roughness={0.85} metalness={0.15} />
-          </Cylinder>
-          {/* 輪面刻痕:轉起來看得出來真的在轉 */}
-          {[0, 1, 2, 3].map((i) => (
-            <Box key={i} args={[0.08, 0.62, 0.5]}
-                 position={[Math.cos((i * Math.PI) / 2) * 2.6, Math.sin((i * Math.PI) / 2) * 2.6, 0]}>
-              <meshStandardMaterial color="#6f5f52" roughness={0.9} />
-            </Box>
-          ))}
-          {/* 驗證探針:砂輪外緣世界高度 ↔ wheel_diameter */}
-          <object3D name="probe:wheel_rim" position={[0, -3.5, 0]} />
+          <group ref={wheelScaleRef}>
+            <Cylinder args={[3.5, 3.5, 0.55, 28]} rotation={[0, 0, Math.PI / 2]} castShadow>
+              <meshStandardMaterial color="#9c8878" roughness={0.85} metalness={0.15} />
+            </Cylinder>
+            {/* 輪面刻痕:轉起來看得出來真的在轉 */}
+            {[0, 1, 2, 3].map((i) => (
+              <Box key={i} args={[0.08, 0.62, 0.5]}
+                   position={[Math.cos((i * Math.PI) / 2) * 2.6, Math.sin((i * Math.PI) / 2) * 2.6, 0]}>
+                <meshStandardMaterial color="#6f5f52" roughness={0.9} />
+              </Box>
+            ))}
+            {/* 驗證探針:掛在輪緣上,隨自轉繞行、隨磨耗內縮。
+                量的是「輪心 → 探針」的**距離**(= 渲染出來的半徑),與轉到哪個角度無關。 */}
+            <object3D name="probe:wheel_rim" position={[0, -3.5, 0]} />
+          </group>
         </group>
 
         {/* 工件檯 + 工件(surface_ra → 表面質感) */}

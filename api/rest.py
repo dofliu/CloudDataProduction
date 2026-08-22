@@ -197,6 +197,37 @@ class SessionResetRequest(BaseModel):
     levels: bool = True         # 關卡的教師勾選紀錄(自動判定的關卡本就跟著資料歸零)
 
 
+# ── 取數輔助(T14)────────────────────────────────────────
+# wide 內部多撈的硬上限:limit × 序列數 可能很大,不能無上限打 DB。
+# 超過就截斷並在回應標 truncated —— 靜靜少給資料比報錯更糟。
+_MAX_FETCH_ROWS = 200_000
+
+
+def _split_csv(raw: Optional[str]) -> List[str]:
+    """逗號分隔字串 → 去空白、去重、保序的清單。"""
+    if not raw:
+        return []
+    return [x for x in dict.fromkeys(p.strip() for p in raw.split(",")) if x]
+
+
+def _csv_response(cols: List[str], rows: List[dict], stem: str) -> Response:
+    """匯出 CSV。用 csv 模組而不是自己接字串 —— 值裡有逗號 / 引號時才不會把欄位切錯。
+
+    帶 UTF-8 BOM:Excel 在中文 Windows 上預設用 CP950 開 CSV,沒有 BOM 會變亂碼,
+    而這門課的學生多半就是用 Excel 先看一眼。
+    """
+    import csv as _csv
+    import io as _io
+    buf = _io.StringIO()
+    w = _csv.DictWriter(buf, fieldnames=cols, extrasaction="ignore", lineterminator="\n")
+    w.writeheader()
+    for r in rows:
+        w.writerow(r)
+    return Response("\ufeff" + buf.getvalue(),
+                    media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{stem}.csv"'})
+
+
 def create_app(
     world: World,
     historian: Historian,
@@ -511,24 +542,106 @@ def create_app(
             raise HTTPException(404, f"無此設備:{device_id}")
         return device.public_snapshot()
 
+    # ── 取數介面(T14)────────────────────────────────────────
+    #
+    # 舊呼叫(?device=&tag=)**原封不動**:回傳形狀、欄位名、上限全部沒變 ——
+    # 學生已經寫好的程式與既有前端不能因為升級而壞掉。
+    # 只要用到任何新參數(devices / tags / bucket / shape / format / agg)才走新路徑。
+    #
+    # 為什麼要做這一段:一條產線的跨設備相關分析,先前得打幾十次 API 再自己對齊時間戳,
+    # 取數本身變成作業的主要難度 —— 而這門課要教的是「怎麼從資料看出問題」,不是對時間戳。
     @app.get("/api/history")
     async def get_history(
-        device: str = Query(..., description="設備 id"),
-        tag: str = Query(..., description="tag 名稱,如 vibration_rms"),
+        device: Optional[str] = Query(None, description="設備 id(舊參數,單台)"),
+        tag: Optional[str] = Query(None, description="tag 名稱(舊參數,單支)"),
+        devices: Optional[str] = Query(None, description="多設備,逗號分隔,如 d001,d002"),
+        tags: Optional[str] = Query(None, description="多 tag,逗號分隔,如 vibration_rms,spindle_temp"),
         from_: Optional[float] = Query(None, alias="from", description="起始 wall epoch 秒"),
         to: Optional[float] = Query(None, description="結束 wall epoch 秒"),
         limit: int = Query(5000, ge=1, le=50000),
+        bucket: float = Query(0.0, ge=0.0, le=86400.0,
+                              description="時間桶秒數(0=原始點)。常用 1 / 60 / 3600"),
+        shape: Optional[str] = Query(None, description="wide(預設,時間已對齊)| long"),
+        agg: str = Query("avg", description="wide + bucket 時每格放哪個統計量:avg|min|max|count"),
+        format: str = Query("json", description="json | csv"),
     ):
-        if device not in world.devices:
-            raise HTTPException(404, f"無此設備:{device}")
-        rows = await historian.query(device, tag, from_, to, limit)
-        return {
-            "device": device,
-            "tag": tag,
-            "count": len(rows),
-            "degraded": historian.degraded,  # True 表示來自 in-memory fallback
-            "points": rows,
+        legacy = (devices is None and tags is None and bucket <= 0
+                  and shape is None and format == "json")
+        dev_list = _split_csv(devices) or ([device] if device else [])
+        tag_list = _split_csv(tags) or ([tag] if tag else [])
+        if not dev_list or not tag_list:
+            raise HTTPException(422, "需要 device/tag 或 devices/tags")
+        unknown = [d for d in dev_list if d not in world.devices]
+        if unknown:
+            raise HTTPException(404, f"無此設備:{', '.join(unknown[:5])}")
+
+        # ── 舊路徑:形狀完全不變 ──
+        if legacy:
+            rows = await historian.query(dev_list[0], tag_list[0], from_, to, limit)
+            return {
+                "device": dev_list[0],
+                "tag": tag_list[0],
+                "count": len(rows),
+                "degraded": historian.degraded,  # True 表示來自 in-memory fallback
+                "points": rows,
+            }
+
+        if agg not in Historian._AGGS:
+            raise HTTPException(422, f"agg 需為 {'|'.join(Historian._AGGS)}")
+        shape = (shape or "wide").lower()
+        if shape not in ("wide", "long"):
+            raise HTTPException(422, "shape 需為 wide 或 long")
+        # limit 的語意依形狀而不同,否則 wide 會被切得坑坑洞洞:
+        #   long → 就是回傳列數
+        #   wide → **時間列數**。wide 一列要放齊所有序列,若照 long 的列數截斷,
+        #          最舊那個時間點會少掉幾欄變成 null(學生拿到的表格右上角是破的)。
+        #          所以內部多撈 n_series 倍,再取最後 limit 個時間點。
+        n_series = max(1, len(dev_list) * len(tag_list))
+        fetch = limit if shape == "long" else min(limit * n_series, _MAX_FETCH_ROWS)
+        rows = await historian.query_multi(dev_list, tag_list, from_, to, bucket, fetch)
+        truncated = len(rows) >= fetch
+        # 要了卻一筆都沒有的序列要**講出來**。不是每台設備都有每一支 tag
+        # (CNC 是 spindle_current、研磨機才是 motor_current),窗內沒資料也可能是
+        # 那段時間沒運轉。靜靜少一欄,學生會以為那台沒問題 —— 那是誤導。
+        present = {(r["device"], r["tag"]) for r in rows}
+        missing = [f"{d}:{t}" for d in dev_list for t in tag_list if (d, t) not in present]
+        meta = {
+            "devices": dev_list, "tags": tag_list, "bucket_s": bucket,
+            "shape": shape, "rows": len(rows), "truncated": truncated,
+            "missing": missing,          # 要了但窗內無資料的序列(該設備沒這支 tag,或那段沒運轉)
+            "degraded": historian.degraded,
+            # 這座園區的 historian 是對**同一份 snapshot** 取樣的,一拍裡所有設備共用
+            # 同一個 wall_t —— 所以原始點本來就對得齊,不必先降採樣才能並排。
+            # 真工廠的多來源資料沒這個性質,教材要記得講這個差別。
+            "note": "同一拍的所有設備共用同一個時間戳(模擬平台特性,真工廠需自行對齊)",
         }
+        if shape == "long":
+            if format == "csv":
+                cols = (["t", "sim_t", "device", "tag", "value"] if bucket <= 0
+                        else ["t", "sim_t", "device", "tag", "avg", "min", "max", "count"])
+                return _csv_response(cols, rows, "history_long")
+            return {**meta, "points": rows}
+
+        # ── wide:一列一個時間點,每支序列一欄(時間已對齊,可直接丟 pandas)──
+        # wide 是二維表格,一格只放得下**一個**統計量 —— 降採樣時由 ?agg= 決定放哪個;
+        # 四個統計量都要就用 shape=long(那邊四欄都在)。
+        value_key = "value" if bucket <= 0 else agg
+        one_dev = len(dev_list) == 1
+        table: dict = {}
+        sim_of: dict = {}
+        for r in rows:
+            col = r["tag"] if one_dev else f"{r['device']}:{r['tag']}"
+            table.setdefault(col, {})[r["t"]] = r.get(value_key)
+            sim_of.setdefault(r["t"], r.get("sim_t"))
+        cols = sorted(table)
+        times = sorted(sim_of)[-limit:]          # 只留最後 limit 個**時間點**
+        points = [{"t": t, "sim_t": sim_of.get(t),
+                   **{c: table[c].get(t) for c in cols}} for t in times]
+        truncated = truncated or len(sim_of) > len(times)
+        if format == "csv":
+            return _csv_response(["t", "sim_t", *cols], points, "history_wide")
+        return {**meta, "columns": cols, "value": value_key,
+                "rows": len(points), "truncated": truncated, "points": points}
 
     # ── 事件 / 逐件生產 / 每小時彙總(學生面公開唯讀)──────
     #

@@ -6,10 +6,10 @@
 # 人要調整優先序,直接改 tasks: 的順序或 status 即可 —— 排程 session 一律照本檔做事。
 
 version: 1
-updated: "2026-08-21"
+updated: "2026-08-22"
 maintainer_note: "任務做完 / 開了 PR,務必在同一個 PR 裡把本檔的 status 與 pr 欄位一起更新,否則下次醒來會重做。"
 status_values: "todo(待做)/ in_review(PR 開著)/ done(已合併)/ blocked(卡在外部)/ paused(方向轉了,這學期不做)"
-focus: "2026-08-21:資料鏈補完(T13 done → T14 → T15)+ 手工具製程機型補完(T16 → T17,使用者指定)"
+focus: "2026-08-22:T13 / T16 已合併。下一步 T17(手工具後段 5 機種)或 T14(取數介面)—— 等使用者定順序"
 
 # ── 排程 session 的行為準則 ──────────────────────────────
 routine_protocol:
@@ -73,8 +73,8 @@ tasks:
 
   - id: T16-casting-forging-machines
     title: "鑄造 / 鍛造上游 5 機種(熔煉爐 / 壓鑄機 / 感應加熱爐 / 鍛造壓機 / 毛胚整修機)"
-    status: in_review
-    pr: "https://github.com/dofliu/CloudDataProduction/pull/56"
+    status: done          # PR #55 + #56 已合併(2026-08-21)
+    pr: "https://github.com/dofliu/CloudDataProduction/pull/55"   # 實作;測試校正與圖鑑重產在 #56
     autonomy: self    # 2026-08-21 使用者指定(手工具製程流程圖的前段)
     size: XL
     why: >
@@ -100,7 +100,7 @@ tasks:
     status: todo
     autonomy: self    # 與 T16 同一批使用者指定
     size: XL
-    blocked_by: ["T16-casting-forging-machines"]
+    blocked_by: []    # T16 已合併(#55 + #56),這批可以開工
     why: >
       補完「手工具製程主要流程圖」的後兩段(加工與表面處理 / 組裝檢驗包裝)。
       配上既有的 CNC、熱處理爐、AOI、包裝機,截圖那條產線就能完整跑起來。
@@ -109,7 +109,7 @@ tasks:
 
   - id: T13-data-chain-landing
     title: "資料鏈落地:停機原因碼 + 事件表 + 逐件生產紀錄(含良/不良計數)"
-    status: in_review
+    status: done          # PR #55 已合併(2026-08-21)
     pr: "https://github.com/dofliu/CloudDataProduction/pull/55"
     decisions: >
       2026-08-21 使用者拍板三個設計決定:① 逐件明細**與**每小時彙總都做(明細 2 天、彙總永久);
@@ -158,7 +158,7 @@ tasks:
     status: todo
     autonomy: ask_first        # 要改場景結構(電表掛在哪些設備下)
     size: M
-    blocked_by: ["T13-data-chain-landing"]
+    blocked_by: []    # T13 已合併(#55)
     why: >
       20 台電表有 kWh,但電表沒有對應到設備或產線,「單位產品能耗」算不出來 ——
       而這正是能源 KPI / 碳盤查最基本的一題。有了 T13 的良品計數才談得上「每良品耗多少電」。

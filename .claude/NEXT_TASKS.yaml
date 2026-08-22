@@ -9,7 +9,7 @@ version: 1
 updated: "2026-08-22"
 maintainer_note: "任務做完 / 開了 PR,務必在同一個 PR 裡把本檔的 status 與 pr 欄位一起更新,否則下次醒來會重做。"
 status_values: "todo(待做)/ in_review(PR 開著)/ done(已合併)/ blocked(卡在外部)/ paused(方向轉了,這學期不做)"
-focus: "2026-08-22:T14 取數介面完成(REST 強化 + 唯讀 SQL)送審中。資料鏈剩 T15(能耗歸屬與廠級彙總)"
+focus: "2026-08-22:T14 取數介面已合併(PR #60)。資料鏈剩 T15(能耗歸屬與廠級彙總,ask_first)"
 
 # ── 排程 session 的行為準則 ──────────────────────────────
 routine_protocol:
@@ -140,7 +140,7 @@ tasks:
 
   - id: T14-data-access-layer
     title: "取數介面升級:多設備 / 多 tag / 降採樣 / 匯出(或唯讀 SQL)"
-    status: in_review
+    status: done          # PR #60 已合併(2026-08-22)
     pr: "https://github.com/dofliu/CloudDataProduction/pull/60"
     decisions: >
       2026-08-22 使用者拍板三題:① 取數路線 = REST 強化為主 + 唯讀 SQL 進階(兩個都做);

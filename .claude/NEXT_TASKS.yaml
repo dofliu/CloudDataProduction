@@ -9,7 +9,7 @@ version: 1
 updated: "2026-08-22"
 maintainer_note: "任務做完 / 開了 PR,務必在同一個 PR 裡把本檔的 status 與 pr 欄位一起更新,否則下次醒來會重做。"
 status_values: "todo(待做)/ in_review(PR 開著)/ done(已合併)/ blocked(卡在外部)/ paused(方向轉了,這學期不做)"
-focus: "2026-08-22:機型補完並已合併(T16 + T17 = 25 種,手工具全鏈)。重心回到資料鏈:下一步 T14(取數介面)"
+focus: "2026-08-22:T14 取數介面完成(REST 強化 + 唯讀 SQL)送審中。資料鏈剩 T15(能耗歸屬與廠級彙總)"
 
 # ── 排程 session 的行為準則 ──────────────────────────────
 routine_protocol:
@@ -140,7 +140,21 @@ tasks:
 
   - id: T14-data-access-layer
     title: "取數介面升級:多設備 / 多 tag / 降採樣 / 匯出(或唯讀 SQL)"
-    status: todo
+    status: in_review
+    pr: "PENDING"
+    decisions: >
+      2026-08-22 使用者拍板三題:① 取數路線 = REST 強化為主 + 唯讀 SQL 進階(兩個都做);
+      ② 輸出形狀 = wide 與 long 都給、預設 wide;③ 降採樣統計量 = avg / min / max / count 四個。
+    outcome: >
+      已實作:① /api/history 支援 devices= / tags= 多值、bucket= 時間桶(avg/min/max/count)、
+      shape=wide|long(預設 wide)、format=csv(帶 BOM);既有單設備單 tag 呼叫零回歸(CI 逐欄比對)。
+      wide 的 limit 是「時間列數」不是總點數(否則多序列被裁成參差的洞);窗內無資料的序列列進
+      missing 欄位而不是靜靜消失。② 唯讀 SQL:GET /api/sql + /api/sql/tables,白名單四張表
+      (telemetry / events / production / production_hourly)。安全邊界不靠正則 —— SQLite 走
+      file:...?mode=ro URI、PostgreSQL 走 READ ONLY 交易 + statement_timeout,測試刻意繞過
+      正則直接送 DELETE 由 DB 拒絕。③ 三種後端(timescale / sqlite / 降級記憶體)實測逐列一致。
+      ④ student_kit/p6_fetch_data.py 四種取法(設備與 tag 由 /api/catalog 現查、不寫死)。
+      CI:tests/test_data_access.py 21 項。
     autonomy: ask_first        # 會改到學生已經在用的 API 形狀
     size: L
     blocked_by: []

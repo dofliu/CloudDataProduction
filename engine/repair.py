@@ -68,6 +68,18 @@ REPAIR_ACTIONS: Dict[str, dict] = {
         "signature": "流量或壓力掉、堆積物指標(含渣量 / 氧化皮)升,但驅動端的電流與振動都正常 ——"
                      "機構沒壞,是通道被堵住了。清乾淨就恢復,換件是白花錢。",
     },
+    "replace_bath_chemistry": {
+        "label": "更換 / 調配製程槽液(清洗液 · 鍍液)",
+        "duration_h": 8.0,
+        "signature": "槽液本身的指標走樣:導電度 / pH 單調漂移、鍍層孔隙率或殘留污染升;"
+                     "但泵、整流器、加熱器的電氣訊號都正常 —— 機器沒壞,是**液**該換了。",
+    },
+    "replenish_anode": {
+        "label": "補掛 / 更換陽極",
+        "duration_h": 3.0,
+        "signature": "陽極質量掉到下限、電流密度不足、槽電壓上升(同樣電流要更高電壓推),"
+                     "鍍層因此變薄。整流器紋波正常 —— 電源是好的,是**料**消耗完了。",
+    },
     "overhaul": {
         "label": "整機大修(不需診斷)",
         "duration_h": 24.0,
@@ -138,6 +150,25 @@ _COMPONENT_ACTION: Dict[str, str] = {
     "hydraulic_accumulator": "service_fluid_system",
     "vacuum_seal_wear": "service_fluid_system",
     "coupling_drift": "recalibrate_process",          # 線圈耦合走樣:重新校正加熱配方
+    # 手工具後段(2026-08-22)
+    "spindle_bearing_wear": "replace_bearing",
+    "pump_bearing_wear": "replace_bearing",
+    "abrasive_wear": "replace_wear_part",             # 砂輪 / 拋光輪是消耗品
+    "dust_extraction_clog": "clean_filter",           # 集塵管路堵:清管路,不是換主軸
+    "bath_contamination": "replace_bath_chemistry",   # 清洗液髒了:換液
+    "bath_aging": "replace_bath_chemistry",           # 鍍液老化:調 / 換鍍液
+    "nozzle_clog": "clear_blockage",                  # 噴嘴堵:疏通即恢復
+    "heater_aging": "replace_electrical",             # 烘乾加熱器老化
+    "rectifier_aging": "replace_electrical",          # 整流器老化:紋波升 + 自身發熱
+    "anode_consumption": "replenish_anode",           # 陽極消耗:補掛,不是換鍍液
+    "drive_motor_wear": "replace_bearing",
+    "press_actuator_wear": "replace_bearing",
+    # 感測器漂移:**量測系統**的病。修機構沒有用,要校正 ——
+    # 這是 torque_tester 刻意設計的陷阱(退回率升 ≠ 上游品質變差)。
+    "torque_sensor_drift": "calibrate_sensor",
+    "fixture_wear": "replace_wear_part",              # 夾具磨耗 → 打滑
+    "feeder_jam": "clear_blockage",                   # 振動盤卡料:清一清,不是換伺服
+    "screwdriver_torque_drift": "recalibrate_process",  # 電動起子扭力衰退:重設 / 校正
 }
 
 # 關鍵字後援:新模板取了沒登記的元件名時,盡量還是猜得到對症動作,

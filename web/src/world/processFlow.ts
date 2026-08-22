@@ -32,6 +32,11 @@ const ROLE: Record<string, Role> = {
   induction_heater: "source",
   forging_press: "source",
   trimming_press: "source",
+  grinding_polisher: "source",
+  cleaning_dryer: "source",
+  plating_line: "source",
+  assembly_station: "source",
+  torque_tester: "source",
   robot_arm_6axis: "handler",
   agv_mobile_robot: "handler",
   conveyor: "transport",
@@ -64,6 +69,11 @@ const VERB: Record<string, string> = {
   induction_heater: "感應加熱",
   forging_press: "熱模鍛造",
   trimming_press: "切邊整修",
+  grinding_polisher: "研磨拋光",
+  cleaning_dryer: "清洗乾燥",
+  plating_line: "電鍍表面",
+  assembly_station: "零件組裝",
+  torque_tester: "扭力測試",
 };
 
 /** 各機種在產線視圖中的縮放(風機 20 m 高、電表 6 m,不縮會互相打架)。 */
@@ -77,6 +87,10 @@ export const LINE_SCALE: Record<string, number> = {
   // 不縮會把整條線的比例壓垮。
   melting_furnace: 0.55, die_casting_machine: 0.50, induction_heater: 0.58,
   forging_press: 0.42, trimming_press: 0.62,
+  // 手工具後段(2026-08-22):清洗機與電鍍線是**橫向很長**的連續機(網帶 13 m / 槽列 15 m),
+  // 不縮會把整條產線的視圖撐爆。
+  grinding_polisher: 0.60, cleaning_dryer: 0.34, plating_line: 0.30,
+  assembly_station: 0.62, torque_tester: 0.68,
 };
 
 /**
@@ -115,6 +129,12 @@ const EXTENT_X: Record<string, [number, number]> = {
   induction_heater: [3.3, 3.3],
   forging_press: [1.8, 1.8],
   trimming_press: [2.0, 1.8],
+  // 手工具後段(2026-08-22):preview/measure.mjs 實測(含 LINE_SCALE + 0.3 餘隙)
+  grinding_polisher: [2.1, 2.1],
+  cleaning_dryer: [2.5, 2.5],
+  plating_line: [2.7, 2.7],
+  assembly_station: [2.0, 1.9],
+  torque_tester: [1.9, 1.9],
 };
 const extentX = (t: string): [number, number] => EXTENT_X[t] ?? [3.0, 3.0];
 

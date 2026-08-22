@@ -29,6 +29,12 @@ from .die_casting_machine import build as _build_diecast
 from .induction_heater import build as _build_induction
 from .forging_press import build as _build_forging
 from .trimming_press import build as _build_trimming
+# 手工具後段(2026-08-22:手工具製程主要流程圖的後兩段 —— 加工表面處理 / 組裝檢驗)
+from .grinding_polisher import build as _build_grinding
+from .cleaning_dryer import build as _build_cleaning
+from .plating_line import build as _build_plating
+from .assembly_station import build as _build_assembly
+from .torque_tester import build as _build_torque
 
 # template 名稱 → builder
 _REGISTRY: Dict[str, Callable] = {
@@ -53,6 +59,12 @@ _REGISTRY: Dict[str, Callable] = {
     "induction_heater": _build_induction,
     "forging_press": _build_forging,
     "trimming_press": _build_trimming,
+    # 手工具後段
+    "grinding_polisher": _build_grinding,
+    "cleaning_dryer": _build_cleaning,
+    "plating_line": _build_plating,
+    "assembly_station": _build_assembly,
+    "torque_tester": _build_torque,
 }
 
 

@@ -34,6 +34,11 @@ import { DieCastingMachineModel } from "./DieCastingMachine3D";
 import { InductionHeaterModel } from "./InductionHeater3D";
 import { ForgingPressModel } from "./ForgingPress3D";
 import { TrimmingPressModel } from "./TrimmingPress3D";
+import { GrindingPolisherModel } from "./GrindingPolisher3D";
+import { CleaningDryerModel } from "./CleaningDryer3D";
+import { PlatingLineModel } from "./PlatingLine3D";
+import { AssemblyStationModel } from "./AssemblyStation3D";
+import { TorqueTesterModel } from "./TorqueTester3D";
 
 import { ARM_REACH_X, LINE_SCALE, layoutLine } from "./processFlow";
 
@@ -60,6 +65,11 @@ const MODELS: Record<string, ModelComp> = {
   induction_heater: InductionHeaterModel,
   forging_press: ForgingPressModel,
   trimming_press: TrimmingPressModel,
+  grinding_polisher: GrindingPolisherModel,
+  cleaning_dryer: CleaningDryerModel,
+  plating_line: PlatingLineModel,
+  assembly_station: AssemblyStationModel,
+  torque_tester: TorqueTesterModel,
 };
 
 /**

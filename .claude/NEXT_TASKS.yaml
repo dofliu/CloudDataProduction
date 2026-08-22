@@ -9,7 +9,7 @@ version: 1
 updated: "2026-08-22"
 maintainer_note: "任務做完 / 開了 PR,務必在同一個 PR 裡把本檔的 status 與 pr 欄位一起更新,否則下次醒來會重做。"
 status_values: "todo(待做)/ in_review(PR 開著)/ done(已合併)/ blocked(卡在外部)/ paused(方向轉了,這學期不做)"
-focus: "2026-08-22:T13 / T16 已合併。下一步 T17(手工具後段 5 機種)或 T14(取數介面)—— 等使用者定順序"
+focus: "2026-08-22:機型補完(T16 + T17 = 25 種,手工具全鏈)。重心回到資料鏈:下一步 T14(取數介面)"
 
 # ── 排程 session 的行為準則 ──────────────────────────────
 routine_protocol:
@@ -97,10 +97,11 @@ tasks:
 
   - id: T17-handtool-line-machines
     title: "手工具後段 5 機種(研磨拋光 / 清洗乾燥 / 電鍍表面處理 / 扭力測試 / 零件組裝)"
-    status: todo
+    status: in_review
+    pr: "https://github.com/dofliu/CloudDataProduction/pull/58"
     autonomy: self    # 與 T16 同一批使用者指定
     size: XL
-    blocked_by: []    # T16 已合併(#55 + #56),這批可以開工
+    blocked_by: []
     why: >
       補完「手工具製程主要流程圖」的後兩段(加工與表面處理 / 組裝檢驗包裝)。
       配上既有的 CNC、熱處理爐、AOI、包裝機,截圖那條產線就能完整跑起來。

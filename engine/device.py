@@ -68,6 +68,12 @@ PRODUCTION_COUNT_TAGS: Dict[str, str] = {
     "induction_heater": "billet_count",
     "forging_press": "forge_count",
     "trimming_press": "trim_count",
+    # 手工具後段(2026-08-22)
+    "grinding_polisher": "ground_count",
+    "cleaning_dryer": "washed_count",
+    "plating_line": "plated_count",
+    "assembly_station": "assembled_count",
+    "torque_tester": "tested_count",
 }
 
 # 一拍最多逐件展開幾件(保險絲)。超過就改用統計配額,避免極端 dt 下迴圈爆掉。

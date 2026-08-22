@@ -33,6 +33,11 @@ import DieCastingMachine3D from "../src/world/DieCastingMachine3D";
 import InductionHeater3D from "../src/world/InductionHeater3D";
 import ForgingPress3D from "../src/world/ForgingPress3D";
 import TrimmingPress3D from "../src/world/TrimmingPress3D";
+import GrindingPolisher3D from "../src/world/GrindingPolisher3D";
+import CleaningDryer3D from "../src/world/CleaningDryer3D";
+import PlatingLine3D from "../src/world/PlatingLine3D";
+import AssemblyStation3D from "../src/world/AssemblyStation3D";
+import TorqueTester3D from "../src/world/TorqueTester3D";
 
 const SCENES: Record<string, React.ComponentType<any>> = {
   cnc_machining_center: CncMachine3D, robot_arm_6axis: RobotArm3D, injection_molding: InjectionMolding3D,
@@ -44,6 +49,9 @@ const SCENES: Record<string, React.ComponentType<any>> = {
   melting_furnace: MeltingFurnace3D, die_casting_machine: DieCastingMachine3D,
   induction_heater: InductionHeater3D, forging_press: ForgingPress3D,
   trimming_press: TrimmingPress3D,
+  grinding_polisher: GrindingPolisher3D, cleaning_dryer: CleaningDryer3D,
+  plating_line: PlatingLine3D, assembly_station: AssemblyStation3D,
+  torque_tester: TorqueTester3D,
 };
 
 type Frame = { sim_t: number; multiplier: number; devices: Record<string, any> };

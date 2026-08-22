@@ -324,7 +324,10 @@ LINE_PRODUCERS = {"cnc_machining_center", "injection_molding",
                   "aoi_inspection", "packaging_machine",
                   # 鑄造 / 鍛造上游(2026-08-21)
                   "melting_furnace", "die_casting_machine",
-                  "induction_heater", "forging_press", "trimming_press"}
+                  "induction_heater", "forging_press", "trimming_press",
+                  # 手工具後段(2026-08-22)
+                  "grinding_polisher", "cleaning_dryer", "plating_line",
+                  "assembly_station", "torque_tester"}
 
 
 def derive_line(devices: list[dict]) -> list[str] | None:
@@ -375,6 +378,9 @@ ZH = {
     "melting_furnace": "熔煉爐", "die_casting_machine": "壓鑄機",
     "induction_heater": "感應加熱爐", "forging_press": "鍛造壓機",
     "trimming_press": "毛胚整修機",
+    "grinding_polisher": "研磨拋光機", "cleaning_dryer": "清洗乾燥機",
+    "plating_line": "電鍍線", "assembly_station": "零件組裝機",
+    "torque_tester": "扭力測試機",
 }
 ALL_TEMPLATES = set(ZH)
 
@@ -469,6 +475,24 @@ def build() -> tuple[list[dict], list[str]]:
          "加熱溫度不足的棒料鍛出來會有摺疊裂紋 —— 出料溫度是這條線的第一個品質關卡。",
          ["induction_heater", "robot_arm_6axis", "forging_press",
           "robot_arm_6axis", "trimming_press"]),
+        # 手工具後段(2026-08-22 追加):流程圖的第 2 段「加工與表面處理」與
+        # 第 3 段「組裝檢驗包裝」。拆成兩間而不是塞成一條七站線 ——
+        # 表面處理與組裝在真實產業本來就常是不同廠(電鍍要環評、組裝要人力),
+        # 拆開才接得出 鍛造 → 表面處理 → 組裝 這條三段供應鏈。
+        ("c72", "利岳研拋", "surface_finishing", "手工具研磨電鍍件", "✨",
+         "研磨電鍍",
+         "鍛胚先在研磨拋光機磨掉分模線並拋光,六軸手臂送進連續網帶清洗機脫脂烘乾,"
+         "再由手臂掛上連續電鍍線鍍鎳鉻。清洗沒洗乾淨的工件,鍍層會附不住 —— "
+         "但清洗站自己的儀表一切正常,不良要到電鍍站的孔隙率才看得出來。",
+         ["grinding_polisher", "robot_arm_6axis", "cleaning_dryer",
+          "robot_arm_6axis", "plating_line"]),
+        ("c73", "泰勁工具", "handtool_assembly", "棘輪扳手成品", "🔧",
+         "組裝檢驗",
+         "鍍好的本體在組裝機壓入棘輪組並鎖上背蓋,六軸手臂送到扭力測試機逐支扭到規格值,"
+         "合格品經輸送帶出貨。扭力感測器漂移時退回率會升 —— 那不是上游做壞了,"
+         "是這台自己該校正了(對症是校正,不是換件)。",
+         ["assembly_station", "robot_arm_6axis", "torque_tester",
+          "robot_arm_6axis", "conveyor"]),
     ]
     for cid, name, industry, product, icon, label, story, tmpls in NEW_FACTORIES:
         devices = []
@@ -516,6 +540,7 @@ STAGE = {
     "welding": 1,                                            # 焊接接合(加工)
     "inspection": 2, "packaging": 2,                         # 檢測 / 包裝(精整收尾)
     "casting": 0, "forging": 0,                              # 鑄造 / 鍛造(素材成形,最上游)
+    "surface_finishing": 2, "handtool_assembly": 2,          # 研磨表面處理 / 組裝檢驗(收尾)
 }
 # 進料名用上游產業的「中間料」語彙(A 出給 B 的是半成品,不是 A 的整個主力產品名)
 PART_BY_INDUSTRY = {
@@ -526,6 +551,7 @@ PART_BY_INDUSTRY = {
     "laser_cutting": "雷切下料件", "welding": "焊接組件",
     "inspection": "檢驗合格件", "packaging": "包裝成品",
     "casting": "熔鑄棒料", "forging": "鍛造胚料",
+    "surface_finishing": "研磨電鍍件", "handtool_assembly": "手工具成品",
 }
 # 只有這些 template 有「完成一件」的累積量 tag,供應鏈才數得出誰出了幾件
 # (與 engine/line.py 的 COUNT_TAGS 一致)。沒有這種設備的廠不參與供應鏈 ——
@@ -533,7 +559,9 @@ PART_BY_INDUSTRY = {
 SUPPLY_TEMPLATES = {"cnc_machining_center", "injection_molding", "stamping_press", "semi_process_chamber",
                     "welding_cell", "laser_cutter", "aoi_inspection", "packaging_machine",
                     "melting_furnace", "die_casting_machine", "induction_heater",
-                    "forging_press", "trimming_press"}
+                    "forging_press", "trimming_press",
+                    "grinding_polisher", "cleaning_dryer", "plating_line",
+                    "assembly_station", "torque_tester"}
 # 每條鏈的**最後一段**不給外部備援(external_backup_h=0)—— 刻意留一個對照組:
 # 有備援的那幾段會看到「靠外購撐著」,沒備援的那段上游一停就真的死給你看。
 BACKUP_H = 3.0
@@ -549,31 +577,38 @@ def build_supply_chain(companies: list[dict]) -> list[dict]:
     # 新產業廠(c66~c69)不進一般 pool —— 塞進去會補滿舊 pool 的最後一組,
     # 改變既有鏈的成員;獨立成鏈(雷切下料 → 焊接 → 檢測 → 包裝)故事也才連貫。
     NEW_CHAIN_IDS = {"c66", "c67", "c68", "c69"}
-    # 鑄造 / 鍛造上游(2026-08-21)**刻意不接供應鏈**,理由寫在這裡免得下次又有人想接:
+    # ── 手工具製程鏈(2026-08-22)────────────────────────────
+    # c71 鍛造 → c72 研磨電鍍 → c73 組裝檢驗。這條**接**,因為它真的是 1:1:
+    # 一支鍛胚 = 一支研磨件 = 一支扳手,整條線上工件不分裂也不合併。
     #
-    # 引擎的供應鏈是 **1 件換 1 件**(engine/supply.py:上游 shipped +1 → 下游進料倉 +1)。
-    # 但真實的「熔煉 → 鍛造」不是 1:1 —— 一籃 1450 °C 熔湯連鑄下去可以出很多支棒料。
-    # 硬把 c70(一籃 72 秒)接給 c71(一支棒料 22 秒)會讓鍛造廠一天餓料 4.5 小時、
-    # 感應加熱爐利用率剩 10%,看起來像壞掉的工廠 —— 那是**模型單位的假象**,不是工廠事實,
-    # 寫進場景就是拿假資料教學(違反鐵則二)。
-    #
-    # 正解有兩條:① 供應鏈支援「產出比」(上游 1 件 = 下游 N 件),那是資料契約改動,要另案;
-    # ② 等 B 批的手工具廠上線,鍛造胚料 → 手工具組裝的節拍本來就對得上,再接才誠實。
-    # 現在先讓兩間各自跑完整產線,不接鏈。
-    UPSTREAM_CHAIN_IDS = {"c70", "c71"}
+    # c70 熔煉鑄造**仍然不接**(A 批 2026-08-21 的判斷不變):引擎的供應鏈是 1 件換 1 件
+    # (engine/supply.py:上游 shipped +1 → 下游進料倉 +1),但一籃 1450 °C 熔湯連鑄下去
+    # 可以出很多支棒料 —— 那是 1:N。硬接會讓鍛造廠一天餓料 4.5 小時、感應加熱爐利用率
+    # 剩 10%,看起來像壞掉的工廠;那是**模型單位的假象**,不是工廠事實(違反鐵則二)。
+    # 要接得等供應鏈支援「產出比」(上游 1 件 = 下游 N 件),那是資料契約改動,另案。
+    # c70 因此獨立成廠、自己跑完整壓鑄線,不進鏈。
+    HANDTOOL_CHAIN_IDS = ["c71", "c72", "c73"]
+    UPSTREAM_CHAIN_IDS = {"c70"}
     pool = [c for c in companies
             if c["id"] != "c65" and c["id"] not in NEW_CHAIN_IDS
             and c["id"] not in UPSTREAM_CHAIN_IDS
+            and c["id"] not in HANDTOOL_CHAIN_IDS
             and any(d["template"] in SUPPLY_TEMPLATES for d in c["devices"])]
     new_group = sorted((c for c in companies if c["id"] in NEW_CHAIN_IDS),
                        key=lambda c: c["id"])
     upstream_group = sorted((c for c in companies if c["id"] in UPSTREAM_CHAIN_IDS),
                             key=lambda c: c["id"])
+    by_id = {c["id"]: c for c in companies}
+    handtool_group = [by_id[i] for i in HANDTOOL_CHAIN_IDS if i in by_id]
     # 舊 pool 依原規則切組;新四廠**單獨一組**(不能直接 append 進 pool ——
     # 舊 pool 尾組不滿 4 時會被新廠補滿,既有鏈成員就變了)。
     groups = [pool[i:i + CHAIN_LEN] for i in range(0, len(pool), CHAIN_LEN)]
     if new_group:
         groups.append(new_group)
+    if len(handtool_group) >= 2:
+        # 手工具鏈的順序**寫死**成鍛造 → 研磨電鍍 → 組裝,不吃 STAGE 排序 ——
+        # 這是製程的物理順序(沒鍍完不能組裝),不是可以重排的偏好。
+        groups.append(handtool_group)
     # upstream_group(c70/c71)不進 groups —— 見上面的理由。留著變數是為了讓「為什麼沒接」
     # 這件事在程式裡看得見,而不是靠記憶。
     _ = upstream_group
@@ -581,8 +616,10 @@ def build_supply_chain(companies: list[dict]) -> list[dict]:
     for chain in groups:
         if len(chain) < 2:
             continue
-        # 鏈內依工序階段排序(stable:同階段維持原相對序)—— 成員不變,方向合理化
-        chain.sort(key=lambda c: STAGE.get(c["industry"], 1))
+        # 鏈內依工序階段排序(stable:同階段維持原相對序)—— 成員不變,方向合理化。
+        # 手工具鏈已依製程物理順序寫死,不再重排。
+        if [c["id"] for c in chain] != HANDTOOL_CHAIN_IDS:
+            chain.sort(key=lambda c: STAGE.get(c["industry"], 1))
         for i in range(len(chain) - 1):
             up, down = chain[i], chain[i + 1]
             last_hop = i == len(chain) - 2

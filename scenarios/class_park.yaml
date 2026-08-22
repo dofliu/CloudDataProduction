@@ -775,6 +775,34 @@ park:
         - {id: d174, template: robot_arm_6axis}
         - {id: d175, template: trimming_press}
 
+    - id: c72
+      name: "利岳研拋"
+      industry: surface_finishing
+      product: "手工具研磨電鍍件"
+      product_icon: "✨"
+      intro: "課堂教學用**合成**工廠(c72);研磨電鍍 · 主力產品:手工具研磨電鍍件。製程:鍛胚先在研磨拋光機磨掉分模線並拋光,六軸手臂送進連續網帶清洗機脫脂烘乾,再由手臂掛上連續電鍍線鍍鎳鉻。清洗沒洗乾淨的工件,鍍層會附不住 —— 但清洗站自己的儀表一切正常,不良要到電鍍站的孔隙率才看得出來。產線:研磨拋光機(d176) → 六軸機械手臂(d177) → 清洗乾燥機(d178) → 六軸機械手臂(d179) → 電鍍線(d180) —— 工件在引擎內真實流動,上游完工、手臂搬運、下游才有料可加工(緩衝可讀 FC04 line_in/out_buffer)。所有數據皆為模擬產生,非真實場域量測。"
+      line: [d176, d177, d178, d179, d180]   # 產線物料流(engine/line.py)
+      devices:
+        - {id: d176, template: grinding_polisher}
+        - {id: d177, template: robot_arm_6axis}
+        - {id: d178, template: cleaning_dryer}
+        - {id: d179, template: robot_arm_6axis}
+        - {id: d180, template: plating_line}
+
+    - id: c73
+      name: "泰勁工具"
+      industry: handtool_assembly
+      product: "棘輪扳手成品"
+      product_icon: "🔧"
+      intro: "課堂教學用**合成**工廠(c73);組裝檢驗 · 主力產品:棘輪扳手成品。製程:鍍好的本體在組裝機壓入棘輪組並鎖上背蓋,六軸手臂送到扭力測試機逐支扭到規格值,合格品經輸送帶出貨。扭力感測器漂移時退回率會升 —— 那不是上游做壞了,是這台自己該校正了(對症是校正,不是換件)。產線:零件組裝機(d181) → 六軸機械手臂(d182) → 扭力測試機(d183) → 六軸機械手臂(d184) → 輸送帶(d185) —— 工件在引擎內真實流動,上游完工、手臂搬運、下游才有料可加工(緩衝可讀 FC04 line_in/out_buffer)。所有數據皆為模擬產生,非真實場域量測。"
+      line: [d181, d182, d183, d184, d185]   # 產線物料流(engine/line.py)
+      devices:
+        - {id: d181, template: assembly_station}
+        - {id: d182, template: robot_arm_6axis}
+        - {id: d183, template: torque_tester}
+        - {id: d184, template: robot_arm_6axis}
+        - {id: d185, template: conveyor}
+
   # 跨公司供應鏈:A 出貨 = B 進料(engine/supply.py)。
   # 上游同學的機台壞了沒人管,你的產線就餓料停機;你停太久,下游的進料倉塞爆,
   # 反過來把你卡住。每 4 間一條鏈(= 課堂分組大小),每條鏈最後一段刻意不給外部備援。
@@ -820,3 +848,5 @@ park:
     - {from: c67, to: c66, part: "雷切下料件(機箱鈑金雷切件)", cap: 45, initial: 18, external_backup_h: 3.0}
     - {from: c66, to: c68, part: "焊接組件(自行車鋁合金車架)", cap: 45, initial: 18, external_backup_h: 3.0}
     - {from: c68, to: c69, part: "檢驗合格件(連接器射出件(全檢))", cap: 45, initial: 18, external_backup_h: 0.0}
+    - {from: c71, to: c72, part: "鍛造胚料(手工具鍛造胚料)", cap: 45, initial: 18, external_backup_h: 3.0}
+    - {from: c72, to: c73, part: "研磨電鍍件(手工具研磨電鍍件)", cap: 45, initial: 18, external_backup_h: 0.0}

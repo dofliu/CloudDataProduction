@@ -467,3 +467,31 @@ park:
         - {id: x01-d102, template: forging_press}
         - {id: x01-d103, template: robot_arm_6axis}
         - {id: x01-d104, template: trimming_press}
+
+    - id: x01-f6
+      name: "研磨電鍍示範廠(新產業展示)"
+      industry: surface_finishing
+      product: "手工具研磨電鍍件"
+      product_icon: "✨"
+      intro: "新產業**合成**示範工廠;主力產品:手工具研磨電鍍件。製程:鍛胚在研磨拋光機磨掉分模線,六軸手臂送進連續網帶清洗機脫脂烘乾,再掛上連續電鍍線鍍鎳鉻。洗不乾淨的工件鍍層會附不住,但不良要到電鍍站的孔隙率才看得出來 —— 本站儀表一切正常,這是跨站根因分析的教材。產線:研磨拋光機(x01-d105) → 六軸機械手臂(x01-d106) → 清洗乾燥機(x01-d107) → 六軸機械手臂(x01-d108) → 電鍍線(x01-d109) —— 工件在引擎內真實流動,上游完工、手臂搬運、下游才有料可加工(緩衝可讀 FC04 line_in/out_buffer)。所有數據皆為模擬產生,非真實場域量測。"
+      line: [x01-d105, x01-d106, x01-d107, x01-d108, x01-d109]   # 產線物料流(engine/line.py)
+      devices:
+        - {id: x01-d105, template: grinding_polisher}
+        - {id: x01-d106, template: robot_arm_6axis}
+        - {id: x01-d107, template: cleaning_dryer}
+        - {id: x01-d108, template: robot_arm_6axis}
+        - {id: x01-d109, template: plating_line}
+
+    - id: x01-f7
+      name: "手工具組裝示範廠(新產業展示)"
+      industry: handtool_assembly
+      product: "棘輪扳手成品"
+      product_icon: "🔧"
+      intro: "新產業**合成**示範工廠;主力產品:棘輪扳手成品。製程:鍍好的本體在組裝機壓入棘輪組並鎖上背蓋,六軸手臂送到扭力測試機逐支驗扭力,合格品經輸送帶出貨。扭力感測器漂移時退回率會升,但那是量測系統該校正,不是上游做壞了 —— 刻意留的陷阱題。產線:零件組裝機(x01-d110) → 六軸機械手臂(x01-d111) → 扭力測試機(x01-d112) → 六軸機械手臂(x01-d113) → 輸送帶(x01-d114) —— 工件在引擎內真實流動,上游完工、手臂搬運、下游才有料可加工(緩衝可讀 FC04 line_in/out_buffer)。所有數據皆為模擬產生,非真實場域量測。"
+      line: [x01-d110, x01-d111, x01-d112, x01-d113, x01-d114]   # 產線物料流(engine/line.py)
+      devices:
+        - {id: x01-d110, template: assembly_station}
+        - {id: x01-d111, template: robot_arm_6axis}
+        - {id: x01-d112, template: torque_tester}
+        - {id: x01-d113, template: robot_arm_6axis}
+        - {id: x01-d114, template: conveyor}

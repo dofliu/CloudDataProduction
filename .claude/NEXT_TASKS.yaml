@@ -98,7 +98,7 @@ tasks:
   - id: T17-handtool-line-machines
     title: "手工具後段 5 機種(研磨拋光 / 清洗乾燥 / 電鍍表面處理 / 扭力測試 / 零件組裝)"
     status: in_review
-    pr: "PENDING"
+    pr: "https://github.com/dofliu/CloudDataProduction/pull/58"
     autonomy: self    # 與 T16 同一批使用者指定
     size: XL
     blocked_by: []

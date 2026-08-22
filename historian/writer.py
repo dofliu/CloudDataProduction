@@ -430,6 +430,205 @@ class Historian:
             for r in reversed(records)
         ]
 
+    # ── 多設備 × 多 tag + 時間桶降採樣(T14)────────────────
+    #
+    # 為什麼要有這一支:單設備單 tag 的 query() 做不了「一條產線的跨設備相關分析」——
+    # 學生得打幾十次 API 再自己對齊時間戳,取數本身變成作業的主要難度,而那不是這門課
+    # 想教的東西(要教的是**怎麼從資料看出問題**)。
+    #
+    # **時間戳天然對齊**:historian 是對同一份 snapshot 取樣的(見 on_snapshot),
+    # 一拍裡所有設備所有 tag 共用同一個 wall_t —— 所以多設備的原始點本來就對得齊,
+    # 不必先降採樣才能並排。這是這套模擬平台才有的性質,真工廠的多來源資料沒這麼好命,
+    # 教材要記得講這個差別。
+    #
+    # 降採樣吐 avg / min / max / count 四個量,不是只有 avg:
+    #   預測性維護看的是**峰值** —— 振動尖峰、溫度突波被平均一抹就不見了。
+    #   count 讓學生看得出這個桶裡實際有幾筆(補值與缺值分得開)。
+    _AGGS = ("avg", "min", "max", "count")
+
+    async def query_multi(
+        self,
+        devices: List[str],
+        tags: List[str],
+        t_from: Optional[float] = None,
+        t_to: Optional[float] = None,
+        bucket_s: float = 0.0,
+        limit: int = 20000,
+    ) -> List[dict]:
+        """多設備 × 多 tag 查詢。回傳 long 形狀,依 (t, device, tag) 排序。
+
+        bucket_s <= 0 → 原始點:{t, sim_t, device, tag, value}
+        bucket_s >  0 → 時間桶:{t, sim_t, device, tag, avg, min, max, count}
+                        t = 桶起點(floor(wall_t / bucket) * bucket)
+                        sim_t = 桶內最小 sim_t(= 桶起點對應的模擬時間)
+
+        limit 是**回傳列數**上限,取最近的;超過就截斷(API 會回報 truncated)。
+        """
+        devices = [d for d in dict.fromkeys(devices) if d]
+        tags = [t for t in dict.fromkeys(tags) if t]
+        if not devices or not tags:
+            return []
+        if self.degraded:
+            return self._mem_query_multi(devices, tags, t_from, t_to, bucket_s, limit)
+        if self.backend == "sqlite":
+            return await asyncio.to_thread(self._sqlite_query_multi, devices, tags,
+                                           t_from, t_to, bucket_s, limit)
+        return await self._pg_query_multi(devices, tags, t_from, t_to, bucket_s, limit)
+
+    @staticmethod
+    def _bucket_of(wall_t: float, bucket_s: float) -> float:
+        return (wall_t // bucket_s) * bucket_s
+
+    def _mem_query_multi(self, devices, tags, t_from, t_to, bucket_s, limit) -> List[dict]:
+        """降級模式(in-memory ring buffer)。與 SQL 後端**同一套桶定義**,
+        免得學生在降級時拿到對不上的數字。"""
+        raw: List[tuple] = []                       # (t, device, tag, sim_t, value)
+        for d in devices:
+            for tg in tags:
+                for (w, s, v) in self._mem.get((d, tg), ()):
+                    if t_from is not None and w < t_from:
+                        continue
+                    if t_to is not None and w > t_to:
+                        continue
+                    raw.append((w, d, tg, s, v))
+        if bucket_s <= 0:
+            raw.sort(key=lambda r: (r[0], r[1], r[2]))
+            rows = [{"t": w, "sim_t": s, "device": d, "tag": tg, "value": v}
+                    for (w, d, tg, s, v) in raw]
+            return rows[-limit:]
+        acc: Dict[tuple, dict] = {}
+        for (w, d, tg, s, v) in raw:
+            key = (self._bucket_of(w, bucket_s), d, tg)
+            a = acc.get(key)
+            if a is None:
+                acc[key] = {"sum": v, "min": v, "max": v, "count": 1, "sim_t": s}
+            else:
+                a["sum"] += v
+                a["min"] = min(a["min"], v)
+                a["max"] = max(a["max"], v)
+                a["count"] += 1
+                a["sim_t"] = min(a["sim_t"], s)
+        out = [{"t": k[0], "sim_t": a["sim_t"], "device": k[1], "tag": k[2],
+                "avg": a["sum"] / a["count"], "min": a["min"], "max": a["max"],
+                "count": a["count"]}
+               for k, a in acc.items()]
+        out.sort(key=lambda r: (r["t"], r["device"], r["tag"]))
+        return out[-limit:]
+
+    def _sqlite_query_multi(self, devices, tags, t_from, t_to, bucket_s, limit) -> List[dict]:
+        dq = ",".join("?" * len(devices))
+        tq = ",".join("?" * len(tags))
+        clauses = [f"device_id IN ({dq})", f"tag IN ({tq})"]
+        params: list = [*devices, *tags]
+        if t_from is not None:
+            clauses.append("wall_t >= ?"); params.append(t_from)
+        if t_to is not None:
+            clauses.append("wall_t <= ?"); params.append(t_to)
+        where = " AND ".join(clauses)
+        if bucket_s <= 0:
+            sql = (f"SELECT wall_t, sim_t, device_id, tag, value FROM telemetry WHERE {where} "
+                   f"ORDER BY wall_t DESC LIMIT ?")
+            with self._sqlite_lock:
+                rows = self._sqlite.execute(sql, [*params, limit]).fetchall()
+            out = [{"t": w, "sim_t": s, "device": d, "tag": tg, "value": v}
+                   for (w, s, d, tg, v) in rows]
+        else:
+            # epoch 恆正,CAST(... AS INTEGER) 即 floor —— 與 _bucket_of() 同一套桶定義
+            sql = (f"SELECT CAST(wall_t / ? AS INTEGER) * ? AS bt, MIN(sim_t), device_id, tag, "
+                   f"AVG(value), MIN(value), MAX(value), COUNT(value) FROM telemetry "
+                   f"WHERE {where} GROUP BY bt, device_id, tag ORDER BY bt DESC LIMIT ?")
+            with self._sqlite_lock:
+                rows = self._sqlite.execute(sql, [bucket_s, bucket_s, *params, limit]).fetchall()
+            out = [{"t": bt, "sim_t": st, "device": d, "tag": tg,
+                    "avg": av, "min": mn, "max": mx, "count": c}
+                   for (bt, st, d, tg, av, mn, mx, c) in rows]
+        out.sort(key=lambda r: (r["t"], r["device"], r["tag"]))
+        return out
+
+    async def _pg_query_multi(self, devices, tags, t_from, t_to, bucket_s, limit) -> List[dict]:
+        params: list = [devices, tags]
+        clauses = ["device_id = ANY($1)", "tag = ANY($2)"]
+        if t_from is not None:
+            params.append(t_from); clauses.append(f"time >= to_timestamp(${len(params)})")
+        if t_to is not None:
+            params.append(t_to); clauses.append(f"time <= to_timestamp(${len(params)})")
+        where = " AND ".join(clauses)
+        if bucket_s <= 0:
+            params.append(limit)
+            sql = ("SELECT extract(epoch from time) AS t, sim_t, device_id, tag, value "
+                   f"FROM telemetry WHERE {where} ORDER BY time DESC LIMIT ${len(params)}")
+            async with self._pool.acquire() as conn:
+                recs = await conn.fetch(sql, *params)
+            out = [{"t": r["t"], "sim_t": r["sim_t"], "device": r["device_id"],
+                    "tag": r["tag"], "value": r["value"]} for r in recs]
+        else:
+            params.append(bucket_s)
+            b = f"${len(params)}"
+            params.append(limit)
+            sql = (f"SELECT floor(extract(epoch from time) / {b}) * {b} AS bt, MIN(sim_t) AS sim_t, "
+                   "device_id, tag, AVG(value) AS avg, MIN(value) AS mn, MAX(value) AS mx, "
+                   "COUNT(value) AS cnt FROM telemetry "
+                   f"WHERE {where} GROUP BY bt, device_id, tag ORDER BY bt DESC LIMIT ${len(params)}")
+            async with self._pool.acquire() as conn:
+                recs = await conn.fetch(sql, *params)
+            out = [{"t": r["bt"], "sim_t": r["sim_t"], "device": r["device_id"], "tag": r["tag"],
+                    "avg": r["avg"], "min": r["mn"], "max": r["mx"], "count": r["cnt"]}
+                   for r in recs]
+        out.sort(key=lambda r: (r["t"], r["device"], r["tag"]))
+        return out
+
+    # ── 唯讀 SQL(T14 進階)──────────────────────────────────
+    #
+    # 技術棧選 TimescaleDB 的初衷就是「SQL 對學生分析友善」。REST 再怎麼加參數,
+    # 學到的仍是「一支 API」;能寫 SQL 才是可轉移的技能(去業界也是這樣撈資料)。
+    #
+    # **安全邊界不靠字串比對**。關鍵字黑名單一定繞得過(註解、大小寫、巢狀),所以真正
+    # 的防線是**讓資料庫自己拒絕寫入**:
+    #   sqlite    另開一條 mode=ro 的唯讀連線(URI 模式)—— 寫入在驅動層就被擋
+    #   timescale 在 READ ONLY transaction 裡跑 —— 寫入由 PG 自己拒絕
+    # 白名單與語法檢查是**第二層**(讓錯誤訊息友善、擋掉明顯的誤用),不是唯一那層。
+    #
+    # 四張表都是學生面的事實,不含 ground-truth:events 不存故障元件名、production 只有
+    # 品質結果(良/不良/不良類型)。要看「哪個元件在壞」仍得走教師面的 API。
+    SQL_TABLES = ("telemetry", "events", "production", "production_hourly")
+
+    async def query_sql(self, sql: str, limit: int = 5000,
+                        timeout_s: float = 10.0) -> Tuple[List[str], List[list]]:
+        """跑一段唯讀 SQL,回傳 (欄位名, 列)。不支援 memory / 降級模式。"""
+        if self.degraded or self.backend not in ("sqlite", "timescale"):
+            raise RuntimeError("唯讀 SQL 需要真的資料庫後端(sqlite / timescale);"
+                               "目前是 in-memory 降級模式,請改用 /api/history")
+        if self.backend == "sqlite":
+            return await asyncio.to_thread(self._sqlite_query_sql, sql, limit, timeout_s)
+        return await self._pg_query_sql(sql, limit, timeout_s)
+
+    def _sqlite_query_sql(self, sql, limit, timeout_s) -> Tuple[List[str], List[list]]:
+        import time as _time
+        # 唯讀連線:寫入在**驅動層**就被擋(不是靠我們檢查字串)
+        conn = sqlite3.connect(f"file:{self.sqlite_path}?mode=ro", uri=True,
+                               check_same_thread=False)
+        try:
+            deadline = _time.monotonic() + timeout_s
+            # 逾時:每跑一批 VM 指令就檢查一次,超時丟例外中止(避免一句慢查詢卡住全班)
+            def _guard():
+                return 1 if _time.monotonic() > deadline else 0
+            conn.set_progress_handler(_guard, 10000)
+            cur = conn.execute(sql)
+            cols = [d[0] for d in (cur.description or [])]
+            rows = [list(r) for r in cur.fetchmany(limit)]
+            return cols, rows
+        finally:
+            conn.close()
+
+    async def _pg_query_sql(self, sql, limit, timeout_s) -> Tuple[List[str], List[list]]:
+        async with self._pool.acquire() as conn:
+            # READ ONLY transaction:寫入由 PG 自己拒絕
+            async with conn.transaction(readonly=True):
+                await conn.execute(f"SET LOCAL statement_timeout = {int(timeout_s * 1000)}")
+                recs = await conn.fetch(sql)
+        cols = list(recs[0].keys()) if recs else []
+        return cols, [list(r.values()) for r in recs[:limit]]
+
     # ── 查詢:事件 / 逐件生產 / 每小時彙總 ──────────────────
     async def query_events(self, device_id=None, company_id=None, ev_type=None,
                            stop_reason=None, t_from=None, t_to=None, limit=2000) -> List[dict]:

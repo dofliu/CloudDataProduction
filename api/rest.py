@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 from contextlib import asynccontextmanager
 from typing import List, Optional
 
@@ -195,6 +196,80 @@ class SessionResetRequest(BaseModel):
     alarm_rules: bool = True    # 學生託管告警規則與告警紀錄
     polls: bool = True          # 全班投票紀錄
     levels: bool = True         # 關卡的教師勾選紀錄(自動判定的關卡本就跟著資料歸零)
+
+
+
+# ── 唯讀 SQL 的語法閘門(T14)────────────────────────────
+# 這是**第二層**防線。真正擋寫入的是資料庫自己(sqlite mode=ro / PG READ ONLY
+# transaction,見 historian.query_sql)—— 關鍵字比對一定繞得過,不能當作唯一那層。
+# 這一層的用途是:給出友善的錯誤訊息、擋掉明顯的誤用、限制查詢範圍。
+_SQL_FORBIDDEN = re.compile(
+    r"\b(insert|update|delete|drop|alter|create|replace|truncate|grant|revoke|"
+    r"attach|detach|vacuum|pragma|copy|call|do|merge|reindex|analyze)\b", re.I)
+_SQL_TABLE_REF = re.compile(r"\b(?:from|join)\s+([A-Za-z_][A-Za-z0-9_]*)", re.I)
+
+
+def _strip_sql_comments(sql: str) -> str:
+    """去掉 -- 行註解與 /* */ 區塊註解 —— 不去掉的話 `SELECT 1 --` 後面藏什麼都看不到。"""
+    sql = re.sub(r"/\*.*?\*/", " ", sql, flags=re.S)
+    sql = re.sub(r"--[^\n]*", " ", sql)
+    return sql
+
+
+def check_readonly_sql(sql: str, allowed: tuple) -> Optional[str]:
+    """回傳擋下來的理由;通過回 None。純函式,方便測試逐條驗。"""
+    body = _strip_sql_comments(sql or "").strip().rstrip(";").strip()
+    if not body:
+        return "SQL 是空的"
+    if ";" in body:
+        return "一次只能跑一句(不接受多句 SQL)"
+    if not re.match(r"^(select|with)\b", body, re.I):
+        return "只接受 SELECT(或 WITH ... SELECT)開頭的查詢"
+    hit = _SQL_FORBIDDEN.search(body)
+    if hit:
+        return f"不允許的關鍵字:{hit.group(1).upper()}"
+    refs = {m.group(1).lower() for m in _SQL_TABLE_REF.finditer(body)}
+    # WITH 的 CTE 名字也會被 FROM 引用到,要放行
+    ctes = {m.group(1).lower() for m in
+            re.finditer(r"\b([A-Za-z_][A-Za-z0-9_]*)\s+as\s*\(", body, re.I)}
+    bad = sorted(refs - set(allowed) - ctes)
+    if bad:
+        return (f"只能查這幾張表:{', '.join(allowed)}(你查了 {', '.join(bad)})")
+    return None
+
+
+# ── 取數輔助(T14)────────────────────────────────────────
+# wide 內部多撈的硬上限:limit × 序列數 可能很大,不能無上限打 DB。
+# 超過就截斷並在回應標 truncated —— 靜靜少給資料比報錯更糟。
+_MAX_FETCH_ROWS = 200_000
+# 唯讀 SQL 的護欄:一句查詢最多回幾列、最多跑幾秒(免得一句慢查詢卡住全班)
+_SQL_MAX_ROWS = 20_000
+_SQL_TIMEOUT_S = 10.0
+
+
+def _split_csv(raw: Optional[str]) -> List[str]:
+    """逗號分隔字串 → 去空白、去重、保序的清單。"""
+    if not raw:
+        return []
+    return [x for x in dict.fromkeys(p.strip() for p in raw.split(",")) if x]
+
+
+def _csv_response(cols: List[str], rows: List[dict], stem: str) -> Response:
+    """匯出 CSV。用 csv 模組而不是自己接字串 —— 值裡有逗號 / 引號時才不會把欄位切錯。
+
+    帶 UTF-8 BOM:Excel 在中文 Windows 上預設用 CP950 開 CSV,沒有 BOM 會變亂碼,
+    而這門課的學生多半就是用 Excel 先看一眼。
+    """
+    import csv as _csv
+    import io as _io
+    buf = _io.StringIO()
+    w = _csv.DictWriter(buf, fieldnames=cols, extrasaction="ignore", lineterminator="\n")
+    w.writeheader()
+    for r in rows:
+        w.writerow(r)
+    return Response("\ufeff" + buf.getvalue(),
+                    media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{stem}.csv"'})
 
 
 def create_app(
@@ -511,24 +586,178 @@ def create_app(
             raise HTTPException(404, f"無此設備:{device_id}")
         return device.public_snapshot()
 
+    # ── 取數介面(T14)────────────────────────────────────────
+    #
+    # 舊呼叫(?device=&tag=)**原封不動**:回傳形狀、欄位名、上限全部沒變 ——
+    # 學生已經寫好的程式與既有前端不能因為升級而壞掉。
+    # 只要用到任何新參數(devices / tags / bucket / shape / format / agg)才走新路徑。
+    #
+    # 為什麼要做這一段:一條產線的跨設備相關分析,先前得打幾十次 API 再自己對齊時間戳,
+    # 取數本身變成作業的主要難度 —— 而這門課要教的是「怎麼從資料看出問題」,不是對時間戳。
     @app.get("/api/history")
     async def get_history(
-        device: str = Query(..., description="設備 id"),
-        tag: str = Query(..., description="tag 名稱,如 vibration_rms"),
+        device: Optional[str] = Query(None, description="設備 id(舊參數,單台)"),
+        tag: Optional[str] = Query(None, description="tag 名稱(舊參數,單支)"),
+        devices: Optional[str] = Query(None, description="多設備,逗號分隔,如 d001,d002"),
+        tags: Optional[str] = Query(None, description="多 tag,逗號分隔,如 vibration_rms,spindle_temp"),
         from_: Optional[float] = Query(None, alias="from", description="起始 wall epoch 秒"),
         to: Optional[float] = Query(None, description="結束 wall epoch 秒"),
         limit: int = Query(5000, ge=1, le=50000),
+        bucket: float = Query(0.0, ge=0.0, le=86400.0,
+                              description="時間桶秒數(0=原始點)。常用 1 / 60 / 3600"),
+        shape: Optional[str] = Query(None, description="wide(預設,時間已對齊)| long"),
+        agg: str = Query("avg", description="wide + bucket 時每格放哪個統計量:avg|min|max|count"),
+        format: str = Query("json", description="json | csv"),
     ):
-        if device not in world.devices:
-            raise HTTPException(404, f"無此設備:{device}")
-        rows = await historian.query(device, tag, from_, to, limit)
-        return {
-            "device": device,
-            "tag": tag,
-            "count": len(rows),
-            "degraded": historian.degraded,  # True 表示來自 in-memory fallback
-            "points": rows,
+        legacy = (devices is None and tags is None and bucket <= 0
+                  and shape is None and format == "json")
+        dev_list = _split_csv(devices) or ([device] if device else [])
+        tag_list = _split_csv(tags) or ([tag] if tag else [])
+        if not dev_list or not tag_list:
+            raise HTTPException(422, "需要 device/tag 或 devices/tags")
+        unknown = [d for d in dev_list if d not in world.devices]
+        if unknown:
+            raise HTTPException(404, f"無此設備:{', '.join(unknown[:5])}")
+
+        # ── 舊路徑:形狀完全不變 ──
+        if legacy:
+            rows = await historian.query(dev_list[0], tag_list[0], from_, to, limit)
+            return {
+                "device": dev_list[0],
+                "tag": tag_list[0],
+                "count": len(rows),
+                "degraded": historian.degraded,  # True 表示來自 in-memory fallback
+                "points": rows,
+            }
+
+        if agg not in Historian._AGGS:
+            raise HTTPException(422, f"agg 需為 {'|'.join(Historian._AGGS)}")
+        shape = (shape or "wide").lower()
+        if shape not in ("wide", "long"):
+            raise HTTPException(422, "shape 需為 wide 或 long")
+        # limit 的語意依形狀而不同,否則 wide 會被切得坑坑洞洞:
+        #   long → 就是回傳列數
+        #   wide → **時間列數**。wide 一列要放齊所有序列,若照 long 的列數截斷,
+        #          最舊那個時間點會少掉幾欄變成 null(學生拿到的表格右上角是破的)。
+        #          所以內部多撈 n_series 倍,再取最後 limit 個時間點。
+        n_series = max(1, len(dev_list) * len(tag_list))
+        fetch = limit if shape == "long" else min(limit * n_series, _MAX_FETCH_ROWS)
+        rows = await historian.query_multi(dev_list, tag_list, from_, to, bucket, fetch)
+        truncated = len(rows) >= fetch
+        # 要了卻一筆都沒有的序列要**講出來**。不是每台設備都有每一支 tag
+        # (CNC 是 spindle_current、研磨機才是 motor_current),窗內沒資料也可能是
+        # 那段時間沒運轉。靜靜少一欄,學生會以為那台沒問題 —— 那是誤導。
+        present = {(r["device"], r["tag"]) for r in rows}
+        missing = [f"{d}:{t}" for d in dev_list for t in tag_list if (d, t) not in present]
+        meta = {
+            "devices": dev_list, "tags": tag_list, "bucket_s": bucket,
+            "shape": shape, "rows": len(rows), "truncated": truncated,
+            "missing": missing,          # 要了但窗內無資料的序列(該設備沒這支 tag,或那段沒運轉)
+            "degraded": historian.degraded,
+            # 這座園區的 historian 是對**同一份 snapshot** 取樣的,一拍裡所有設備共用
+            # 同一個 wall_t —— 所以原始點本來就對得齊,不必先降採樣才能並排。
+            # 真工廠的多來源資料沒這個性質,教材要記得講這個差別。
+            "note": "同一拍的所有設備共用同一個時間戳(模擬平台特性,真工廠需自行對齊)",
         }
+        if shape == "long":
+            if format == "csv":
+                cols = (["t", "sim_t", "device", "tag", "value"] if bucket <= 0
+                        else ["t", "sim_t", "device", "tag", "avg", "min", "max", "count"])
+                return _csv_response(cols, rows, "history_long")
+            return {**meta, "points": rows}
+
+        # ── wide:一列一個時間點,每支序列一欄(時間已對齊,可直接丟 pandas)──
+        # wide 是二維表格,一格只放得下**一個**統計量 —— 降採樣時由 ?agg= 決定放哪個;
+        # 四個統計量都要就用 shape=long(那邊四欄都在)。
+        value_key = "value" if bucket <= 0 else agg
+        one_dev = len(dev_list) == 1
+        table: dict = {}
+        sim_of: dict = {}
+        for r in rows:
+            col = r["tag"] if one_dev else f"{r['device']}:{r['tag']}"
+            table.setdefault(col, {})[r["t"]] = r.get(value_key)
+            sim_of.setdefault(r["t"], r.get("sim_t"))
+        cols = sorted(table)
+        times = sorted(sim_of)[-limit:]          # 只留最後 limit 個**時間點**
+        points = [{"t": t, "sim_t": sim_of.get(t),
+                   **{c: table[c].get(t) for c in cols}} for t in times]
+        truncated = truncated or len(sim_of) > len(times)
+        if format == "csv":
+            return _csv_response(["t", "sim_t", *cols], points, "history_wide")
+        return {**meta, "columns": cols, "value": value_key,
+                "rows": len(points), "truncated": truncated, "points": points}
+
+
+    # ── 唯讀 SQL(T14 進階)──────────────────────────────────
+    #
+    # 學生面公開唯讀。技術棧選 TimescaleDB 的初衷就是「SQL 對學生分析友善」——
+    # REST 再怎麼加參數,學到的仍是「一支 API」;能寫 SQL 才是可轉移的技能。
+    #
+    # 兩層防線,順序很重要:
+    #   ① 資料庫自己擋寫入(sqlite mode=ro / PG READ ONLY transaction)← **真正的邊界**
+    #   ② 語法閘門 check_readonly_sql() ← 友善錯誤訊息 + 限制查詢範圍(繞得過,不能只靠它)
+    @app.get("/api/sql/tables")
+    def sql_tables():
+        """可查的表與欄位(學生的第一站:先知道有什麼才寫得出 SQL)。"""
+        return {
+            "backend": historian.backend,
+            "degraded": historian.degraded,
+            "tables": {
+                "telemetry": {
+                    "說明": "高頻遙測。每拍每台每支 tag 一列。",
+                    "欄位": ["wall_t / time(牆鐘)", "sim_t(模擬秒)", "device_id", "tag", "value"],
+                },
+                "events": {
+                    "說明": "狀態轉換與故障。算 MTBF / MTTR / 停機 Pareto 用。**不含故障元件名**。",
+                    "欄位": ["wall_t", "sim_t", "device_id", "company_id", "type",
+                             "from_state", "to_state", "stop_reason"],
+                },
+                "production": {
+                    "說明": "逐件明細(保留約 2 天)。追溯與良率相關分析用。",
+                    "欄位": ["wall_t", "sim_t", "serial", "device_id", "company_id",
+                             "template", "good(1/0)", "defect(不良類型)", "order_id"],
+                },
+                "production_hourly": {
+                    "說明": "每台每小時 × 每種結果的件數(永久保留)。明細清掉後趨勢仍在。",
+                    "欄位": ["hour_t", "device_id", "company_id", "template",
+                             "defect('' = 良品)", "pieces"],
+                },
+            },
+            "限制": {
+                "只准": "SELECT / WITH,一次一句",
+                "列數上限": _SQL_MAX_ROWS,
+                "逾時": f"{_SQL_TIMEOUT_S} 秒",
+                "查不到的東西": "健康度 / 故障元件名是 ground-truth,不在這些表裡(教師面 API 才有)",
+            },
+            "範例": [
+                "SELECT device_id, AVG(value) FROM telemetry "
+                "WHERE tag='vibration_rms' GROUP BY device_id ORDER BY 2 DESC LIMIT 10",
+                "SELECT stop_reason, COUNT(*) FROM events "
+                "WHERE type='state_change' GROUP BY stop_reason ORDER BY 2 DESC",
+                "SELECT device_id, SUM(pieces) FILTER (WHERE defect='') AS good, SUM(pieces) AS total "
+                "FROM production_hourly GROUP BY device_id",
+            ],
+        }
+
+    @app.get("/api/sql")
+    async def run_sql(
+        q: str = Query(..., description="一句唯讀 SQL(SELECT / WITH)"),
+        limit: int = Query(1000, ge=1, le=_SQL_MAX_ROWS),
+        format: str = Query("json", description="json | csv"),
+    ):
+        reason = check_readonly_sql(q, Historian.SQL_TABLES)
+        if reason:
+            raise HTTPException(400, reason)
+        try:
+            cols, rows = await historian.query_sql(q, limit=limit, timeout_s=_SQL_TIMEOUT_S)
+        except RuntimeError as exc:               # 降級 / 後端不支援
+            raise HTTPException(503, str(exc))
+        except Exception as exc:                  # SQL 語法錯 / 逾時 —— 把 DB 的話原樣轉給學生
+            raise HTTPException(400, f"查詢失敗:{exc}")
+        if format == "csv":
+            return _csv_response(cols, [dict(zip(cols, r)) for r in rows], "sql")
+        return {"columns": cols, "rows": len(rows), "truncated": len(rows) >= limit,
+                "data": rows}
 
     # ── 事件 / 逐件生產 / 每小時彙總(學生面公開唯讀)──────
     #

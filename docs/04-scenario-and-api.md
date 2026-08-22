@@ -101,6 +101,8 @@ park:
 | DELETE | `/api/alarm_rules/{id}` | 刪除自己的規則 |
 | GET | `/api/alarm_rules/scores` | 告警規則排行:precision / recall / F1 / 平均提前量 |
 | POST | `/api/predictions` | **階段二**:上傳模型預測 `{device, predicted_fault, eta, confidence}` |
+| GET | `/api/history` | 歷史取數:多設備 / 多 tag / 降採樣 / wide / CSV(見下方 Historian 一節) |
+| GET | `/api/sql` `/api/sql/tables` | **唯讀 SQL**:學生自己寫查詢,四張表白名單,寫入由資料庫層拒絕 |
 | GET | `/api/scores` | 計分排名(公開榜,含誤修次數 `wrong_repairs`) |
 
 ### 教師面(需 auth)
@@ -144,5 +146,37 @@ events:
 ## Historian 寫入
 
 `historian/writer.py` 批次把每個 tag 的 `(time, device_id, tag, value)` 寫入 TimescaleDB
-hypertable。學生階段二用 SQL 撈歷史訓練。提供 `GET /api/history?device=&tag=&from=&to=`
-方便學生匯出 CSV(也鼓勵他們直接連 DB 練 SQL)。
+hypertable(無 DB 時退回 SQLite,再不行走記憶體降級模式;三種後端查出來的結果逐列一致)。
+
+### 取數:`GET /api/history`
+
+| 參數 | 說明 |
+|------|------|
+| `device=` / `tag=` | 舊寫法,單設備單 tag。**維持原本的回傳結構不變** |
+| `devices=` / `tags=` | 逗號分隔多值,一次撈一條產線的跨設備資料 |
+| `bucket=` | 時間桶秒數(0 = 原始取樣)。每桶回 `avg` / `min` / `max` / `count` |
+| `shape=` | `wide`(預設,一列一個時間點、一欄一條序列)或 `long`(一列一個測點) |
+| `format=` | `json`(預設)或 `csv`(帶 UTF-8 BOM,Excel 直接開) |
+| `limit=` | wide 是**時間列數**、long 是總列數 |
+
+**降採樣別只看 `avg`** —— 預測性維護要偵測的就是峰值,振動尖峰被小時平均一抹就沒了;
+`max` 與 `avg` 的差距本身就是那一桶的波動幅度。
+
+時間戳天然對齊(historian 每一拍寫的是同一個快照,不是各 tag 各自取樣),所以 wide 的
+每一列就是一個時刻的橫斷面,`pd.DataFrame(points).corr()` 可以直接算 —— 真工廠的多來源
+資料沒有這個性質,對齊是另一門功課。窗內完全沒資料的序列會列進回傳的 `missing` 欄位,
+不會靜靜消失(不是每台都有每支 tag:CNC 是 `spindle_current`、研磨機才是 `motor_current`)。
+
+### 進階:唯讀 SQL
+
+`GET /api/sql?q=<SQL>` 讓學生直接寫 SQL 撈(`GET /api/sql/tables` 給表結構)。可查的表:
+`telemetry` / `events` / `production` / `production_hourly`。
+
+**安全邊界不靠字串比對。** 關鍵字黑名單只是第一層(擋掉明顯的寫入意圖、給出好的錯誤訊息);
+真正的防線是**讓資料庫自己拒絕寫入** —— SQLite 走 `file:…?mode=ro` URI 連線、PostgreSQL 走
+`READ ONLY` 交易,兩邊都加逾時上限。契約測試刻意繞過正則直接對唯讀連線送 `DELETE`,
+確認擋下來的是資料庫而不是那條正則。
+
+健康度、故障元件名這類 ground-truth 本來就不在這幾張表裡,SQL 撈不到答案。
+
+範例見 `student_kit/p6_fetch_data.py`(四種取法,設備與 tag 由 `/api/catalog` 現查、不寫死)。

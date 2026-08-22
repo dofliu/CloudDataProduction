@@ -577,6 +577,58 @@ class Historian:
         out.sort(key=lambda r: (r["t"], r["device"], r["tag"]))
         return out
 
+    # ── 唯讀 SQL(T14 進階)──────────────────────────────────
+    #
+    # 技術棧選 TimescaleDB 的初衷就是「SQL 對學生分析友善」。REST 再怎麼加參數,
+    # 學到的仍是「一支 API」;能寫 SQL 才是可轉移的技能(去業界也是這樣撈資料)。
+    #
+    # **安全邊界不靠字串比對**。關鍵字黑名單一定繞得過(註解、大小寫、巢狀),所以真正
+    # 的防線是**讓資料庫自己拒絕寫入**:
+    #   sqlite    另開一條 mode=ro 的唯讀連線(URI 模式)—— 寫入在驅動層就被擋
+    #   timescale 在 READ ONLY transaction 裡跑 —— 寫入由 PG 自己拒絕
+    # 白名單與語法檢查是**第二層**(讓錯誤訊息友善、擋掉明顯的誤用),不是唯一那層。
+    #
+    # 四張表都是學生面的事實,不含 ground-truth:events 不存故障元件名、production 只有
+    # 品質結果(良/不良/不良類型)。要看「哪個元件在壞」仍得走教師面的 API。
+    SQL_TABLES = ("telemetry", "events", "production", "production_hourly")
+
+    async def query_sql(self, sql: str, limit: int = 5000,
+                        timeout_s: float = 10.0) -> Tuple[List[str], List[list]]:
+        """跑一段唯讀 SQL,回傳 (欄位名, 列)。不支援 memory / 降級模式。"""
+        if self.degraded or self.backend not in ("sqlite", "timescale"):
+            raise RuntimeError("唯讀 SQL 需要真的資料庫後端(sqlite / timescale);"
+                               "目前是 in-memory 降級模式,請改用 /api/history")
+        if self.backend == "sqlite":
+            return await asyncio.to_thread(self._sqlite_query_sql, sql, limit, timeout_s)
+        return await self._pg_query_sql(sql, limit, timeout_s)
+
+    def _sqlite_query_sql(self, sql, limit, timeout_s) -> Tuple[List[str], List[list]]:
+        import time as _time
+        # 唯讀連線:寫入在**驅動層**就被擋(不是靠我們檢查字串)
+        conn = sqlite3.connect(f"file:{self.sqlite_path}?mode=ro", uri=True,
+                               check_same_thread=False)
+        try:
+            deadline = _time.monotonic() + timeout_s
+            # 逾時:每跑一批 VM 指令就檢查一次,超時丟例外中止(避免一句慢查詢卡住全班)
+            def _guard():
+                return 1 if _time.monotonic() > deadline else 0
+            conn.set_progress_handler(_guard, 10000)
+            cur = conn.execute(sql)
+            cols = [d[0] for d in (cur.description or [])]
+            rows = [list(r) for r in cur.fetchmany(limit)]
+            return cols, rows
+        finally:
+            conn.close()
+
+    async def _pg_query_sql(self, sql, limit, timeout_s) -> Tuple[List[str], List[list]]:
+        async with self._pool.acquire() as conn:
+            # READ ONLY transaction:寫入由 PG 自己拒絕
+            async with conn.transaction(readonly=True):
+                await conn.execute(f"SET LOCAL statement_timeout = {int(timeout_s * 1000)}")
+                recs = await conn.fetch(sql)
+        cols = list(recs[0].keys()) if recs else []
+        return cols, [list(r.values()) for r in recs[:limit]]
+
     # ── 查詢:事件 / 逐件生產 / 每小時彙總 ──────────────────
     async def query_events(self, device_id=None, company_id=None, ev_type=None,
                            stop_reason=None, t_from=None, t_to=None, limit=2000) -> List[dict]:

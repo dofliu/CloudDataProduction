@@ -35,9 +35,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      # 只裝引擎跑場景真正需要的兩個套件 —— 不用整份 requirements.txt(含 pymodbus /
-      # asyncua / fastapi),那些是協定層與 API 層,場景驗證用不到。
-      - run: pip install numpy PyYAML
+      # 只裝跑得起契約測試的最小集合 —— 不用整份 requirements.txt(含 pymodbus /
+      # asyncua),那些是協定層,場景驗證用不到。
+      # fastapi + httpx 是為了 test_data_access.py 的**取數 API 契約**:那支要驗
+      # 「舊呼叫零回歸」,不真的把 app 起起來打一次就等於沒驗。
+      - run: pip install numpy PyYAML fastapi httpx
       - name: verify_scenario
         run: python3 tests/animation/verify_scenario.py
       # 輸入控制:CNC 刻字文字 / 手臂取放點,寫 setpoint 後引擎輸出真的跟著變
@@ -73,6 +75,10 @@ jobs:
 
       - name: 資料鏈(停機原因碼 / 逐件生產 / 事件落地)
         run: python3 tests/test_production_records.py
+
+      # 取數介面:舊呼叫零回歸 / 降採樣數字對 / 後端一致 / 唯讀 SQL 真的唯讀
+      - name: 取數介面(多設備多 tag / 降採樣 / 唯讀 SQL)
+        run: python3 tests/test_data_access.py
 
   # ── 前端型別 + 建置 ──────────────────────────────────────
   web:

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 from contextlib import asynccontextmanager
 from typing import List, Optional
 
@@ -197,10 +198,53 @@ class SessionResetRequest(BaseModel):
     levels: bool = True         # 關卡的教師勾選紀錄(自動判定的關卡本就跟著資料歸零)
 
 
+
+# ── 唯讀 SQL 的語法閘門(T14)────────────────────────────
+# 這是**第二層**防線。真正擋寫入的是資料庫自己(sqlite mode=ro / PG READ ONLY
+# transaction,見 historian.query_sql)—— 關鍵字比對一定繞得過,不能當作唯一那層。
+# 這一層的用途是:給出友善的錯誤訊息、擋掉明顯的誤用、限制查詢範圍。
+_SQL_FORBIDDEN = re.compile(
+    r"\b(insert|update|delete|drop|alter|create|replace|truncate|grant|revoke|"
+    r"attach|detach|vacuum|pragma|copy|call|do|merge|reindex|analyze)\b", re.I)
+_SQL_TABLE_REF = re.compile(r"\b(?:from|join)\s+([A-Za-z_][A-Za-z0-9_]*)", re.I)
+
+
+def _strip_sql_comments(sql: str) -> str:
+    """去掉 -- 行註解與 /* */ 區塊註解 —— 不去掉的話 `SELECT 1 --` 後面藏什麼都看不到。"""
+    sql = re.sub(r"/\*.*?\*/", " ", sql, flags=re.S)
+    sql = re.sub(r"--[^\n]*", " ", sql)
+    return sql
+
+
+def check_readonly_sql(sql: str, allowed: tuple) -> Optional[str]:
+    """回傳擋下來的理由;通過回 None。純函式,方便測試逐條驗。"""
+    body = _strip_sql_comments(sql or "").strip().rstrip(";").strip()
+    if not body:
+        return "SQL 是空的"
+    if ";" in body:
+        return "一次只能跑一句(不接受多句 SQL)"
+    if not re.match(r"^(select|with)\b", body, re.I):
+        return "只接受 SELECT(或 WITH ... SELECT)開頭的查詢"
+    hit = _SQL_FORBIDDEN.search(body)
+    if hit:
+        return f"不允許的關鍵字:{hit.group(1).upper()}"
+    refs = {m.group(1).lower() for m in _SQL_TABLE_REF.finditer(body)}
+    # WITH 的 CTE 名字也會被 FROM 引用到,要放行
+    ctes = {m.group(1).lower() for m in
+            re.finditer(r"\b([A-Za-z_][A-Za-z0-9_]*)\s+as\s*\(", body, re.I)}
+    bad = sorted(refs - set(allowed) - ctes)
+    if bad:
+        return (f"只能查這幾張表:{', '.join(allowed)}(你查了 {', '.join(bad)})")
+    return None
+
+
 # ── 取數輔助(T14)────────────────────────────────────────
 # wide 內部多撈的硬上限:limit × 序列數 可能很大,不能無上限打 DB。
 # 超過就截斷並在回應標 truncated —— 靜靜少給資料比報錯更糟。
 _MAX_FETCH_ROWS = 200_000
+# 唯讀 SQL 的護欄:一句查詢最多回幾列、最多跑幾秒(免得一句慢查詢卡住全班)
+_SQL_MAX_ROWS = 20_000
+_SQL_TIMEOUT_S = 10.0
 
 
 def _split_csv(raw: Optional[str]) -> List[str]:
@@ -642,6 +686,78 @@ def create_app(
             return _csv_response(["t", "sim_t", *cols], points, "history_wide")
         return {**meta, "columns": cols, "value": value_key,
                 "rows": len(points), "truncated": truncated, "points": points}
+
+
+    # ── 唯讀 SQL(T14 進階)──────────────────────────────────
+    #
+    # 學生面公開唯讀。技術棧選 TimescaleDB 的初衷就是「SQL 對學生分析友善」——
+    # REST 再怎麼加參數,學到的仍是「一支 API」;能寫 SQL 才是可轉移的技能。
+    #
+    # 兩層防線,順序很重要:
+    #   ① 資料庫自己擋寫入(sqlite mode=ro / PG READ ONLY transaction)← **真正的邊界**
+    #   ② 語法閘門 check_readonly_sql() ← 友善錯誤訊息 + 限制查詢範圍(繞得過,不能只靠它)
+    @app.get("/api/sql/tables")
+    def sql_tables():
+        """可查的表與欄位(學生的第一站:先知道有什麼才寫得出 SQL)。"""
+        return {
+            "backend": historian.backend,
+            "degraded": historian.degraded,
+            "tables": {
+                "telemetry": {
+                    "說明": "高頻遙測。每拍每台每支 tag 一列。",
+                    "欄位": ["wall_t / time(牆鐘)", "sim_t(模擬秒)", "device_id", "tag", "value"],
+                },
+                "events": {
+                    "說明": "狀態轉換與故障。算 MTBF / MTTR / 停機 Pareto 用。**不含故障元件名**。",
+                    "欄位": ["wall_t", "sim_t", "device_id", "company_id", "type",
+                             "from_state", "to_state", "stop_reason"],
+                },
+                "production": {
+                    "說明": "逐件明細(保留約 2 天)。追溯與良率相關分析用。",
+                    "欄位": ["wall_t", "sim_t", "serial", "device_id", "company_id",
+                             "template", "good(1/0)", "defect(不良類型)", "order_id"],
+                },
+                "production_hourly": {
+                    "說明": "每台每小時 × 每種結果的件數(永久保留)。明細清掉後趨勢仍在。",
+                    "欄位": ["hour_t", "device_id", "company_id", "template",
+                             "defect('' = 良品)", "pieces"],
+                },
+            },
+            "限制": {
+                "只准": "SELECT / WITH,一次一句",
+                "列數上限": _SQL_MAX_ROWS,
+                "逾時": f"{_SQL_TIMEOUT_S} 秒",
+                "查不到的東西": "健康度 / 故障元件名是 ground-truth,不在這些表裡(教師面 API 才有)",
+            },
+            "範例": [
+                "SELECT device_id, AVG(value) FROM telemetry "
+                "WHERE tag='vibration_rms' GROUP BY device_id ORDER BY 2 DESC LIMIT 10",
+                "SELECT stop_reason, COUNT(*) FROM events "
+                "WHERE type='state_change' GROUP BY stop_reason ORDER BY 2 DESC",
+                "SELECT device_id, SUM(pieces) FILTER (WHERE defect='') AS good, SUM(pieces) AS total "
+                "FROM production_hourly GROUP BY device_id",
+            ],
+        }
+
+    @app.get("/api/sql")
+    async def run_sql(
+        q: str = Query(..., description="一句唯讀 SQL(SELECT / WITH)"),
+        limit: int = Query(1000, ge=1, le=_SQL_MAX_ROWS),
+        format: str = Query("json", description="json | csv"),
+    ):
+        reason = check_readonly_sql(q, Historian.SQL_TABLES)
+        if reason:
+            raise HTTPException(400, reason)
+        try:
+            cols, rows = await historian.query_sql(q, limit=limit, timeout_s=_SQL_TIMEOUT_S)
+        except RuntimeError as exc:               # 降級 / 後端不支援
+            raise HTTPException(503, str(exc))
+        except Exception as exc:                  # SQL 語法錯 / 逾時 —— 把 DB 的話原樣轉給學生
+            raise HTTPException(400, f"查詢失敗:{exc}")
+        if format == "csv":
+            return _csv_response(cols, [dict(zip(cols, r)) for r in rows], "sql")
+        return {"columns": cols, "rows": len(rows), "truncated": len(rows) >= limit,
+                "data": rows}
 
     # ── 事件 / 逐件生產 / 每小時彙總(學生面公開唯讀)──────
     #

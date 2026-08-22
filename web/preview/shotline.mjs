@@ -14,7 +14,8 @@ const { chromium } = createRequire(path.join(HERE, "../package.json"))("playwrig
 const BASE = process.env.PREVIEW_URL || "http://localhost:5173/preview/models3d.html";
 const OUT = process.argv[2] || "/tmp/lineshots";
 const COMBOS = process.argv.slice(3).length ? process.argv.slice(3)
-  : ["cnc", "inj", "press", "agv", "solo", "mixed"];
+  : ["cnc", "inj", "press", "agv", "solo", "mixed",
+     "weld", "laserpack", "aoi", "casting", "forging"];
 
 function launchOpts() {
   const exe = process.env.PLAYWRIGHT_CHROMIUM

@@ -688,22 +688,44 @@ console.log("\n[20] 熔煉爐 · slow(×1)—— 爐口世界位置 ↔ tilt_ang
 {
   const rows = (await sweep("melting_furnace", "slow", { stride: 4, probes: ["furnace_lip"] }))
     .filter((r) => r.probes.furnace_lip);
-  // 爐體繞 Z 傾轉 θ 時,爐口(局部 [-2.2, 1.0])的世界 Y = 2.4 + (-2.2·sinθ + 1.0·cosθ)
-  // 傾轉角是負的 → 爐口抬高。用 sin(θ) 當自變數才是線性的(角度本身不是)。
-  const sinT = col(rows, (r) => Math.sin((r.tags.tilt_angle * Math.PI) / 180));
-  checkLinear("熔煉 sin(tilt_angle) → 爐口世界 Y", sinT, col(rows, (r) => r.probes.furnace_lip.y),
-              -2.2, "sin", { minSpan: 0.2, maxErrAllowed: 0.25, minR2: 0.95 });
+  // 爐體繞 Z 傾轉 θ:爐口(局部 [-2.2, 1.0])的世界 Y = 2.4 + (-2.2·sinθ + 1.0·cosθ)。
+  // 這條關係**不是**對 sinθ 的一次式(cosθ 也在動),所以不用線性回歸判 ——
+  // 直接拿引擎的 tilt_angle 代進旋轉公式重建應有位置,比對探針實測值。
+  // 這比回歸更嚴:接錯軸、換算比例錯、符號反,重建誤差都會直接爆掉。
+  const dev = rows.map((r) => {
+    const th = (r.tags.tilt_angle * Math.PI) / 180;
+    return Math.abs(r.probes.furnace_lip.y - (2.4 - 2.2 * Math.sin(th) + 1.0 * Math.cos(th)));
+  });
+  const maxDev = Math.max(...dev);
+  const span = Math.max(...col(rows, (r) => r.tags.tilt_angle)) - Math.min(...col(rows, (r) => r.tags.tilt_angle));
+  // 容許 0.12 模型單位:補間平滑(契約 §3 的 delta-based approach)必然留一點落後,
+  // 但接錯軸的量級是「整個爐口跑掉幾個單位」,兩者差一個數量級。
+  // 幅度門檻只要 8°:爐體**只在出湯段**傾轉(72 s 循環的最後 12%),slow 錄 40 sim 秒
+  // 只涵蓋得到部分出湯 —— 實測變動 14.5°。門檻設 20° 是我一開始估錯錄製窗,
+  // 不是動畫幅度不足(重建誤差 0.0000)。再加一條:要真的有傾到 5° 以上,
+  // 否則整段都停在直立位也會「誤差為 0」而矇混過關。
+  const maxTilt = Math.max(...col(rows, (r) => Math.abs(r.tags.tilt_angle)));
+  check("熔煉 tilt_angle → 爐口世界位置(旋轉公式重建)",
+        maxDev <= 0.12 && span > 8 && maxTilt > 5,
+        `重建誤差 max ${maxDev.toFixed(4)} 模型單位(容許 ≤0.12)· tilt 變動 ${span.toFixed(1)}°`
+        + ` · 最大傾轉 ${maxTilt.toFixed(1)}°`);
 }
 
 console.log("\n[21] 壓鑄機 · slow(×1)—— 移動模板世界 X ↔ clamping_force");
 {
   const rows = (await sweep("die_casting_machine", "slow", { stride: 4, probes: ["moving_platen"] }))
     .filter((r) => r.probes.moving_platen);
-  // 開度 = 1 − 力/(350×0.9);模板 x = -1.6 − 開度×420/50 → 力越大越靠右(單調遞增)
-  const f = col(rows, (r) => r.tags.clamping_force);
-  const x = col(rows, (r) => r.probes.moving_platen.x);
-  checkLinear("壓鑄 clamping_force → 移動模板世界 X", f, x, 8.4 / (350 * 0.9), "ton",
-              { minSpan: 100, maxErrAllowed: 1.2, minR2: 0.90 });
+  // 開度 = 1 − clamp01(力/(350×0.9)),模板 x = -1.6 − 開度×420/50。
+  // clamp01 會在鎖模段**飽和**(力 ≥ 315 ton 後開度恆為 0),所以整段用線性回歸判
+  // 會被飽和區拉平斜率 —— 一樣改成用契約公式重建應有位置再比對。
+  const dev = rows.map((r) => {
+    const open = 1 - Math.min(1, Math.max(0, r.tags.clamping_force / (350 * 0.9)));
+    return Math.abs(r.probes.moving_platen.x - (-1.6 - open * 8.4));
+  });
+  const maxDev = Math.max(...dev);
+  const span = Math.max(...col(rows, (r) => r.tags.clamping_force)) - Math.min(...col(rows, (r) => r.tags.clamping_force));
+  check("壓鑄 clamping_force → 移動模板世界 X(契約公式重建)", maxDev <= 0.45 && span > 100,
+        `重建誤差 max ${maxDev.toFixed(4)} 模型單位(容許 ≤0.45)· 鎖模力變動 ${span.toFixed(0)} ton`);
 }
 
 console.log("\n[22] 鍛造壓機 · slow(×1)—— 上模世界高度 ↔ ram_position");
